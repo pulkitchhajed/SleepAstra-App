@@ -1,0 +1,29 @@
+{
+  "blogs": [
+    {
+      "id": "sleep-apnea-warning-sign",
+      "title": "Sleep Apnea Warning Signs You Should Not Ignore",
+      "summary": "A practical guide to common symptoms, risk factors, and when to seek professional help.",
+      "content": "## Sleep Apnea Warning Signs\n\nSleep apnea can cause repeated breathing pauses during sleep. Common signs include loud snoring, gasping, morning headaches, dry mouth, and daytime sleepiness.\n\n### When to Talk to a Doctor\n\nIf snoring is paired with choking, pauses in breathing, or persistent fatigue, it is worth discussing with a clinician. SnoreClinics AI can help you track patterns, but it is not a medical diagnosis.",
+      "coverImageUrl": "https://images.unsplash.com/photo-1541781774459-bb2af28430e4?w=1200&h=700&fit=crop",
+      "category": "Sleep Apnea",
+      "author": "SnoreClinics Team",
+      "readTimeMinutes": 4,
+      "tags": ["sleep apnea", "snoring", "health"],
+      "uploadedBy": "admin-script",
+      "createdAt": "2026-06-25T00:00:00.000Z"
+    }
+  ],
+  "videos": [
+    {
+      "id": "deep-sleep-meditation-10-min",
+      "title": "Deep Sleep Meditation",
+      "description": "A short guided relaxation video to help users wind down before bedtime.",
+      "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1511295742362-92c96b124e52?w=1200&h=700&fit=crop",
+      "tags": ["meditation", "sleep", "relaxation"],
+      "uploadedBy": "admin-script",
+      "createdAt": "2026-06-25T00:00:00.000Z"
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+﻿Analyzing flutter...                                            
+
+  error - The argument type 'CardTheme' can't be assigned to the parameter type 'CardThemeData?'.  - lib\core\theme\app_theme.dart:76:18 - argument_type_not_assignable
+warning - Unused import: 'package:google_fonts/google_fonts.dart' - lib\main.dart:3:8 - unused_import
+   info - Dangling library doc comment - lib\modules\paywall\models\subscription_plan.dart:1:1 - dangling_library_doc_comments
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\screens\paywall_screen.dart:114:45 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\modules\paywall\screens\paywall_screen.dart:126:36 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\modules\paywall\screens\paywall_screen.dart:129:29 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\screens\paywall_screen.dart:163:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\screens\paywall_screen.dart:185:31 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\screens\paywall_screen.dart:187:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\screens\subscription_success_screen.dart:101:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\screens\subscription_success_screen.dart:102:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\screens\subscription_success_screen.dart:105:43 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\modules\paywall\screens\subscription_success_screen.dart:137:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\modules\paywall\screens\subscription_success_screen.dart:139:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\modules\paywall\screens\subscription_success_screen.dart:141:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\modules\paywall\widgets\feature_comparison_widget.dart:53:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\modules\paywall\widgets\feature_comparison_widget.dart:54:20 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\modules\paywall\widgets\feature_comparison_widget.dart:55:22 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\modules\paywall\widgets\feature_comparison_widget.dart:57:24 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\widgets\plan_card_widget.dart:39:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\widgets\plan_card_widget.dart:89:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\widgets\plan_card_widget.dart:138:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\widgets\plan_card_widget.dart:140:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\widgets\plan_card_widget.dart:159:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\widgets\plan_card_widget.dart:161:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\widgets\plan_card_widget.dart:189:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\widgets\plan_card_widget.dart:235:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\paywall\widgets\plan_card_widget.dart:237:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\screens\sleep_analysis_screen.dart:244:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\screens\sleep_analysis_screen.dart:245:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\screens\sleep_analysis_screen.dart:249:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\screens\sleep_analysis_screen.dart:270:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\screens\sleep_analysis_screen.dart:273:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\screens\sleep_analysis_screen.dart:328:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\screens\sleep_analysis_screen.dart:330:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\screens\sleep_analysis_screen.dart:481:24 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\screens\sleep_analysis_screen.dart:483:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\screens\sleep_report_screen.dart:214:51 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\modules\sleep_analysis\screens\sleep_report_screen.dart:220:38 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\screens\sleep_report_screen.dart:316:23 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\screens\sleep_report_screen.dart:318:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\widgets\sleep_quality_card.dart:57:25 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\widgets\sleep_quality_card.dart:62:47 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\modules\sleep_analysis\widgets\snoring_chart_widget.dart:67:9 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\modules\sleep_analysis\widgets\snoring_chart_widget.dart:68:21 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\modules\sleep_analysis\widgets\snoring_chart_widget.dart:69:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\modules\sleep_analysis\widgets\snoring_chart_widget.dart:71:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\modules\sleep_analysis\widgets\snoring_chart_widget.dart:139:52 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\widgets\snoring_chart_widget.dart:150:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\widgets\snoring_chart_widget.dart:152:28 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\modules\sleep_analysis\widgets\snoring_chart_widget.dart:167:54 - deprecated_member_use
+  error - Target of URI doesn't exist: 'core/theme/app_theme.dart' - lib\screens\home_screen.dart:4:8 - uri_does_not_exist
+  error - Target of URI doesn't exist: 'core/router/app_router.dart' - lib\screens\home_screen.dart:5:8 - uri_does_not_exist
+  error - Target of URI doesn't exist: 'modules/paywall/providers/subscription_provider.dart' - lib\screens\home_screen.dart:6:8 - uri_does_not_exist
+  error - The name 'SubscriptionProvider' isn't a type, so it can't be used as a type argument - lib\screens\home_screen.dart:17:20 - non_type_as_type_argument
+  error - The property 'isPremium' can't be unconditionally accessed because the receiver can be 'null' - lib\screens\home_screen.dart:19:28 - unchecked_use_of_nullable_value
+  error - Undefined name 'AppTheme' - lib\screens\home_screen.dart:53:24 - undefined_identifier
+  error - Undefined name 'AppRouter' - lib\screens\home_screen.dart:54:59 - undefined_identifier
+  error - The name 'SubscriptionProvider' isn't a type, so it can't be used as a type argument - lib\screens\home_screen.dart:59:24 - non_type_as_type_argument
+  error - The property 'isPremium' can't be unconditionally accessed because the receiver can be 'null' - lib\screens\home_screen.dart:61:32 - unchecked_use_of_nullable_value
+  error - The property 'currentPlan' can't be unconditionally accessed because the receiver can be 'null' - lib\screens\home_screen.dart:64:63 - unchecked_use_of_nullable_value
+  error - Undefined name 'AppTheme' - lib\screens\home_screen.dart:66:30 - undefined_identifier
+  error - The method 'cancelSubscription' can't be unconditionally invoked because the receiver can be 'null' - lib\screens\home_screen.dart:67:45 - unchecked_use_of_nullable_value
+  error - Undefined name 'AppTheme' - lib\screens\home_screen.dart:74:30 - undefined_identifier
+  error - Undefined name 'AppRouter' - lib\screens\home_screen.dart:75:65 - undefined_identifier
+  error - Undefined name 'AppTheme' - lib\screens\home_screen.dart:96:16 - undefined_identifier
+  error - Undefined name 'AppTheme' - lib\screens\home_screen.dart:98:35 - undefined_identifier
+  error - Invalid constant value - lib\screens\home_screen.dart:103:56 - invalid_constant
+  error - Undefined name 'AppTheme' - lib\screens\home_screen.dart:103:56 - undefined_identifier
+  error - Invalid constant value - lib\screens\home_screen.dart:108:22 - invalid_constant
+  error - Undefined name 'AppTheme' - lib\screens\home_screen.dart:108:22 - undefined_identifier
+  error - Undefined name 'AppTheme' - lib\screens\home_screen.dart:142:18 - undefined_identifier
+  error - Undefined name 'AppTheme' - lib\screens\home_screen.dart:144:37 - undefined_identifier
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\home_screen.dart:151:30 - deprecated_member_use
+  error - Invalid constant value - lib\screens\home_screen.dart:175:22 - invalid_constant
+  error - Undefined name 'AppTheme' - lib\screens\home_screen.dart:175:22 - undefined_identifier
+  error - The name 'MyApp' isn't a class - test\widget_test.dart:16:35 - creation_with_non_type
+

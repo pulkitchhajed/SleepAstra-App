@@ -1,0 +1,16 @@
+.sounds-tab { display: flex; flex-direction: column; gap: 20px; padding-bottom: 20px; }
+.noise-card {
+  padding: 12px; border-radius: 14px; border: 1px solid rgba(165,180,252,0.1);
+  background: rgba(255,255,255,0.04); transition: all 0.2s;
+}
+.noise-card.active {
+  background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.4);
+  box-shadow: 0 0 12px rgba(99,102,241,0.15);
+}
+.med-item { border: 1px solid transparent; transition: all 0.2s; }
+.med-item.active { border-color: rgba(99,102,241,0.4); background: rgba(99,102,241,0.08) !important; }
+.soundscape-card {
+  padding: 20px 16px; border-radius: 20px; border: 1px solid;
+  display: flex; flex-direction: column; align-items: flex-start; transition: all 0.25s;
+}
+.soundscape-card:hover { transform: translateY(-2px); }

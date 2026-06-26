@@ -1,0 +1,13 @@
+{
+  "name": "snoreclinics-firestore-content-tools",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Firestore blog and video content uploader for SnoreClinics.",
+  "scripts": {
+    "upload-content": "node upload_firestore_content.js",
+    "dry-run": "node upload_firestore_content.js --dry-run"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

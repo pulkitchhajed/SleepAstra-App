@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper Functions ───────────────────────────────────────────────────────
+    
+    // Returns true if the signed-in user's role field in Firestore equals 'admin'.
+    function isAdmin() {
+      return request.auth != null &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Returns true if the caller is authenticated (any user including anonymous).
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // ── Users ──────────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      // Users can only read/write their own document.
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+
+      // Nested sleep reports — scoped to the owner only.
+      match /sleep_reports/{reportId} {
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      // Nested journal entries — scoped to the owner only.
+      match /journal_entries/{entryId} {
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      }
+    }
+
+    // ── Videos ────────────────────────────────────────────────────────────────
+    match /videos/{videoId} {
+      // Every authenticated user can read videos.
+      allow read: if isAuthenticated();
+
+      // Only admins can create, update, or delete videos.
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Blogs
+    match /blogs/{blogId} {
+      // Every authenticated user can read blogs.
+      allow read: if isAuthenticated();
+
+      // Only admins can create, update, or delete blogs.
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,59 @@
+.main-shell {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(160deg, #1e1b4b 0%, #0f0d2e 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+}
+.main-page {
+  width: 100%;
+  max-width: 430px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 100px;
+  position: relative;
+  z-index: 1;
+  scrollbar-width: none;
+}
+.main-page::-webkit-scrollbar { display: none; }
+
+.nidra-fab {
+  position: fixed;
+  bottom: 96px;
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #6366f1, #818cf8);
+  border: 1px solid rgba(165,180,252,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(99,102,241,0.5);
+  cursor: pointer;
+  z-index: 110;
+  transition: box-shadow 0.2s;
+}
+.nidra-fab:hover {
+  box-shadow: 0 12px 30px rgba(99,102,241,0.7);
+}
+
+.nidra-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(15, 13, 46, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.nidra-overlay > div {
+  width: 100%;
+  max-width: 430px;
+  height: 100%;
+}

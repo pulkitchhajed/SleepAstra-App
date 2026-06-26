@@ -1,0 +1,245 @@
+import 'dart:ui' as ui;
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../core/theme/app_theme.dart';
+import '../core/providers/theme_provider.dart';
+import '../modules/ai/screens/nidra_chat_screen.dart';
+import '../screens/home_screen.dart';
+import '../screens/rewards_screen.dart';
+import '../screens/wellness_screen.dart';
+import '../core/widgets/animated_sleep_background.dart';
+import '../core/router/app_router.dart';
+
+class MainNavScreen extends StatefulWidget {
+  final int initialIndex;
+  const MainNavScreen({super.key, this.initialIndex = 0});
+
+  @override
+  State<MainNavScreen> createState() => _MainNavScreenState();
+}
+
+class _MainNavScreenState extends State<MainNavScreen>
+    with SingleTickerProviderStateMixin {
+  late int _currentIndex;
+  late AnimationController _fabPulse;
+  late Animation<double> _fabScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _fabPulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+    _fabScale = Tween<double>(begin: 1.0, end: 1.08).animate(
+      CurvedAnimation(parent: _fabPulse, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _fabPulse.dispose();
+    super.dispose();
+  }
+
+  final List<Widget> _screens = const [
+    HomeScreen(),
+    WellnessScreen(),
+    NidraChatScreen(),
+    RewardsScreen(),
+  ];
+
+  final List<_NavItem> _items = const [
+    _NavItem(Icons.home_rounded, Icons.home_outlined, 'Home'),
+    _NavItem(Icons.spa_rounded, Icons.spa_outlined, 'Wellness'),
+    _NavItem(Icons.chat_bubble_rounded, Icons.chat_bubble_outline, 'Nidra'),
+    _NavItem(Icons.emoji_events_rounded, Icons.emoji_events_outlined, 'Rewards'),
+  ];
+
+  void _openRecording() {
+    Navigator.pushNamed(
+      context,
+      AppRouter.sleepAnalysis,
+      arguments: {
+        'autoStart': false,
+        'alarmTime': null,
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = context.watch<ThemeProvider>().isDarkMode == false;
+    final bg = isLight ? AppTheme.backgroundLight : AppTheme.background;
+
+    return PopScope(
+      canPop: _currentIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: bg,
+        extendBody: true,
+        body: AnimatedSleepBackground(
+          isLightMode: isLight,
+          child: IndexedStack(
+            index: _currentIndex,
+            children: _screens,
+          ),
+        ),
+        bottomNavigationBar: Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+          child: _buildNav(isLight),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNav(bool isLight) {
+    final navBg = isLight 
+        ? Colors.white.withValues(alpha: 0.85) 
+        : AppTheme.background.withValues(alpha: 0.85);
+    final borderColor = isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder;
+    final shadowColor = isLight 
+        ? Colors.black.withValues(alpha: 0.1) 
+        : Colors.black.withValues(alpha: 0.4);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      height: 70,
+      decoration: BoxDecoration(
+        color: navBg,
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: borderColor, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: 32,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(32),
+        child: BackdropFilter(
+          filter: _blurFilter(),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              // Left 2 tabs: Home, Rewards
+              _buildNavItem(0, isLight),
+              _buildNavItem(1, isLight),
+
+              // ── Central Record Button ──
+              GestureDetector(
+                onTap: _openRecording,
+                child: AnimatedBuilder(
+                  animation: _fabScale,
+                  builder: (_, child) => Transform.scale(
+                    scale: _fabScale.value,
+                    child: child,
+                  ),
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF818CF8), Color(0xFF4F46E5)],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.primaryIndigo.withValues(alpha: 0.55),
+                          blurRadius: 16,
+                          spreadRadius: 1,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.mic_rounded, color: Colors.white, size: 24),
+                        SizedBox(height: 1),
+                        Text(
+                          'Record',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Right 2 tabs: Wellness, Nidra
+              _buildNavItem(2, isLight),
+              _buildNavItem(3, isLight),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int i, bool isLight) {
+    final item = _items[i];
+    final selected = _currentIndex == i;
+    final unselectedColor = isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary;
+    
+    return GestureDetector(
+      onTap: () => setState(() => _currentIndex = i),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppTheme.primaryIndigo.withValues(alpha: 0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              selected ? item.activeIcon : item.icon,
+              size: 22,
+              color: selected ? AppTheme.primaryIndigo : unselectedColor,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              item.label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? AppTheme.primaryIndigo : unselectedColor,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  ui.ImageFilter _blurFilter() {
+    return ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20);
+  }
+}
+
+class _NavItem {
+  final IconData activeIcon;
+  final IconData icon;
+  final String label;
+  const _NavItem(this.activeIcon, this.icon, this.label);
+}

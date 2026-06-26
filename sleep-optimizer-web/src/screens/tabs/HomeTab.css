@@ -1,0 +1,69 @@
+.home-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px 0;
+}
+.home-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+}
+.home-greeting { font-size: 0.85rem; color: #a5b4fc; font-weight: 500; }
+.home-name { font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800; color: #f0f0ff; }
+.home-avatar {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #818cf8);
+  border: 2px solid rgba(165,180,252,0.3);
+  color: white; font-size: 1.1rem; font-weight: 700;
+  cursor: pointer; font-family: 'Outfit', sans-serif;
+  box-shadow: 0 0 16px rgba(99,102,241,0.4);
+}
+/* Sleep Hero */
+.sleep-hero-btn {
+  display: block; width: calc(100% - 40px); margin: 0 20px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(59,130,246,0.15));
+  border: 1px solid rgba(99,102,241,0.4); border-radius: 24px; padding: 24px;
+  cursor: pointer; position: relative; overflow: hidden; text-align: left;
+  box-shadow: 0 0 30px rgba(99,102,241,0.2); transition: all 0.3s;
+}
+.sleep-hero-btn:hover { border-color: rgba(99,102,241,0.7); box-shadow: 0 0 50px rgba(99,102,241,0.35); }
+.sleep-hero-glow {
+  position: absolute; inset: 0; border-radius: 24px;
+  background: radial-gradient(ellipse at 30% 50%, rgba(99,102,241,0.2), transparent 60%);
+  pointer-events: none;
+}
+.sleep-hero-inner { display: flex; align-items: center; gap: 18px; position: relative; z-index: 1; }
+.sleep-hero-moon { font-size: 3rem; filter: drop-shadow(0 0 20px rgba(99,102,241,0.8)); animation: float 4s ease-in-out infinite; }
+.sleep-hero-label { font-family: 'Outfit', sans-serif; font-size: 1.5rem; font-weight: 800; color: #f0f0ff; }
+.sleep-hero-sub { font-size: 0.85rem; color: #a5b4fc; margin-top: 4px; }
+/* Bento Grid */
+.bento-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 20px; }
+.bento-card { padding: 16px; }
+.bento-label { font-size: 0.72rem; font-weight: 700; color: #a5b4fc; letter-spacing: 0.05em; text-transform: uppercase; }
+.bento-big { font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800; color: #f0f0ff; margin-top: 6px; }
+.bento-sub { font-size: 0.75rem; color: #6b7280; margin-top: 4px; }
+.bento-score { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.bento-score-ring { position: relative; width: 72px; height: 72px; margin: 8px 0; }
+.score-svg { width: 100%; height: 100%; }
+.score-value {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 800; color: #f0f0ff;
+}
+/* Wind Down */
+.wind-down-card {
+  flex-shrink: 0; min-width: 140px; padding: 16px; display: flex;
+  flex-direction: column;
+}
+.wind-play-btn {
+  margin-top: 10px; padding: 6px 14px; border-radius: 99px; font-size: 0.78rem;
+  font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.wind-play-btn:hover { opacity: 0.8; }
+/* Sleep flow */
+.sleep-flow-overlay {
+  padding: 20px; display: flex; flex-direction: column; gap: 20px; min-height: 100vh;
+}
+.sleep-flow-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; }
+.sleep-flow-step { display: flex; flex-direction: column; }

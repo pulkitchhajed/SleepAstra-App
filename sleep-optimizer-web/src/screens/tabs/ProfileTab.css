@@ -1,0 +1,34 @@
+.profile-tab { display: flex; flex-direction: column; gap: 20px; padding-bottom: 20px; }
+.profile-hero {
+  position: relative; display: flex; flex-direction: column; align-items: center;
+  padding: 40px 20px 32px; overflow: hidden;
+}
+.profile-hero-orb {
+  position: absolute; width: 300px; height: 300px; top: -80px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(99,102,241,0.18), transparent 70%); pointer-events: none;
+}
+.profile-avatar-ring {
+  width: 90px; height: 90px; border-radius: 50%; padding: 3px;
+  background: linear-gradient(135deg, #6366f1, #34d399, #3b82f6);
+  margin-bottom: 16px;
+}
+.profile-avatar-inner {
+  width: 100%; height: 100%; border-radius: 50%;
+  background: linear-gradient(135deg, #2d2a6e, #1e1b4b);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Outfit', sans-serif; font-size: 2rem; font-weight: 800; color: #f0f0ff;
+}
+.profile-name { font-family: 'Outfit', sans-serif; font-size: 1.5rem; font-weight: 800; color: #f0f0ff; }
+.profile-email { font-size: 0.82rem; color: #6b7280; margin-top: 4px; }
+.profile-badges {
+  display: flex; align-items: center; gap: 0; margin-top: 20px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(165,180,252,0.12);
+  border-radius: 20px; padding: 14px 24px; width: 100%; justify-content: space-around;
+}
+.profile-badge { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.profile-badge-divider { width: 1px; height: 40px; background: rgba(165,180,252,0.12); }
+.setting-item {
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+  cursor: pointer; width: 100%; border: none; text-align: left; transition: all 0.2s;
+}
+.setting-item:hover { background: rgba(99,102,241,0.08) !important; }

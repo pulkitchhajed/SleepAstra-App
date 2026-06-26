@@ -1,0 +1,40 @@
+.breathing-root {
+  position: fixed; inset: 0;
+  background: linear-gradient(160deg, #0d0b2b 0%, #0f0d2e 50%, #1a1040 100%);
+  display: flex; flex-direction: column; align-items: center;
+  overflow: hidden; z-index: 200;
+}
+.breathing-particle {
+  position: absolute; bottom: -20px; border-radius: 50%;
+  background: rgba(99,102,241,0.6); pointer-events: none;
+}
+.breathing-header {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 24px 20px; z-index: 1; flex-shrink: 0;
+}
+.breathing-center {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; z-index: 1; padding: 20px;
+}
+.breathing-ring-wrap {
+  position: relative; width: 220px; height: 220px;
+  display: flex; align-items: center; justify-content: center;
+}
+.breathing-ring-outer {
+  width: 200px; height: 200px; border-radius: 50%; border: 3px solid;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.5s;
+}
+.breathing-ring-inner {
+  width: 160px; height: 160px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.orbit-dot {
+  position: absolute; width: 10px; height: 10px; border-radius: 50%;
+  top: 0; left: 50%; margin-left: -5px; transform-origin: 5px 110px;
+  opacity: 0.8;
+}
+.breathing-done {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; height: 100vh; padding: 40px; text-align: center; z-index: 1;
+}
