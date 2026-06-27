@@ -202,6 +202,36 @@ class FirestoreService {
     }
   }
 
+  /// Updates the user's subscription status.
+  static Future<void> updateSubscriptionStatus(String uid, bool isPremium, String tier, DateTime? expiry) async {
+    try {
+      final doc = _userDoc(uid);
+      final updateData = <String, dynamic>{
+        'isPremium': isPremium,
+        'subscriptionTier': tier,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (expiry != null) {
+        updateData['subscriptionExpiry'] = expiry.toIso8601String();
+      }
+      
+      await doc.set(updateData, SetOptions(merge: true));
+
+      // Also mirror to email collection if we can fetch the profile email
+      final snap = await doc.get();
+      if (snap.exists && snap.data() != null) {
+        final email = snap.data()!['email'] as String?;
+        if (email != null && email.isNotEmpty) {
+           await _db.collection('profiles_by_email').doc(email.toLowerCase()).set(
+             updateData, SetOptions(merge: true)
+           );
+        }
+      }
+    } catch (e) {
+      debugPrint('[Firestore] updateSubscriptionStatus error: $e');
+    }
+  }
+
   // ─── Sleep Reports ────────────────────────────────────────────────────────
 
   /// Saves a sleep report to Firestore. Uses recordedAt timestamp as document ID.

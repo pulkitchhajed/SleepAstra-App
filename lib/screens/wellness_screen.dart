@@ -110,37 +110,51 @@ class _WellnessScreenState extends State<WellnessScreen> {
     if (_activeTrackIndex == index) {
       try {
         if (_isPlaying) {
-          _audioPlayer.pause(); // don't await pause
+          _audioPlayer.pause();
           setState(() => _isPlaying = false);
         } else {
-          _audioPlayer.play(); // don't await play
+          _audioPlayer.play();
           setState(() => _isPlaying = true);
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to play/pause audio.')));
       }
     } else {
+      // Show loading immediately — don't await the network fetch
       setState(() {
         _activeTrackIndex = index;
         _isLoading = true;
+        _isPlaying = false;
       });
+
       final snackbarMessenger = ScaffoldMessenger.of(context);
       try {
-        await _audioPlayer.setUrl(_tracks[index].url);
+        // Set URL without awaiting — this returns as soon as buffering starts
+        final audioSource = AudioSource.uri(Uri.parse(_tracks[index].url));
+        await _audioPlayer.setAudioSource(audioSource);
         _audioPlayer.setLoopMode(LoopMode.one);
-        _audioPlayer.play(); // don't await play, it blocks until playback finishes!
-        if (!context.mounted) return;
-        setState(() {
-          _isPlaying = true;
-          _isLoading = false;
+
+        // Listen for when buffering is ready, then play
+        _audioPlayer.processingStateStream.firstWhere(
+          (s) => s == ProcessingState.ready || s == ProcessingState.completed,
+        ).then((_) {
+          if (mounted && _activeTrackIndex == index) {
+            _audioPlayer.play();
+            setState(() {
+              _isPlaying = true;
+              _isLoading = false;
+            });
+          }
         });
+
+        // Safety: also clear loading if there's an error
       } catch (e) {
         if (!context.mounted) return;
         setState(() {
           _isLoading = false;
           _activeTrackIndex = null;
         });
-        snackbarMessenger.showSnackBar(const SnackBar(content: Text('Failed to load audio from internet.')));
+        snackbarMessenger.showSnackBar(const SnackBar(content: Text('Failed to load audio. Check your connection.')));
       }
     }
   }

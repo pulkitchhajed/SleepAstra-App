@@ -49,7 +49,7 @@ class SnoreClinicsApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SleepAnalysisProvider()),
         ChangeNotifierProvider(create: (_) => JournalProvider()),
         ChangeNotifierProvider(create: (_) => RewardsProvider()),
-        ChangeNotifierProvider(create: (_) => SubscriptionProvider()..init()),
+        ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: const _AppGate(),
@@ -125,6 +125,7 @@ class _AppGateState extends State<_AppGate> {
       context.read<JournalProvider>().loadEntries(effectiveUid);
       context.read<SleepAnalysisProvider>().loadHistory(effectiveUid);
       context.read<RewardsProvider>().init(effectiveUid);
+      context.read<SubscriptionProvider>().init(effectiveUid);
     });
   }
 

@@ -21,6 +21,10 @@ class UserProfile {
   final int exerciseDays;
   final int stopBangScore;
   final int coins;
+  // Subscription
+  final bool isPremium;
+  final String subscriptionTier; // 'free', 'monthly', 'annual'
+  final DateTime? subscriptionExpiry;
 
   const UserProfile({
     required this.name,
@@ -41,6 +45,9 @@ class UserProfile {
     this.exerciseDays = 0,
     this.stopBangScore = 0,
     this.coins = 0,
+    this.isPremium = false,
+    this.subscriptionTier = 'free',
+    this.subscriptionExpiry,
   });
 
   double get bmi => weightKg / ((heightCm / 100) * (heightCm / 100));
@@ -64,6 +71,9 @@ class UserProfile {
     int? exerciseDays,
     int? stopBangScore,
     int? coins,
+    bool? isPremium,
+    String? subscriptionTier,
+    DateTime? subscriptionExpiry,
   }) {
     return UserProfile(
       name: name ?? this.name,
@@ -84,6 +94,9 @@ class UserProfile {
       exerciseDays: exerciseDays ?? this.exerciseDays,
       stopBangScore: stopBangScore ?? this.stopBangScore,
       coins: coins ?? this.coins,
+      isPremium: isPremium ?? this.isPremium,
+      subscriptionTier: subscriptionTier ?? this.subscriptionTier,
+      subscriptionExpiry: subscriptionExpiry ?? this.subscriptionExpiry,
     );
   }
 
@@ -106,8 +119,13 @@ class UserProfile {
       'exerciseDays': exerciseDays,
       'stopBangScore': stopBangScore,
       'coins': coins,
+      'isPremium': isPremium,
+      'subscriptionTier': subscriptionTier,
     };
     if (email != null && email!.isNotEmpty) data['email'] = email;
+    if (subscriptionExpiry != null) {
+      data['subscriptionExpiry'] = subscriptionExpiry!.toIso8601String();
+    }
     return data;
   }
 
@@ -130,6 +148,11 @@ class UserProfile {
     exerciseDays: (json['exerciseDays'] as num?)?.toInt() ?? 0,
     stopBangScore: (json['stopBangScore'] as num?)?.toInt() ?? 0,
     coins: (json['coins'] as num?)?.toInt() ?? 0,
+    isPremium: json['isPremium'] as bool? ?? false,
+    subscriptionTier: json['subscriptionTier'] as String? ?? 'free',
+    subscriptionExpiry: json['subscriptionExpiry'] != null 
+        ? DateTime.tryParse(json['subscriptionExpiry'] as String) 
+        : null,
   );
 
   static UserProfile? fromJsonString(String? s) {

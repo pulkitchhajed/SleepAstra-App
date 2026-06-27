@@ -210,12 +210,14 @@ class AudioAnalyzerService {
   }
 
   static SleepStage _ambientStage(double rms, double noiseFloor) {
-    // High amplitude = movement / talking → Awake
-    if (rms > noiseFloor + 0.15) return SleepStage.awake;
-    // Very quiet = deep NREM sleep
-    if (rms < noiseFloor + 0.005) return SleepStage.deep;
-    // Quiet-ish = REM or light NREM
-    if (rms < noiseFloor + 0.025) return SleepStage.rem;
+    // High amplitude = movement / talking / getting up → Awake
+    // Lower threshold to catch lighter movements (was 0.15)
+    if (rms > noiseFloor + 0.08) return SleepStage.awake;
+    // Very quiet = deep NREM sleep — raised ceiling so ambient room
+    // noise doesn't falsely register as deep sleep (was 0.005, far too low)
+    if (rms < noiseFloor + 0.018) return SleepStage.deep;
+    // Quiet-ish breathing / small sounds = REM
+    if (rms < noiseFloor + 0.045) return SleepStage.rem;
     // Moderate = light sleep / micro-arousals
     return SleepStage.light;
   }

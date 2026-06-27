@@ -84,27 +84,52 @@ class _HomeScreenState extends State<HomeScreen> {
           color: AppTheme.primaryIndigo,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+            padding: const EdgeInsets.only(top: 16, bottom: 100),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildHeader(profile.name, isLight, textPrimary, textSec, themeProvider),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildHeader(profile.name, isLight, textPrimary, textSec, themeProvider),
+                ),
                 const SizedBox(height: 20),
-                _buildDailyGoalCard(isLight, textPrimary, textSec, cardBg, cardBorder),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildDailyGoalCard(isLight, textPrimary, textSec, cardBg, cardBorder),
+                ),
                 const SizedBox(height: 20),
-                _buildHeroCard(isLight, textPrimary, textSec, cardBg, cardBorder),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildHeroCard(isLight, textPrimary, textSec, cardBg, cardBorder),
+                ),
                 const SizedBox(height: 16),
-                _buildMetricsRow(profile, isLight, textPrimary, textSec, cardBg, cardBorder),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildMetricsRow(profile, isLight, textPrimary, textSec, cardBg, cardBorder),
+                ),
                 const SizedBox(height: 24),
-                _buildWeeklyTrendChart(isLight, textPrimary, textSec, cardBg, cardBorder),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildWeeklyTrendChart(isLight, textPrimary, textSec, cardBg, cardBorder),
+                ),
                 const SizedBox(height: 24),
-                _buildCalendarSection(textPrimary),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildCalendarSection(textPrimary),
+                ),
                 const SizedBox(height: 24),
+                // BlogHubWidget handles its own horizontal padding to bleed to edges
                 BlogHubWidget(isLight: isLight),
                 const SizedBox(height: 20),
-                _buildAskNidraBanner(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildAskNidraBanner(),
+                ),
                 const SizedBox(height: 20),
-                _buildQuickAccess(isLight, textPrimary, textSec, cardBg, cardBorder),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildQuickAccess(isLight, textPrimary, textSec, cardBg, cardBorder),
+                ),
               ],
             ),
           ),
@@ -117,92 +142,99 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHeader(String name, bool isLight, Color textPrimary, Color textSec, ThemeProvider tp) {
     final h = DateTime.now().hour;
     String greeting = '';
-    IconData timeIcon;
-    Color iconColor;
     String subtext = '';
 
     if (h >= 5 && h < 12) {
       greeting = 'Good Morning';
-      timeIcon = Icons.wb_sunny_rounded;
-      iconColor = const Color(0xFFFDB813); // Sun color
       subtext = 'Fresh start, motivation';
     } else if (h >= 12 && h < 17) {
       greeting = 'Good Afternoon';
-      timeIcon = Icons.wb_sunny_rounded;
-      iconColor = const Color(0xFFFDB813);
       subtext = 'Energy dip, consistency';
     } else if (h >= 17 && h < 21) {
       greeting = 'Good Evening';
-      timeIcon = Icons.nightlight_round;
-      iconColor = isLight ? const Color(0xFF5C6BC0) : const Color(0xFF9FA8DA); // Evening color
       subtext = 'Workout time, stress relief';
     } else {
       greeting = 'Good Night';
-      timeIcon = Icons.nightlight_round;
-      iconColor = isLight ? const Color(0xFF3949AB) : const Color(0xFF7986CB); // Night color
       subtext = 'Wind down, recovery';
     }
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      '$greeting, ${name.isEmpty ? 'Friend' : name}',
-                      style: GoogleFonts.outfit(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        color: textPrimary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(timeIcon, color: iconColor, size: 22),
-                ],
-              ),
-              const SizedBox(height: 4),
               Text(
-                subtext,
-                style: TextStyle(fontSize: 14, color: textSec),
+                '$greeting, ${name.isEmpty ? 'Friend' : name}',
+                style: GoogleFonts.outfit(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: textPrimary,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(subtext, style: TextStyle(fontSize: 14, color: textSec)),
+              const SizedBox(height: 10),
+              // v1.12 badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryIndigo.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: AppTheme.primaryIndigo.withValues(alpha: 0.25)),
+                ),
+                child: Text(
+                  'v1.12',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryIndigo.withValues(alpha: 0.8),
+                    letterSpacing: 0.3,
+                  ),
+                ),
               ),
             ],
           ),
         ),
-        IconButton(
-          icon: Icon(
-            isLight ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-            color: textPrimary, size: 22,
-          ),
-          onPressed: () => tp.toggleTheme(),
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
-        ),
-        const SizedBox(width: 12),
-        GestureDetector(
-          onTap: () => Navigator.pushNamed(context, AppRouter.settings),
-          child: CircleAvatar(
-            radius: 18,
-            backgroundColor: AppTheme.primaryIndigo.withValues(alpha: 0.2),
-            child: Text(
-              name.isNotEmpty ? name[0].toUpperCase() : 'F',
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                color: AppTheme.primaryIndigo,
-                fontSize: 14,
+        Row(
+          children: [
+            IconButton(
+              icon: Icon(
+                isLight ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                color: textPrimary,
+                size: 22,
+              ),
+              onPressed: () => tp.toggleTheme(),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: () => Navigator.pushNamed(context, AppRouter.settings),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: AppTheme.primaryIndigo.withValues(alpha: 0.2),
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : 'F',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryIndigo,
+                    fontSize: 14,
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ],
     );
   }
+
 
   // ── Hero Sleep Score Card (Modern Design) ──────────────────────────────────
   Widget _buildHeroCard(bool isLight, Color textPrimary, Color textSec, Color cardBg, Color cardBorder) {
@@ -278,107 +310,64 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Icon(Icons.star_rounded, color: isLight ? const Color(0xFF818CF8) : Colors.white24, size: 8),
               ),
               
-              // 3. Glowing Circle (behind pillow) — decorative ring only, score shown in left column
+              // 3. Glowing Orb (Premium 3D feel)
               if (hasData)
                 Positioned(
-                  right: 42,
-                  bottom: 30,
+                  right: 35,
+                  bottom: 45,
                   child: Container(
                     width: 90,
                     height: 90,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.transparent,
-                      border: Border.all(color: scoreColor, width: 6),
+                      gradient: RadialGradient(
+                        center: const Alignment(-0.3, -0.4),
+                        radius: 0.8,
+                        colors: [
+                          Colors.white.withValues(alpha: 0.9),
+                          scoreColor.withValues(alpha: 0.8),
+                          scoreColor.withValues(alpha: 0.4),
+                          scoreColor.withValues(alpha: 0.0),
+                        ],
+                        stops: const [0.0, 0.4, 0.8, 1.0],
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: scoreColor.withValues(alpha: 0.4),
-                          blurRadius: 20,
-                          spreadRadius: 2,
+                          color: scoreColor.withValues(alpha: 0.6),
+                          blurRadius: 28,
+                          spreadRadius: 6,
                         ),
                       ],
                     ),
                   ),
                 ),
 
-              // 4. Pillow Graphic
+              // 4. Floating Pedestal
               if (hasData)
                 Positioned(
-                  right: 16,
-                  bottom: 16,
+                  right: 20,
+                  bottom: 25,
                   child: Container(
-                    width: 140,
-                    height: 48, // Slightly taller for more plumpness
+                    width: 120,
+                    height: 35,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(20),
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: isLight
-                            ? [Colors.white, const Color(0xFFE8EEFC), const Color(0xFFD0D9F0)]
-                            : [const Color(0xFF38407B), const Color(0xFF242954), const Color(0xFF161A3A)],
-                        stops: const [0.1, 0.6, 1.0],
+                            ? [Colors.white.withValues(alpha: 0.9), Colors.white.withValues(alpha: 0.5)]
+                            : [const Color(0xFF2A2E50), const Color(0xFF161A3A)],
+                      ),
+                      border: Border.all(
+                        color: isLight ? Colors.white : Colors.white.withValues(alpha: 0.15),
+                        width: 1.5,
                       ),
                       boxShadow: [
-                        // Soft drop shadow
                         BoxShadow(
-                          color: isLight ? Colors.black.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.5),
-                          blurRadius: 16,
-                          offset: const Offset(0, 10),
-                        ),
-                        // Inner highlight (top edge)
-                        BoxShadow(
-                          color: isLight ? Colors.white : Colors.white.withValues(alpha: 0.12),
-                          blurRadius: 4,
-                          spreadRadius: -1,
-                          offset: const Offset(0, -2),
-                        ),
-                        // Inner shadow (bottom edge)
-                        BoxShadow(
-                          color: isLight ? Colors.black.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.4),
-                          blurRadius: 6,
-                          spreadRadius: -2,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    // Pillow crease details to make it plump
-                    child: Stack(
-                      children: [
-                        // Main horizontal seam
-                        Center(
-                          child: Container(
-                            width: 110,
-                            height: 2,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.transparent,
-                                  isLight ? Colors.black.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.3),
-                                  Colors.transparent,
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Soft top highlight
-                        Positioned(
-                          top: 6,
-                          left: 24,
-                          right: 24,
-                          child: Container(
-                            height: 10,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(5),
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.transparent,
-                                  isLight ? Colors.white.withValues(alpha: 0.8) : Colors.white.withValues(alpha: 0.08),
-                                  Colors.transparent,
-                                ],
-                              ),
-                            ),
-                          ),
+                          color: isLight ? Colors.black.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.4),
+                          blurRadius: 10,
+                          offset: const Offset(0, 8),
                         ),
                       ],
                     ),
@@ -458,7 +447,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const Spacer(),
                             Text(
-                              'Tap to view full report →',
+                              'view full report →',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: isLight ? const Color(0xFF7A84A6) : const Color(0xFF6B729E),

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../../core/services/firestore_service.dart';
 import '../models/subscription_plan.dart';
 import '../services/payment_service.dart';
 
@@ -13,6 +14,7 @@ class SubscriptionProvider extends ChangeNotifier {
   PaymentState _paymentState = PaymentState.idle;
   String? _errorMessage;
   SubscriptionPlan? _pendingPlan;
+  String? _uid;
 
   // ── Getters ──────────────────────────────────────────────
   PlanTier get currentTier => _currentTier;
@@ -34,16 +36,49 @@ class SubscriptionProvider extends ChangeNotifier {
 
   // ── Init ─────────────────────────────────────────────────
 
-  Future<void> init() async {
+  Future<void> init(String uid) async {
+    _uid = uid;
     _service.init();
     _service.onDemoSuccess = _onDemoSuccess;
     await _loadSaved();
   }
 
   Future<void> _loadSaved() async {
+    if (_uid == null) return;
+    
+    // 1. Check Firestore as the source of truth
+    try {
+      final profile = await FirestoreService.getProfile(_uid!);
+      if (profile != null) {
+        if (profile.isPremium) {
+           _currentTier = profile.subscriptionTier == 'annual' ? PlanTier.annual : PlanTier.monthly;
+           _expiryDate = profile.subscriptionExpiry;
+           
+           // If expired in firestore, clean it up
+           if (_expiryDate != null && DateTime.now().isAfter(_expiryDate!)) {
+             _currentTier = PlanTier.free;
+             _expiryDate = null;
+             await FirestoreService.updateSubscriptionStatus(_uid!, false, 'free', null);
+           } else {
+             notifyListeners();
+             return; // Successfully loaded from Firestore
+           }
+        }
+      }
+    } catch (e) {
+      debugPrint('[SubscriptionProvider] Error fetching profile: $e');
+    }
+
+    // 2. Fallback to local SharedPreferences
     final result = await _service.loadSubscription();
     _currentTier = result.tier;
     _expiryDate = result.expiry;
+    
+    // If local has premium, sync it UP to firestore
+    if (_currentTier != PlanTier.free) {
+       await FirestoreService.updateSubscriptionStatus(_uid!, true, _currentTier.name, _expiryDate);
+    }
+    
     notifyListeners();
   }
 
@@ -80,6 +115,9 @@ class SubscriptionProvider extends ChangeNotifier {
     await _service.clearSubscription();
     _currentTier = PlanTier.free;
     _expiryDate = null;
+    if (_uid != null) {
+      await FirestoreService.updateSubscriptionStatus(_uid!, false, 'free', null);
+    }
     notifyListeners();
   }
 
@@ -100,6 +138,11 @@ class SubscriptionProvider extends ChangeNotifier {
     _expiryDate = plan.tier == PlanTier.annual
         ? DateTime.now().add(const Duration(days: 365))
         : DateTime.now().add(const Duration(days: 30));
+        
+    if (_uid != null) {
+      await FirestoreService.updateSubscriptionStatus(_uid!, true, _currentTier.name, _expiryDate);
+    }
+    
     _paymentState = PaymentState.success;
     _pendingPlan = null;
     notifyListeners();

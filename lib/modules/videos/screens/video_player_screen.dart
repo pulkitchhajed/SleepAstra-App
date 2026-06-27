@@ -20,6 +20,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool _isInitialized = false;
   bool _hasError = false;
   bool _showControls = true;
+  bool _isBuffering = false;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
 
@@ -36,12 +37,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       );
       await _controller.initialize();
       _controller.addListener(_onVideoUpdate);
-      setState(() {
-        _isInitialized = true;
-        _duration = _controller.value.duration;
-      });
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+          _duration = _controller.value.duration;
+        });
+        // Auto-play on open
+        _controller.play();
+        _autoHideControls();
+      }
     } catch (e) {
-      setState(() => _hasError = true);
+      debugPrint('[VideoPlayer] init error: $e');
+      if (mounted) setState(() => _hasError = true);
     }
   }
 
@@ -49,6 +56,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     if (!mounted) return;
     setState(() {
       _position = _controller.value.position;
+      _isBuffering = _controller.value.isBuffering;
       if (_controller.value.duration != _duration) {
         _duration = _controller.value.duration;
       }
@@ -110,12 +118,38 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                     VideoPlayer(_controller)
                   else if (_hasError)
                     const Center(
-                      child: Icon(Icons.error_outline,
-                          color: AppTheme.error, size: 48),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.error_outline,
+                              color: AppTheme.error, size: 48),
+                          SizedBox(height: 12),
+                          Text('Failed to load video',
+                              style: TextStyle(color: Colors.white70, fontSize: 14)),
+                          SizedBox(height: 4),
+                          Text('Check your internet connection',
+                              style: TextStyle(color: Colors.white38, fontSize: 12)),
+                        ],
+                      ),
                     )
                   else
                     const Center(
-                      child: CircularProgressIndicator(color: AppTheme.primaryIndigo),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: AppTheme.primaryIndigo),
+                          SizedBox(height: 12),
+                          Text('Loading video…',
+                              style: TextStyle(color: Colors.white54, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+
+                  // Buffering spinner overlay (after init, while seeking/buffering)
+                  if (_isInitialized && _isBuffering)
+                    const Center(
+                      child: CircularProgressIndicator(
+                          color: Colors.white70, strokeWidth: 3),
                     ),
 
                   // Controls overlay
