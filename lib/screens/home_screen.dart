@@ -178,26 +178,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 2),
               Text(subtext, style: TextStyle(fontSize: 14, color: textSec)),
-              const SizedBox(height: 10),
-              // v1.12 badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryIndigo.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: AppTheme.primaryIndigo.withValues(alpha: 0.25)),
-                ),
-                child: Text(
-                  'v1.12',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.primaryIndigo.withValues(alpha: 0.8),
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ),
             ],
           ),
         ),

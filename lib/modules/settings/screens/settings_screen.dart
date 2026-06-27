@@ -24,7 +24,7 @@ class SettingsScreen extends StatelessWidget {
     showAboutDialog(
       context: context,
       applicationName: 'SnoreClinics AI',
-      applicationVersion: '2.0.0',
+      applicationVersion: '1.12.0',
       applicationIcon: const Text('🌙', style: TextStyle(fontSize: 40)),
       children: [
         const Text('Designed and developed by the SnoreClinics AI Team.'),
@@ -112,7 +112,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           _tile(context,
             icon: Icons.code_rounded,
-            label: 'Version 2.0.0',
+            label: 'Version 1.12.0',
             onTap: () => _showVersionInfo(context),
           ),
           _tile(context,
@@ -150,12 +150,26 @@ class SettingsScreen extends StatelessWidget {
         ),
         const SizedBox(width: 16),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(name.isEmpty ? 'SnoreClinics User' : name,
-              style: TextStyle(
-                  color: Theme.of(context).brightness == Brightness.light ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18)),
-          Text('Age $age • SnoreClinics AI v2.0',
+          Row(
+            children: [
+              Text(name.isEmpty ? 'SnoreClinics User' : name,
+                  style: TextStyle(
+                      color: Theme.of(context).brightness == Brightness.light ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18)),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryIndigo.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text('v1.12', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.primaryIndigo)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text('Age $age',
               style: TextStyle(
                   color: Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary, fontSize: 13)),
         ]),
