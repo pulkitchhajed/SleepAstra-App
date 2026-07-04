@@ -4,6 +4,7 @@ import '../../modules/sleep_analysis/screens/sleep_analysis_screen.dart';
 import '../../modules/sleep_analysis/screens/sleep_report_screen.dart';
 import '../../modules/sleep_analysis/screens/sleep_history_screen.dart';
 import '../../modules/sleep_analysis/models/sleep_report.dart';
+import '../../modules/sleep_analysis/screens/snore_clips_screen.dart';
 import '../../modules/onboarding/screens/welcome_screen.dart';
 import '../../modules/journal/screens/evening_journal_screen.dart';
 import '../../modules/journal/screens/morning_journal_screen.dart';
@@ -24,6 +25,7 @@ class AppRouter {
   static const String sleepAnalysis = '/sleep-analysis';
   static const String sleepReport   = '/sleep-report';
   static const String sleepHistory  = '/sleep-history';
+  static const String snoreClips    = '/snore-clips';
   static const String eveningJournal = '/journal/evening';
   static const String morningJournal = '/journal/morning';
   static const String journalList   = '/journal';
@@ -67,6 +69,9 @@ class AppRouter {
         return _slideRoute(SleepReportScreen(report: report), s);
       case sleepHistory:
         return _slideRoute(const SleepHistoryScreen(), s);
+      case snoreClips:
+        final clips = s.arguments as List<SnoreAudioClip>? ?? [];
+        return _slideRoute(SnoreClipsScreen(clips: clips), s);
       case eveningJournal:
         return _slideRoute(const EveningJournalScreen(), s);
       case morningJournal:

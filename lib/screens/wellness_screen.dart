@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
@@ -9,10 +10,6 @@ import '../modules/videos/models/video_model.dart';
 import '../modules/videos/services/video_service.dart';
 import '../modules/videos/screens/video_list_screen.dart';
 import '../modules/videos/screens/video_player_screen.dart';
-import '../modules/blogs/models/blog_model.dart';
-import '../modules/blogs/services/blog_service.dart';
-import '../modules/blogs/screens/blog_list_screen.dart';
-import '../modules/blogs/screens/blog_detail_screen.dart';
 import '../modules/blogs/widgets/blog_hub_widget.dart';
 import '../modules/paywall/providers/subscription_provider.dart';
 import '../core/router/app_router.dart';
@@ -24,14 +21,9 @@ class WellnessScreen extends StatefulWidget {
 }
 
 class _WellnessScreenState extends State<WellnessScreen> {
-  int? _activeTimer;
   int? _activeTrackIndex;
   bool _isPlaying = false;
   bool _isLoading = false;
-  Timer? _sleepTimer;
-  bool _isTimerActive = false;
-  bool _isTimerPaused = false;
-  int _timerRemainingSeconds = 0;
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   int _selectedCategoryIndex = 0;
@@ -52,57 +44,16 @@ class _WellnessScreenState extends State<WellnessScreen> {
 
   @override
   void dispose() {
-    _sleepTimer?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }
 
-  void _startTimer() {
-    if (_activeTimer == null) return;
-    setState(() {
-      _isTimerActive = true;
-      if (!_isTimerPaused || _timerRemainingSeconds == 0) {
-        _timerRemainingSeconds = _activeTimer! * 60;
-      }
-      _isTimerPaused = false;
-    });
-
-    _sleepTimer?.cancel();
-    _sleepTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_timerRemainingSeconds > 0) {
-        setState(() {
-          _timerRemainingSeconds--;
-        });
-      } else {
-        _stopWholeThing();
-      }
-    });
-  }
-
-  void _pauseTimer() {
-    _sleepTimer?.cancel();
-    setState(() {
-      _isTimerPaused = true;
-    });
-  }
-
   void _stopWholeThing() {
-    _sleepTimer?.cancel();
     _audioPlayer.stop();
     setState(() {
-      _isTimerActive = false;
-      _isTimerPaused = false;
       _isPlaying = false;
       _activeTrackIndex = null;
-      _activeTimer = null;
-      _timerRemainingSeconds = 0;
     });
-  }
-
-  String get _formattedTime {
-    final m = _timerRemainingSeconds ~/ 60;
-    final s = _timerRemainingSeconds % 60;
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   void _playTrack(int index) async {
@@ -182,16 +133,16 @@ class _WellnessScreenState extends State<WellnessScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
-                Padding(
+                  Padding(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Wellness Hub',
-                          style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.w800, color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary)),
+                          style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.w800, color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary)).animate().fadeIn(duration: 300.ms).slideY(begin: -0.08, end: 0, curve: Curves.easeOut),
                       const SizedBox(height: 4),
                       Text('Find your calm before bed',
-                          style: TextStyle(color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary, fontSize: 14)),
+                          style: TextStyle(color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary, fontSize: 14)).animate().fadeIn(delay: 80.ms, duration: 300.ms),
                     ],
                   ),
                 ),
@@ -243,60 +194,60 @@ class _WellnessScreenState extends State<WellnessScreen> {
                 // Content
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.only(bottom: 150), // space for mini player + timer
+                    padding: const EdgeInsets.only(bottom: 150),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (_selectedCategoryIndex == 0) ...[
-                          _buildSectionTitle('Recommended for you', isLight),
+                          _buildSectionTitle('Recommended for you', isLight).animate().fadeIn(delay: 100.ms, duration: 300.ms),
                           _buildHorizontalList(
                             tracks: [_tracks[3], _tracks[0], _tracks[4]],
                             indices: [3, 0, 4],
                             isLight: isLight,
                             isLarge: true,
-                          ),
+                          ).animate().fadeIn(delay: 150.ms, duration: 350.ms).slideX(begin: 0.05, end: 0, curve: Curves.easeOut),
                           const SizedBox(height: 32),
 
-                          _buildVideoHubSection(isLight),
+                          _buildVideoHubSection(isLight).animate().fadeIn(delay: 200.ms, duration: 350.ms),
                           const SizedBox(height: 32),
 
-                          BlogHubWidget(isLight: isLight),
+                          BlogHubWidget(isLight: isLight).animate().fadeIn(delay: 250.ms, duration: 350.ms),
                           const SizedBox(height: 32),
                         ],
 
                         if (_selectedCategoryIndex == 0 || _selectedCategoryIndex == 1) ...[
-                          _buildSectionTitle('Meditation', isLight),
+                          _buildSectionTitle('Meditation', isLight).animate().fadeIn(delay: 100.ms, duration: 300.ms),
                           _buildHorizontalList(
                             tracks: _tracks.where((t) => t.category == 'Meditation').toList(),
                             indices: _tracks.asMap().entries.where((e) => e.value.category == 'Meditation').map((e) => e.key).toList(),
                             isLight: isLight,
-                          ),
+                          ).animate().fadeIn(delay: 150.ms, duration: 350.ms).slideX(begin: 0.05, end: 0, curve: Curves.easeOut),
                           const SizedBox(height: 32),
                         ],
 
                         if (_selectedCategoryIndex == 0 || _selectedCategoryIndex == 2) ...[
-                          _buildSectionTitle('Sleep Sounds', isLight),
+                          _buildSectionTitle('Sleep Sounds', isLight).animate().fadeIn(delay: 100.ms, duration: 300.ms),
                           _buildHorizontalList(
                             tracks: _tracks.where((t) => t.category == 'Sleep Sounds').toList(),
                             indices: _tracks.asMap().entries.where((e) => e.value.category == 'Sleep Sounds').map((e) => e.key).toList(),
                             isLight: isLight,
-                          ),
+                          ).animate().fadeIn(delay: 150.ms, duration: 350.ms).slideX(begin: 0.05, end: 0, curve: Curves.easeOut),
                           const SizedBox(height: 32),
                         ],
 
                         
                         if (_selectedCategoryIndex == 0 || _selectedCategoryIndex == 3) ...[
-                          _buildSectionTitle('Breathwork', isLight),
-                          _buildBreathworkSection(isLight),
+                          _buildSectionTitle('Breathwork', isLight).animate().fadeIn(delay: 100.ms, duration: 300.ms),
+                          _buildBreathworkSection(isLight).animate().fadeIn(delay: 150.ms, duration: 350.ms).slideX(begin: 0.05, end: 0, curve: Curves.easeOut),
                           const SizedBox(height: 32),
                         ],
                         if (_selectedCategoryIndex == 0 || _selectedCategoryIndex == 4) ...[
-                          _buildSectionTitle('Music', isLight),
+                          _buildSectionTitle('Music', isLight).animate().fadeIn(delay: 100.ms, duration: 300.ms),
                           _buildHorizontalList(
                             tracks: _tracks.where((t) => t.category == 'Music').toList(),
                             indices: _tracks.asMap().entries.where((e) => e.value.category == 'Music').map((e) => e.key).toList(),
                             isLight: isLight,
-                          ),
+                          ).animate().fadeIn(delay: 150.ms, duration: 350.ms).slideX(begin: 0.05, end: 0, curve: Curves.easeOut),
                           const SizedBox(height: 32),
                         ],
 
@@ -313,6 +264,13 @@ class _WellnessScreenState extends State<WellnessScreen> {
                                 end: Alignment.bottomRight,
                               ),
                               borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppTheme.primaryIndigo.withValues(alpha: 0.35),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
                             ),
                             child: Row(
                               children: [
@@ -338,7 +296,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
                               ],
                             ),
                           ),
-                        ),
+                        ).animate().fadeIn(delay: 200.ms, duration: 350.ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOut),
                         const SizedBox(height: 40),
                       ],
                     ),
@@ -877,117 +835,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
     );
   }
 
-  Widget _buildSleepTimer(bool isLight) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: isLight ? AppTheme.surfaceLight : AppTheme.surface,
-        border: Border(top: BorderSide(color: isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text('⏱️ Sleep Timer',
-                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary)),
-              if (_isTimerActive) ...[
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppTheme.accentTeal.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(99),
-                    border: Border.all(color: AppTheme.accentTeal.withValues(alpha: 0.4)),
-                  ),
-                  child: Text(_formattedTime, style: const TextStyle(fontSize: 11, color: AppTheme.accentTeal, fontWeight: FontWeight.w600)),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [15, 30, 45, 60].map((t) {
-              final active = _activeTimer == t;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: (_isTimerActive || _isTimerPaused) ? null : () => setState(() => _activeTimer = active ? null : t),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: active ? AppTheme.accentTeal.withValues(alpha: 0.15) : (isLight ? Colors.black.withValues(alpha: 0.02) : AppTheme.background.withValues(alpha: 0.5)),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: active ? AppTheme.accentTeal : (isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder)),
-                    ),
-                    child: Center(
-                      child: Text('${t}m',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: active ? AppTheme.accentTeal : (isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary),
-                          )),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          if (_activeTimer != null || _isTimerActive || _isPlaying || _isTimerPaused) ...[
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                if (_activeTimer != null)
-                  Expanded(
-                    child: _isTimerActive && !_isTimerPaused
-                      ? ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.accentTeal.withValues(alpha: 0.2),
-                            foregroundColor: AppTheme.accentTeal,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            elevation: 0,
-                          ),
-                          onPressed: _pauseTimer,
-                          icon: const Icon(Icons.pause, size: 20),
-                          label: const Text('Pause', style: TextStyle(fontWeight: FontWeight.bold)),
-                        )
-                      : ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.accentTeal,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          onPressed: _startTimer,
-                          icon: const Icon(Icons.play_arrow, size: 20),
-                          label: Text(_isTimerPaused ? 'Resume' : 'Start', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                  ),
-                if (_activeTimer != null && (_isTimerActive || _isPlaying || _isTimerPaused))
-                  const SizedBox(width: 12),
-                if (_isTimerActive || _isPlaying || _isTimerPaused)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.error.withValues(alpha: 0.15),
-                        foregroundColor: AppTheme.error,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
-                      ),
-                      onPressed: _stopWholeThing,
-                      icon: const Icon(Icons.power_settings_new, size: 20),
-                      label: const Text('Turn Off', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-              ],
-            ),
-          ]
-        ],
-      ),
-    );
-  }
+
 }
 
 class _Track {

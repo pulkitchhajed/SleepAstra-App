@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/theme_provider.dart';
@@ -57,80 +58,118 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               _stepIndicator(4, 13, border),
               const SizedBox(height: 24),
               Text('Tell us about yourself',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: textPrimary)),
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: textPrimary))
+                  .animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
               const SizedBox(height: 8),
               Text('This helps us calculate your BMI and personalise analysis.',
-                  style: TextStyle(color: textSec, fontSize: 15)),
+                  style: TextStyle(color: textSec, fontSize: 15))
+                  .animate().fadeIn(delay: 100.ms, duration: 400.ms),
               const SizedBox(height: 32),
 
               // Age
-              _label('Age: $_age years', textPrimary),
-              Slider(
-                value: _age.toDouble(),
-                min: 13, max: 90,
-                divisions: 77,
-                activeColor: AppTheme.primaryIndigo,
-                inactiveColor: isLight ? AppTheme.primaryIndigo.withValues(alpha: 0.15) : AppTheme.primaryIndigo.withValues(alpha: 0.25),
-                onChanged: (v) => setState(() => _age = v.round()),
-              ),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: AppTheme.glassDecoration(isLightMode: isLight),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _label('Age: $_age years', textPrimary),
+                    Slider(
+                      value: _age.toDouble(),
+                      min: 13, max: 90,
+                      divisions: 77,
+                      activeColor: AppTheme.primaryIndigo,
+                      inactiveColor: isLight ? AppTheme.primaryIndigo.withValues(alpha: 0.15) : AppTheme.primaryIndigo.withValues(alpha: 0.25),
+                      onChanged: (v) => setState(() => _age = v.round()),
+                    ),
+                  ],
+                ),
+              ).animate().fadeIn(delay: 200.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
               const SizedBox(height: 16),
 
               // Gender
-              _label('Gender', textPrimary),
-              const SizedBox(height: 8),
-              Row(
-                children: ['male', 'female', 'other'].map((g) {
-                  final selected = _gender == g;
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _gender = g),
-                      child: Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? AppTheme.primaryIndigo.withValues(alpha: 0.15)
-                              : surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: selected ? AppTheme.primaryIndigo : border,
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: AppTheme.glassDecoration(isLightMode: isLight),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _label('Gender', textPrimary),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: ['male', 'female', 'other'].map((g) {
+                        final selected = _gender == g;
+                        return Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _gender = g),
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? AppTheme.primaryIndigo.withValues(alpha: 0.15)
+                                    : surface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: selected ? AppTheme.primaryIndigo : border,
+                                ),
+                              ),
+                              child: Text(
+                                g[0].toUpperCase() + g.substring(1),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: selected ? AppTheme.primaryIndigo : textSec,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          g[0].toUpperCase() + g.substring(1),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: selected ? AppTheme.primaryIndigo : textSec,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
+                        );
+                      }).toList(),
                     ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 24),
+                  ],
+                ),
+              ).animate().fadeIn(delay: 300.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
+              const SizedBox(height: 16),
 
               // Weight
-              _label('Weight: ${_weight.toStringAsFixed(1)} kg', textPrimary),
-              Slider(
-                value: _weight,
-                min: 30, max: 200,
-                activeColor: AppTheme.accentTeal,
-                inactiveColor: isLight ? AppTheme.accentTeal.withValues(alpha: 0.15) : AppTheme.accentTeal.withValues(alpha: 0.25),
-                onChanged: (v) => setState(() => _weight = v),
-              ),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: AppTheme.glassDecoration(isLightMode: isLight),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _label('Weight: ${_weight.toStringAsFixed(1)} kg', textPrimary),
+                    Slider(
+                      value: _weight,
+                      min: 30, max: 200,
+                      activeColor: AppTheme.accentTeal,
+                      inactiveColor: isLight ? AppTheme.accentTeal.withValues(alpha: 0.15) : AppTheme.accentTeal.withValues(alpha: 0.25),
+                      onChanged: (v) => setState(() => _weight = v),
+                    ),
+                  ],
+                ),
+              ).animate().fadeIn(delay: 400.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
               const SizedBox(height: 16),
 
               // Height
-              _label('Height: ${_height.toStringAsFixed(0)} cm', textPrimary),
-              Slider(
-                value: _height,
-                min: 100, max: 220,
-                activeColor: AppTheme.accentTeal,
-                inactiveColor: isLight ? AppTheme.accentTeal.withValues(alpha: 0.15) : AppTheme.accentTeal.withValues(alpha: 0.25),
-                onChanged: (v) => setState(() => _height = v),
-              ),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: AppTheme.glassDecoration(isLightMode: isLight),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _label('Height: ${_height.toStringAsFixed(0)} cm', textPrimary),
+                    Slider(
+                      value: _height,
+                      min: 100, max: 220,
+                      activeColor: AppTheme.accentTeal,
+                      inactiveColor: isLight ? AppTheme.accentTeal.withValues(alpha: 0.15) : AppTheme.accentTeal.withValues(alpha: 0.25),
+                      onChanged: (v) => setState(() => _height = v),
+                    ),
+                  ],
+                ),
+              ).animate().fadeIn(delay: 500.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
               const SizedBox(height: 40),
 
               SizedBox(
@@ -147,7 +186,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   child: const Text('Continue',
                       style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
                 ),
-              ),
+              ).animate().fadeIn(delay: 600.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
               const SizedBox(height: 24),
             ],
           ),

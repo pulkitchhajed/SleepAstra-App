@@ -13,6 +13,9 @@ dependencies:
   # State management
   provider: ^6.1.2
 
+  # Animations
+  flutter_animate: ^4.5.2
+
   # Audio recording
   record: ^6.2.0
 
@@ -95,6 +98,12 @@ dependencies:
   # .docx parsing (ZIP extraction)
   archive: ^3.6.0
 
+  # Actigraphy — accelerometer for sleep stage refinement
+  sensors_plus: ^6.1.0
+  firebase_storage: ^13.4.3
+  xml: ^6.6.1
+  tflite_flutter: ^0.12.1
+
 dependency_overrides:
   # Override device_info_plus to 11.x to avoid iOS ARC compile error with isiOSAppOnVision
   device_info_plus: ^11.3.0
@@ -123,4 +132,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/models/
     - .env

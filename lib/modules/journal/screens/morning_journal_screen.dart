@@ -5,6 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/chart_theme.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../providers/journal_provider.dart';
 import '../models/journal_entry.dart';
@@ -96,7 +97,7 @@ class _MorningJournalScreenState extends State<MorningJournalScreen> {
             const SizedBox(height: 24),
 
             // Duration Chart for the week
-            _buildWeeklyDurationChart(history, cardBg, cardBorder, textPrimary, textSec),
+            _buildWeeklyDurationChart(history, cardBg, cardBorder, textPrimary, textSec, isLight),
             const SizedBox(height: 32),
 
             // Read-Only List items exactly as in image
@@ -227,7 +228,7 @@ class _MorningJournalScreenState extends State<MorningJournalScreen> {
     );
   }
 
-  Widget _buildWeeklyDurationChart(List<SleepReport> history, Color cardBg, Color cardBorder, Color textPrimary, Color textSec) {
+  Widget _buildWeeklyDurationChart(List<SleepReport> history, Color cardBg, Color cardBorder, Color textPrimary, Color textSec, bool isLight) {
     final monday = _selectedDay.subtract(Duration(days: _selectedDay.weekday - 1));
     final weekReports = <int, SleepReport?>{};
     double maxHours = 8.0;
@@ -309,12 +310,8 @@ class _MorningJournalScreenState extends State<MorningJournalScreen> {
               BarChartData(
                 minY: 0,
                 maxY: maxHours * 1.2,
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  getDrawingHorizontalLine: (_) => FlLine(color: cardBorder, strokeWidth: 1),
-                ),
-                borderData: FlBorderData(show: false),
+                gridData: ChartTheme.gridData(isLight),
+                borderData: ChartTheme.borderData,
                 titlesData: FlTitlesData(
                   topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -329,11 +326,7 @@ class _MorningJournalScreenState extends State<MorningJournalScreen> {
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
                             labels[v.toInt()],
-                            style: TextStyle(
-                              color: isSel ? AppTheme.primaryIndigo : textSec,
-                              fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                              fontSize: 12,
-                            ),
+                            style: ChartTheme.getAxisTextStyle(isLight, isHighlight: isSel),
                           ),
                         );
                       },
@@ -352,6 +345,7 @@ class _MorningJournalScreenState extends State<MorningJournalScreen> {
                         color: isSel ? AppTheme.primaryIndigo : AppTheme.primaryIndigo.withValues(alpha: 0.15),
                         width: 14,
                         borderRadius: BorderRadius.circular(4),
+                        backDrawRodData: ChartTheme.backgroundBar(isLight, maxHours * 1.2),
                       ),
                     ],
                   );

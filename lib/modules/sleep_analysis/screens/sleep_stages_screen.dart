@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/chart_theme.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../sleep_analysis/providers/sleep_analysis_provider.dart';
 import '../../sleep_analysis/models/sleep_report.dart';
@@ -47,35 +49,32 @@ class _SleepStagesScreenState extends State<SleepStagesScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Tabs
-            _buildTabs(cardBg, textPrimary),
+            _buildTabs(isLight, textPrimary).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
             const SizedBox(height: 24),
 
             // Date Range & Nav
-            _buildDateNav(textPrimary, textSec),
+            _buildDateNav(textPrimary, textSec).animate().fadeIn(delay: 100.ms, duration: 400.ms),
             const SizedBox(height: 32),
 
             // Average Duration
-            _buildAverageSleep(history, textPrimary, textSec),
+            _buildAverageSleep(history, textPrimary, textSec).animate().fadeIn(delay: 200.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
             const SizedBox(height: 32),
 
             // Chart
-            _buildChart(history, cardBorder, textPrimary, textSec),
+            _buildChart(history, cardBorder, textPrimary, textSec, isLight).animate().fadeIn(delay: 300.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
             const SizedBox(height: 40),
 
             // Legend & Percentages (mocking percentages for the view)
-            _buildLegend(history, textPrimary, textSec),
+            _buildLegend(history, textPrimary, textSec).animate().fadeIn(delay: 400.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTabs(Color cardBg, Color textPrimary) {
+  Widget _buildTabs(bool isLight, Color textPrimary) {
     return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(24),
-      ),
+      decoration: AppTheme.glassDecoration(isLightMode: isLight),
       padding: const EdgeInsets.all(4),
       child: Row(
         children: [
@@ -197,7 +196,7 @@ class _SleepStagesScreenState extends State<SleepStagesScreen> {
     );
   }
 
-  Widget _buildChart(List<SleepReport> history, Color cardBorder, Color textPrimary, Color textSec) {
+  Widget _buildChart(List<SleepReport> history, Color cardBorder, Color textPrimary, Color textSec, bool isLight) {
     final dates = _getDatesToAnalyze();
     final bars = <BarChartGroupData>[];
     double maxTotal = 8.0;
@@ -232,6 +231,7 @@ class _SleepStagesScreenState extends State<SleepStagesScreen> {
             toY: deepHrs + lightHrs + remHrs + awakeHrs,
             width: _selectedTab == 2 ? 6 : (_selectedTab == 1 ? 24 : 40),
             borderRadius: BorderRadius.circular(4),
+            backDrawRodData: ChartTheme.backgroundBar(isLight, maxTotal * 1.1),
             rodStackItems: [
               BarChartRodStackItem(0, deepHrs, const Color(0xFF1E3A8A)), // Deep
               BarChartRodStackItem(deepHrs, deepHrs + lightHrs, const Color(0xFF6366F1)), // Light
@@ -250,12 +250,8 @@ class _SleepStagesScreenState extends State<SleepStagesScreen> {
         BarChartData(
           minY: 0,
           maxY: maxTotal * 1.1,
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            getDrawingHorizontalLine: (_) => FlLine(color: cardBorder, strokeWidth: 1),
-          ),
-          borderData: FlBorderData(show: false),
+          gridData: ChartTheme.gridData(isLight),
+          borderData: ChartTheme.borderData,
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -281,7 +277,7 @@ class _SleepStagesScreenState extends State<SleepStagesScreen> {
                   
                   return Padding(
                     padding: const EdgeInsets.only(top: 8),
-                    child: Text(label, style: TextStyle(color: textSec, fontSize: 13, fontWeight: FontWeight.w600)),
+                    child: Text(label, style: ChartTheme.getAxisTextStyle(isLight)),
                   );
                 },
               ),

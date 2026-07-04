@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:intl/intl.dart' hide TextDirection;
 import '../models/sleep_report.dart';
+import '../widgets/snore_audio_player.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/theme_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../core/router/app_router.dart';
+import 'snore_clips_screen.dart';
 
 // Import dashboard charts
 import '../widgets/charts/clinical_dashboard_charts.dart';
+import '../widgets/charts/snore_frequency_profile_chart.dart';
+import '../widgets/charts/snore_cadence_chart.dart';
 import '../widgets/sleep_stages_chart_widget.dart';
-import '../services/pdf_export_service.dart';
 import '../../paywall/providers/subscription_provider.dart';
 
 class SleepReportScreen extends StatefulWidget {
@@ -77,9 +80,37 @@ class _SleepReportScreenState extends State<SleepReportScreen>
                   children: [
                     const SizedBox(height: 8),
                     _buildRecordingTimes(textSec, textPrimary),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 8),
                     _buildHeroCard(context, cardBg, cardBorder, textPrimary, textSec, isLight),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 16),
+                    _buildEfficiencyPillRow(cardBg, cardBorder, textPrimary, textSec),
+                    const SizedBox(height: 16),
+                    if (widget.report.snoreAudioClips.isNotEmpty) ...[
+                      _buildSectionHeader('Snore Recordings', Icons.mic_rounded, textPrimary),
+                      const SizedBox(height: 12),
+                      ...widget.report.snoreAudioClips.take(5).map((clip) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12.0),
+                          child: SnoreAudioPlayer(
+                            localPath: clip.localPath,
+                            audioUrl: clip.remoteUrl,
+                          ),
+                        );
+                      }),
+                      if (widget.report.snoreAudioClips.length > 5)
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => SnoreClipsScreen(clips: widget.report.snoreAudioClips),
+                              ),
+                            );
+                          },
+                          child: Text('See all ${widget.report.snoreAudioClips.length} recordings'),
+                        ),
+                      const SizedBox(height: 16),
+                    ],
+                    const SizedBox(height: 12),
                     _buildSectionHeader('Insights', Icons.lightbulb_rounded, textPrimary),
                     const SizedBox(height: 12),
                     _buildInsightsSection(cardBg, cardBorder, textPrimary, textSec),
@@ -119,11 +150,29 @@ class _SleepReportScreenState extends State<SleepReportScreen>
                       ),
                     ),
 
-                    // Snore Detection
+                    // Snore Detection Timeline
                     SnoreIntensityTimelineChart(report: widget.report),
-                    
+
+                    // Audio Clips Access Button
+                    if (widget.report.snoreAudioClips.isNotEmpty)
+                      _buildAudioClipsCard(cardBg, cardBorder, textPrimary, textSec),
+
+
+                    // Noise Classification Breakdown (new)
+                    NoiseClassificationChart(report: widget.report),
+
+                    // Snore Episode Burst Pattern
+                    SnoreCadenceChart(report: widget.report),
+
+                    // Sound Frequency Profile (SBER)
+                    SnoreFrequencyProfileChart(report: widget.report),
+
                     // Suspect Apnea Events
                     ApneaTimelineChart(report: widget.report),
+
+                    // AHI Clinical Summary (only when CSG detector has data)
+                    if (widget.report.apneaHypopneaIndex > 0 || widget.report.detectedApneaEvents.isNotEmpty)
+                      _buildAhiCard(cardBg, cardBorder, textPrimary, textSec),
 
                     // --- Hidden Charts ---
                     /*
@@ -247,6 +296,84 @@ class _SleepReportScreenState extends State<SleepReportScreen>
           ],
         ),
       ],
+    );
+  }
+
+  // ─── Sleep Efficiency Pill Row ─────────────────────────────────
+  Widget _buildEfficiencyPillRow(Color cardBg, Color cardBorder, Color textPrimary, Color textSec) {
+    final efficiency  = widget.report.sleepEfficiencyPercent;
+    final snoringFree = widget.report.snoringFreePercent;
+    // Breathing regularity derived from apnea events per hour (inverse of disruption)
+    final apneaEvents = widget.report.suspectedApneaEvents.length;
+    final hours       = widget.report.totalDuration.inSeconds / 3600.0;
+    final eventsPerH  = hours > 0.1 ? apneaEvents / hours : 0.0;
+    final regularity  = (100 - (eventsPerH * 5).clamp(0.0, 60.0)).clamp(40.0, 100.0);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          Expanded(child: _efficiencyPill(
+            icon: Icons.bedtime_outlined,
+            color: AppTheme.accentTeal,
+            label: 'Sleep Efficiency',
+            value: '${efficiency.toInt()}%',
+            cardBg: cardBg, cardBorder: cardBorder, textPrimary: textPrimary, textSec: textSec,
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: _efficiencyPill(
+            icon: Icons.air_rounded,
+            color: AppTheme.primaryIndigo,
+            label: 'Snore-Free',
+            value: '${snoringFree.toInt()}%',
+            cardBg: cardBg, cardBorder: cardBorder, textPrimary: textPrimary, textSec: textSec,
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: _efficiencyPill(
+            icon: Icons.favorite_border_rounded,
+            color: AppTheme.primaryGold,
+            label: 'Regularity',
+            value: '${regularity.toInt()}%',
+            cardBg: cardBg, cardBorder: cardBorder, textPrimary: textPrimary, textSec: textSec,
+          )),
+        ],
+      ),
+    );
+  }
+
+  Widget _efficiencyPill({
+    required IconData icon,
+    required Color color,
+    required String label,
+    required String value,
+    required Color cardBg,
+    required Color cardBorder,
+    required Color textPrimary,
+    required Color textSec,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: cardBorder),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 30, height: 30,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 15),
+          ),
+          const SizedBox(height: 6),
+          Text(value, style: TextStyle(color: textPrimary, fontSize: 14, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(color: textSec, fontSize: 9), textAlign: TextAlign.center),
+        ],
+      ),
     );
   }
 
@@ -478,6 +605,58 @@ class _SleepReportScreenState extends State<SleepReportScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ─── Snore Audio Clips Card ──────────────────────────────────
+  Widget _buildAudioClipsCard(Color cardBg, Color cardBorder, Color textPrimary, Color textSec) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushNamed(
+          context, 
+          AppRouter.snoreClips, 
+          arguments: widget.report.snoreAudioClips,
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryIndigo.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.primaryIndigo.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryIndigo.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.headphones_rounded, color: AppTheme.primaryIndigo, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Listen to Snore Recordings',
+                    style: TextStyle(color: textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${widget.report.snoreAudioClips.length} audio clips saved',
+                    style: TextStyle(color: textSec, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded, color: AppTheme.primaryIndigo, size: 16),
+          ],
+        ),
       ),
     );
   }
@@ -714,6 +893,215 @@ class _SleepReportScreenState extends State<SleepReportScreen>
           ]),
         ],
       ),
+    );
+  }
+
+  // ─── AHI Clinical Summary Card ─────────────────────────────────
+  Widget _buildAhiCard(Color cardBg, Color cardBorder, Color textPrimary, Color textSec) {
+    final ahi      = widget.report.apneaHypopneaIndex;
+    final label    = widget.report.ahiClassification;
+    final events   = widget.report.detectedApneaEvents;
+    final highConf = events.where((e) => e.confidence >= 0.75).length;
+    final hasActi  = widget.report.actigraphyAvailable;
+
+    // Colour coding by OSA severity
+    final Color classColor = ahi < 5
+        ? AppTheme.accentTeal
+        : ahi < 15
+            ? AppTheme.primaryGold
+            : ahi < 30
+                ? const Color(0xFFFB923C) // orange
+                : AppTheme.error;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: classColor.withValues(alpha: 0.10),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: classColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.monitor_heart_rounded, color: classColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('AHI Analysis',
+                        style: TextStyle(color: textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
+                    Text('Apnea-Hypopnea Index',
+                        style: TextStyle(color: textSec, fontSize: 11)),
+                  ],
+                ),
+              ),
+              // Actigraphy badge
+              if (hasActi)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentTeal.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.accentTeal.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.sensors_rounded, color: AppTheme.accentTeal, size: 11),
+                      const SizedBox(width: 4),
+                      Text('Motion', style: TextStyle(color: AppTheme.accentTeal, fontSize: 10, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // AHI score row
+          Row(
+            children: [
+              // Big AHI number
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ahi.toStringAsFixed(1),
+                      style: TextStyle(
+                        color: classColor,
+                        fontSize: 42,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -1,
+                      ),
+                    ),
+                    Text('events / hour', style: TextStyle(color: textSec, fontSize: 11)),
+                  ],
+                ),
+              ),
+              // Classification badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: classColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: classColor.withValues(alpha: 0.35)),
+                ),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: classColor,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Event stats row
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: textPrimary.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _ahiStat('Total Events', '${events.length}', textPrimary, textSec),
+                Container(width: 1, height: 30, color: textSec.withValues(alpha: 0.15)),
+                _ahiStat('High Confidence', '$highConf', textPrimary, textSec),
+                Container(width: 1, height: 30, color: textSec.withValues(alpha: 0.15)),
+                _ahiStat('Avg Gap', events.isEmpty ? '--' : '${(events.map((e) => e.gapDuration.inSeconds).reduce((a, b) => a + b) / events.length).round()}s', textPrimary, textSec),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          // AHI scale reference
+          _buildAhiScale(ahi, textSec),
+          const SizedBox(height: 10),
+          Text(
+            'AHI is calculated using the Crescendo–Silence–Gasp clinical pattern. '
+            'This is a screening tool only. Please consult a physician for a formal diagnosis.',
+            style: TextStyle(color: textSec, fontSize: 10, height: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ahiStat(String label, String value, Color textPrimary, Color textSec) {
+    return Column(
+      children: [
+        Text(value, style: TextStyle(color: textPrimary, fontSize: 18, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 2),
+        Text(label, style: TextStyle(color: textSec, fontSize: 10)),
+      ],
+    );
+  }
+
+  Widget _buildAhiScale(double ahi, Color textSec) {
+    final stops = [
+      (0.0, 5.0,  'Normal',   AppTheme.accentTeal),
+      (5.0, 15.0, 'Mild',     AppTheme.primaryGold),
+      (15.0, 30.0,'Moderate', const Color(0xFFFB923C)),
+      (30.0, 50.0,'Severe',   AppTheme.error),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('AHI Reference Scale', style: TextStyle(color: textSec, fontSize: 10, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Row(
+          children: stops.map((stop) {
+            final (lo, hi, name, color) = stop;
+            final isActive = ahi >= lo && ahi < hi;
+            return Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 1),
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                decoration: BoxDecoration(
+                  color: isActive ? color.withValues(alpha: 0.2) : color.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(6),
+                  border: isActive
+                      ? Border.all(color: color.withValues(alpha: 0.5), width: 1.5)
+                      : null,
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 6, height: 6,
+                      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(name, style: TextStyle(color: color, fontSize: 8, fontWeight: isActive ? FontWeight.w700 : FontWeight.w500), textAlign: TextAlign.center),
+                    Text('${lo.toInt()}-${hi == 50.0 ? "30+" : hi.toInt()}', style: TextStyle(color: textSec, fontSize: 7)),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 

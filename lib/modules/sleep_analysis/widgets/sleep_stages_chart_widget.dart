@@ -1,9 +1,11 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../models/sleep_report.dart';
 import '../utils/sleep_ui_config.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/chart_theme.dart';
 
 class SleepStagesChartWidget extends StatelessWidget {
   final List<AmplitudeSample> samples;
@@ -19,6 +21,7 @@ class SleepStagesChartWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     if (samples.isEmpty) return const SizedBox.shrink();
 
     // Downsample to at most 100 points for the hypnogram
@@ -43,16 +46,8 @@ class SleepStagesChartWidget extends StatelessWidget {
             LineChartData(
               minY: 0,
               maxY: 3,
-              gridData: FlGridData(
-                show: true,
-                drawVerticalLine: false,
-                horizontalInterval: 1,
-                getDrawingHorizontalLine: (value) => const FlLine(
-                  color: AppTheme.cardBorder,
-                  strokeWidth: 0.5,
-                ),
-              ),
-              borderData: FlBorderData(show: false),
+              gridData: ChartTheme.gridData(isLight, horizontalInterval: 1),
+              borderData: ChartTheme.borderData,
               titlesData: FlTitlesData(
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
@@ -67,7 +62,7 @@ class SleepStagesChartWidget extends StatelessWidget {
                         case 2: label = SleepStage.rem.displayName; break;
                         case 3: label = SleepStage.awake.displayName; break;
                       }
-                      return Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 10));
+                      return Text(label, style: ChartTheme.getAxisTextStyle(isLight));
                     },
                   ),
                 ),
@@ -77,19 +72,17 @@ class SleepStagesChartWidget extends StatelessWidget {
                   sideTitles: SideTitles(
                     showTitles: true,
                     reservedSize: 22,
-                    interval: (displaySamples.isNotEmpty && displaySamples.last.timeSeconds > 0)
-                        ? (displaySamples.last.timeSeconds / 4).clamp(3600.0, double.infinity).toDouble()
-                        : 3600.0,
+                    interval: max(1, (displaySamples.length / 4).floorToDouble()),
                     getTitlesWidget: (value, meta) {
                       final idx = value.toInt();
-                      if (idx < 0 || idx >= displaySamples.length) return const SizedBox();
+                      if (idx < 0 || idx >= displaySamples.length) return const SizedBox.shrink();
                       
                       final absoluteTime = recordedAt.add(Duration(seconds: displaySamples[idx].timeSeconds.toInt()));
                       return SideTitleWidget(
                         meta: meta,
                         child: Text(
                           DateFormat('h a').format(absoluteTime),
-                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 10),
+                          style: ChartTheme.getAxisTextStyle(isLight),
                         ),
                       );
                     },
@@ -118,6 +111,7 @@ class SleepStagesChartWidget extends StatelessWidget {
                   ),
                 ),
               ],
+              lineTouchData: ChartTheme.lineTouchData(isLight),
             ),
           ),
         ),

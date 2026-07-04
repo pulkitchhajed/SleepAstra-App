@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/chart_theme.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../sleep_analysis/providers/sleep_analysis_provider.dart';
 import '../../sleep_analysis/models/sleep_report.dart';
@@ -45,27 +47,24 @@ class _SnoreTrackingScreenState extends State<SnoreTrackingScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildTabs(cardBg, textPrimary),
+            _buildTabs(isLight, textPrimary).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
             const SizedBox(height: 24),
-            _buildDateNav(textPrimary, textSec),
+            _buildDateNav(textPrimary, textSec).animate().fadeIn(delay: 100.ms, duration: 400.ms),
             const SizedBox(height: 32),
-            _buildTotalSnoring(history, textPrimary, textSec),
+            _buildTotalSnoring(history, textPrimary, textSec).animate().fadeIn(delay: 200.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
             const SizedBox(height: 32),
-            _buildChart(history, cardBorder, textSec),
+            _buildChart(history, cardBorder, textSec, isLight).animate().fadeIn(delay: 300.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
             const SizedBox(height: 40),
-            _buildStatsList(history, textPrimary, textSec, cardBorder),
+            _buildStatsList(history, textPrimary, textSec, cardBorder).animate().fadeIn(delay: 400.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTabs(Color cardBg, Color textPrimary) {
+  Widget _buildTabs(bool isLight, Color textPrimary) {
     return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(24),
-      ),
+      decoration: AppTheme.glassDecoration(isLightMode: isLight),
       padding: const EdgeInsets.all(4),
       child: Row(
         children: [
@@ -210,7 +209,7 @@ class _SnoreTrackingScreenState extends State<SnoreTrackingScreen> {
     );
   }
 
-  Widget _buildChart(List<SleepReport> history, Color cardBorder, Color textSec) {
+  Widget _buildChart(List<SleepReport> history, Color cardBorder, Color textSec, bool isLight) {
     final dates = _getDatesToAnalyze();
     final bars = <BarChartGroupData>[];
     double maxTotal = 1.0;
@@ -236,6 +235,7 @@ class _SnoreTrackingScreenState extends State<SnoreTrackingScreen> {
             width: _selectedTab == 2 ? 4 : (_selectedTab == 1 ? 12 : 30),
             color: AppTheme.error,
             borderRadius: BorderRadius.circular(4),
+            backDrawRodData: ChartTheme.backgroundBar(isLight, maxTotal * 1.2),
           )
         ]
       ));
@@ -247,12 +247,8 @@ class _SnoreTrackingScreenState extends State<SnoreTrackingScreen> {
         BarChartData(
           minY: 0,
           maxY: maxTotal * 1.2,
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            getDrawingHorizontalLine: (_) => FlLine(color: cardBorder, strokeWidth: 1),
-          ),
-          borderData: FlBorderData(show: false),
+          gridData: ChartTheme.gridData(isLight),
+          borderData: ChartTheme.borderData,
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -276,7 +272,7 @@ class _SnoreTrackingScreenState extends State<SnoreTrackingScreen> {
                   }
                   return Padding(
                     padding: const EdgeInsets.only(top: 8),
-                    child: Text(label, style: TextStyle(color: textSec, fontSize: 13, fontWeight: FontWeight.w600)),
+                    child: Text(label, style: ChartTheme.getAxisTextStyle(isLight)),
                   );
                 },
               ),

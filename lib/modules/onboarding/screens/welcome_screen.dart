@@ -1,38 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import 'signup_step_screen.dart';
 
-class WelcomeScreen extends StatefulWidget {
+class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
-
-  @override
-  State<WelcomeScreen> createState() => _WelcomeScreenState();
-}
-
-class _WelcomeScreenState extends State<WelcomeScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _fade;
-  late Animation<Offset> _slide;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
-    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
-    _slide = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
-    _ctrl.forward();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,14 +19,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     return Scaffold(
       backgroundColor: bg,
       body: SafeArea(
-        child: FadeTransition(
-          opacity: _fade,
-          child: SlideTransition(
-            position: _slide,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const Spacer(flex: 2),
                   // Logo / Moon
@@ -72,7 +43,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                     ),
                     child: const Center(
                         child: Text('🌙', style: TextStyle(fontSize: 56))),
-                  ),
+                  ).animate().scale(duration: 600.ms, curve: Curves.easeOutBack),
                   const SizedBox(height: 32),
                   Text(
                     'SnoreClinics AI',
@@ -83,22 +54,22 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       letterSpacing: -1,
                     ),
                     textAlign: TextAlign.center,
-                  ),
+                  ).animate().fadeIn(delay: 200.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
                   const SizedBox(height: 16),
                   Text(
                     'Monitor your sleep, detect snoring & apnea risk, and get personalised AI-driven insights to sleep better.',
                     style: TextStyle(color: textSec, fontSize: 16, height: 1.5),
                     textAlign: TextAlign.center,
-                  ),
+                  ).animate().fadeIn(delay: 300.ms, duration: 400.ms),
                   const Spacer(flex: 2),
                   // Features row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _featurePill('🎙️', 'Record', textSec),
-                      _featurePill('🧠', 'AI Analysis', textSec),
-                      _featurePill('📊', 'Insights', textSec),
-                      _featurePill('💬', 'Nidra Chat', textSec),
+                      _featurePill('🎙️', 'Record', textSec).animate().fadeIn(delay: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
+                      _featurePill('🧠', 'AI Analysis', textSec).animate().fadeIn(delay: 450.ms).slideY(begin: 0.1, curve: Curves.easeOut),
+                      _featurePill('📊', 'Insights', textSec).animate().fadeIn(delay: 500.ms).slideY(begin: 0.1, curve: Curves.easeOut),
+                      _featurePill('💬', 'Nidra Chat', textSec).animate().fadeIn(delay: 550.ms).slideY(begin: 0.1, curve: Curves.easeOut),
                     ],
                   ),
                   const Spacer(),
@@ -122,7 +93,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                           style: TextStyle(
                               fontSize: 18, fontWeight: FontWeight.w700)),
                     ),
-                  ),
+                  ).animate().fadeIn(delay: 650.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
@@ -142,7 +113,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             borderRadius: BorderRadius.circular(18)),
                       ),
                     ),
-                  ),
+                  ).animate().fadeIn(delay: 750.ms, duration: 400.ms).slideY(begin: 0.1, curve: Curves.easeOut),
                   const SizedBox(height: 32),
                   Consumer<AuthProvider>(
                     builder: (context, auth, _) => Opacity(
@@ -158,9 +129,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               ),
             ),
           ),
-        ),
-      ),
-    );
+      );
   }
 
   Widget _featurePill(String emoji, String label, Color textSec) {

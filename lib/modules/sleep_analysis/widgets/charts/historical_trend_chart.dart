@@ -2,9 +2,12 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../../models/sleep_report.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/chart_theme.dart';
+import '../../../../core/providers/theme_provider.dart';
 
 class HistoricalTrendChart extends StatelessWidget {
   final List<SleepReport> history;
@@ -13,6 +16,7 @@ class HistoricalTrendChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = context.watch<ThemeProvider>().isDarkMode == false;
     if (history.length < 2) return const SizedBox.shrink();
 
     // Sort ascending for chart (oldest to newest)
@@ -89,14 +93,7 @@ class HistoricalTrendChart extends StatelessWidget {
                     },
                   ),
                 ),
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  getDrawingHorizontalLine: (_) => const FlLine(
-                    color: AppTheme.cardBorder,
-                    strokeWidth: 0.5,
-                  ),
-                ),
+                gridData: ChartTheme.gridData(isLight),
                 titlesData: FlTitlesData(
                   topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -114,14 +111,14 @@ class HistoricalTrendChart extends StatelessWidget {
                           meta: meta,
                           child: Text(
                             DateFormat('M/d').format(date),
-                            style: TextStyle(color: AppTheme.textSecondary, fontSize: 10),
+                            style: ChartTheme.getAxisTextStyle(isLight),
                           ),
                         );
                       },
                     ),
                   ),
                 ),
-                borderData: FlBorderData(show: false),
+                borderData: ChartTheme.borderData,
                 lineBarsData: [
                   LineChartBarData(
                     spots: scoreSpots,

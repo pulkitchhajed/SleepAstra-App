@@ -240,14 +240,7 @@ class FirestoreService {
     final docId = report.recordedAt.millisecondsSinceEpoch.toString();
 
     // Compress amplitudeTimeline to stay under Firestore 1 MB doc limit without downsampling
-    final timelinePoints = report.amplitudeTimeline.map((s) => {
-      'timeSeconds': s.timeSeconds,
-      'amplitude': s.amplitude,
-      'isSnoring': s.isSnoring,
-      'stage': s.stage.name,
-      'intensity': s.intensity.name,
-      if (s.dominantFrequencyHz != null) 'freqHz': s.dominantFrequencyHz,
-    }).toList();
+    final timelinePoints = report.amplitudeTimeline.map((s) => s.toJson()).toList();
     final timelineBytes = utf8.encode(jsonEncode(timelinePoints));
     final timelineCompressed = gzip.encode(timelineBytes);
     final timelineBase64 = base64Encode(timelineCompressed);
@@ -285,7 +278,16 @@ class FirestoreService {
       'remSleepPercent': report.remSleepPercent,
       'apneaRiskLevel': report.apneaRiskLevel,
       'cpapUsageDurationMs': report.cpapUsageDuration.inMilliseconds,
+      'apneaHypopneaIndex': report.apneaHypopneaIndex,
+      'detectedApneaEvents': report.detectedApneaEvents.map((e) => {
+        'timestampMs': e.timestamp.inMilliseconds,
+        'gapDurationMs': e.gapDuration.inMilliseconds,
+        'type': e.type.name,
+        'peakRecoveryAmplitude': e.peakRecoveryAmplitude,
+        'confidence': e.confidence,
+      }).toList(),
       'createdAt': FieldValue.serverTimestamp(),
+      'snoreAudioClips': report.snoreAudioClips.map((c) => c.toJson()).toList(),
     });
   }
 
@@ -435,7 +437,7 @@ class FirestoreService {
       totalDuration: Duration(milliseconds: (data['totalDurationMs'] as num?)?.toInt() ?? 0),
       snoringDuration: Duration(milliseconds: (data['snoringDurationMs'] as num?)?.toInt() ?? 0),
       snoringEventCount: (data['snoringEventCount'] as num?)?.toInt() ?? 0,
-      qualityScore: (data['qualityScore'] as num).toDouble(),
+      qualityScore: (data['qualityScore'] as num?)?.toDouble() ?? 0.0,
       quality: SleepQuality.values.firstWhere(
         (q) => q.name == data['quality'],
         orElse: () => SleepQuality.good,
@@ -448,20 +450,7 @@ class FirestoreService {
               ))
           .toList(),
       amplitudeTimeline: timelineData
-          .map((s) => AmplitudeSample(
-                timeSeconds: (s['timeSeconds'] as num).toDouble(),
-                amplitude: (s['amplitude'] as num).toDouble(),
-                isSnoring: s['isSnoring'] as bool? ?? false,
-                stage: SleepStage.values.firstWhere(
-                  (st) => st.name == s['stage'],
-                  orElse: () => SleepStage.light,
-                ),
-                intensity: SnoreIntensity.values.firstWhere(
-                  (i) => i.name == s['intensity'],
-                  orElse: () => SnoreIntensity.none,
-                ),
-                dominantFrequencyHz: (s['freqHz'] as num?)?.toDouble(),
-              ))
+          .map((s) => AmplitudeSample.fromJson(s as Map<String, dynamic>))
           .toList(),
       insights: (data['insights'] as List?)
               ?.map((i) => SleepInsight(
@@ -476,7 +465,21 @@ class FirestoreService {
       deepSleepPercent: (data['deepSleepPercent'] as num?)?.toDouble() ?? 0.25,
       remSleepPercent: (data['remSleepPercent'] as num?)?.toDouble() ?? 0.25,
       apneaRiskLevel: data['apneaRiskLevel'] as String? ?? 'Low',
-      cpapUsageDuration: Duration(milliseconds: (data['cpapUsageDurationMs'] as num?)?.toInt() ?? (data['totalDurationMs'] as num).toInt()),
+      cpapUsageDuration: Duration(milliseconds: (data['cpapUsageDurationMs'] as num?)?.toInt() ?? (data['totalDurationMs'] as num?)?.toInt() ?? 0),
+      apneaHypopneaIndex: (data['apneaHypopneaIndex'] as num?)?.toDouble() ?? 0.0,
+      detectedApneaEvents: ((data['detectedApneaEvents'] as List?) ?? []).map((e) {
+        return SuspectedApneaEvent(
+          timestamp: Duration(milliseconds: (e['timestampMs'] as num?)?.toInt() ?? 0),
+          gapDuration: Duration(milliseconds: (e['gapDurationMs'] as num?)?.toInt() ?? 0),
+          type: ApneaEventType.values.firstWhere(
+            (t) => t.name == e['type'],
+            orElse: () => ApneaEventType.breathingPause,
+          ),
+          peakRecoveryAmplitude: (e['peakRecoveryAmplitude'] as num?)?.toDouble() ?? 0.0,
+          confidence: (e['confidence'] as num?)?.toDouble() ?? 0.5,
+        );
+      }).toList(),
+      snoreAudioClips: (data['snoreAudioClips'] as List?)?.map((c) => SnoreAudioClip.fromJson(c as Map<String, dynamic>)).toList() ?? [],
     );
   }
   /// Migrates data from a guest UID to an authenticated UID.

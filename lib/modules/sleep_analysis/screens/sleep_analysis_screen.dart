@@ -19,6 +19,8 @@ import '../../../core/router/app_router.dart';
 import '../../../core/utils/file_reader.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/recording_logger.dart';
+import '../services/actigraphy_service.dart';
+import '../models/sleep_report.dart';
 
 class SleepAnalysisScreen extends StatefulWidget {
   final bool autoStart;
@@ -32,6 +34,7 @@ class SleepAnalysisScreen extends StatefulWidget {
 class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     with TickerProviderStateMixin {
   final AudioRecorder _recorder = AudioRecorder();
+  final ActigraphyService _actigraphy = ActigraphyService();
   Timer? _recordingTimer;
   Timer? _alarmTimer;
 
@@ -467,8 +470,8 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     try {
       await _recorder.start(
         const RecordConfig(
-          encoder: AudioEncoder.pcm16bits,
-          sampleRate: 8000,
+          encoder: AudioEncoder.wav,
+          sampleRate: 16000,
           numChannels: 1, // mono is enough for sleep analysis
           bitRate: 16000,
           autoGain: false,
@@ -500,6 +503,16 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     _recordingStartTime = DateTime.now();
     _listenToAmplitude(provider);
     _rippleController.repeat(reverse: false);
+
+    // Start actigraphy alongside audio recording (best-effort — optional)
+    if (!kIsWeb) {
+      try {
+        await _actigraphy.startRecording();
+        RecordingLogger().info('Actigraphy started');
+      } catch (e) {
+        RecordingLogger().warning('Actigraphy failed to start (sensor not available): $e');
+      }
+    }
 
     if (_alarmTime != null) {
       DateTime alarmDt = DateTime(
@@ -590,6 +603,17 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       RecordingLogger().info('Foreground service stopped');
     }
 
+    // Stop actigraphy and collect motion samples
+    List<SleepMotionSample> motionSamples = [];
+    if (!kIsWeb && _actigraphy.isRecording) {
+      try {
+        motionSamples = _actigraphy.stopRecording();
+        RecordingLogger().info('Actigraphy stopped. Collected ${motionSamples.length} motion samples.');
+      } catch (e) {
+        RecordingLogger().warning('Actigraphy stop error (non-fatal): $e');
+      }
+    }
+
     provider.setRecordingActive(false);
 
     if (stoppedPath == null) {
@@ -658,6 +682,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       final report = await provider.analyzeCurrentFile(
         goalMinutes: goalMinutes,
         healthIntegrationEnabled: healthEnabled,
+        motionSamples: motionSamples,
       );
       
       if (!mounted) return;

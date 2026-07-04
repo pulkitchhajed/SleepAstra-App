@@ -75,7 +75,9 @@ class RewardsProvider extends ChangeNotifier {
         // Clear the animation flag after a delay
         Future.delayed(const Duration(seconds: 3), () {
           _lastEarnedPoints = null;
-          notifyListeners();
+          try {
+            notifyListeners();
+          } catch (_) {}
         });
         
         return entry.points;

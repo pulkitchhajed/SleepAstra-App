@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:isolate';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/sleep_report.dart';
 import '../services/audio_analyzer_service.dart';
 import '../services/sleep_storage_service.dart';
+import '../services/actigraphy_service.dart';
+import '../services/audio_storage_service.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../../core/services/health_service.dart';
 import '../../../core/services/recording_logger.dart';
@@ -30,6 +34,7 @@ class SleepAnalysisProvider extends ChangeNotifier {
   String? _pendingFilePath;
   String? _currentUid;
   double _currentAmplitude = 0.0;
+  bool _isAppRecording = false; // true only when the app itself recorded the file
 
   // ── Getters ──────────────────────────────────────────────
   AnalysisState get state => _state;
@@ -44,10 +49,11 @@ class SleepAnalysisProvider extends ChangeNotifier {
 
   // ── Public API ───────────────────────────────────────────
 
-  /// Call this after picking a file
+  /// Call this after picking a file from the file manager (do NOT auto-delete)
   void setPickedFile(String path, String fileName) {
     _pendingFilePath = path;
     _pickedFileName = fileName;
+    _isAppRecording = false;
     _state = AnalysisState.idle;
     notifyListeners();
   }
@@ -71,10 +77,11 @@ class SleepAnalysisProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Call after recording stops
+  /// Call after recording stops (marks file as auto-deletable)
   void setRecordedFile(String path, String fileName) {
     _pendingFilePath = path;
     _pickedFileName = fileName;
+    _isAppRecording = true;
     _isRecording = false;
     _state = AnalysisState.idle;
     notifyListeners();
@@ -83,6 +90,7 @@ class SleepAnalysisProvider extends ChangeNotifier {
   Future<SleepReport?> analyzeCurrentFile({
     required int goalMinutes,
     bool healthIntegrationEnabled = false,
+    List<SleepMotionSample> motionSamples = const [],
   }) async {
     if (_state == AnalysisState.analysing) {
       debugPrint('[Analysis] Prevented duplicate analysis call');
@@ -109,6 +117,15 @@ class SleepAnalysisProvider extends ChangeNotifier {
       final timeoutMinutes = 5 + ((actualDur?.inHours ?? 8) * 5);
       final analysisTimeout = Duration(minutes: timeoutMinutes.clamp(5, 180));
 
+      // Load ML Model buffer on main thread because rootBundle doesn't work in isolates
+      Uint8List? modelBuffer;
+      try {
+        final byteData = await rootBundle.load('assets/models/yamnet.tflite');
+        modelBuffer = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+      } catch (e) {
+        debugPrint('[Analysis] Failed to load YAMNet model buffer: $e');
+      }
+
       final report = await Isolate.run(() async {
         final svc = AudioAnalyzerService();
         return await svc.analyzeFile(
@@ -117,15 +134,49 @@ class SleepAnalysisProvider extends ChangeNotifier {
           goalMinutes: goalMinutes,
           actualDuration: actualDur,
           recordedAt: startTime, // Bug F fix: use actual sleep start time
+          modelBuffer: modelBuffer,
         );
       }).timeout(analysisTimeout, onTimeout: () {
         throw TimeoutException('Analysis took too long. The recording may be corrupted or in an unsupported format. Please try a PCM or M4A file.');
       });
 
+      // Apply actigraphy stage refinement if motion data is available
+      SleepReport baseReport = report;
+      if (motionSamples.isNotEmpty) {
+        final refinedTimeline = ActigraphyService.refineStages(
+          report.amplitudeTimeline,
+          motionSamples,
+        );
+        baseReport = SleepReport(
+          fileName: report.fileName,
+          recordedAt: report.recordedAt,
+          totalDuration: report.totalDuration,
+          snoringDuration: report.snoringDuration,
+          snoringEventCount: report.snoringEventCount,
+          qualityScore: report.qualityScore,
+          quality: report.quality,
+          snoringEvents: report.snoringEvents,
+          amplitudeTimeline: refinedTimeline,
+          insights: report.insights,
+          sleepDebtHours: report.sleepDebtHours,
+          lightSleepPercent: report.lightSleepPercent,
+          deepSleepPercent: report.deepSleepPercent,
+          remSleepPercent: report.remSleepPercent,
+          apneaRiskLevel: report.apneaRiskLevel,
+          cpapUsageDuration: report.cpapUsageDuration,
+          detectedApneaEvents: report.detectedApneaEvents,
+          apneaHypopneaIndex: report.apneaHypopneaIndex,
+          motionTimeline: motionSamples,
+          actigraphyAvailable: true,
+          snoreAudioClips: report.snoreAudioClips, // preserve clips
+        );
+        RecordingLogger().info('Actigraphy stage refinement applied to ${refinedTimeline.length} windows.');
+      }
+
       // Fetch health data if enabled
-      SleepReport finalReport = report;
+      SleepReport finalReport = baseReport;
       if (healthIntegrationEnabled) {
-        final endTime = startTime.add(report.totalDuration);
+        final endTime = startTime.add(baseReport.totalDuration);
         final avgHeartRate = await HealthService().getAverageHeartRate(startTime, endTime);
         final steps = await HealthService().getStepCount(
           startTime.subtract(const Duration(hours: 12)),
@@ -139,39 +190,96 @@ class SleepAnalysisProvider extends ChangeNotifier {
             title: 'Health Correlation',
             description: 'Your heart rate averaged ${avgHeartRate?.toInt() ?? "--"} bpm during sleep. '
                 '${steps != null ? "You took $steps steps today." : ""}',
-            emoji: '🩺',
+            emoji: '\u{1FA7A}',
           );
           finalReport = SleepReport(
-            fileName: report.fileName,
-            recordedAt: report.recordedAt,
-            totalDuration: report.totalDuration,
-            snoringDuration: report.snoringDuration,
-            snoringEventCount: report.snoringEventCount,
-            qualityScore: report.qualityScore,
-            quality: report.quality,
-            snoringEvents: report.snoringEvents,
-            amplitudeTimeline: report.amplitudeTimeline,
-            insights: [...report.insights, healthInsight],
-            sleepDebtHours: report.sleepDebtHours,
-            lightSleepPercent: report.lightSleepPercent,
-            deepSleepPercent: report.deepSleepPercent,
-            remSleepPercent: report.remSleepPercent,
-            apneaRiskLevel: report.apneaRiskLevel,
-            cpapUsageDuration: report.cpapUsageDuration,
+            fileName: baseReport.fileName,
+            recordedAt: baseReport.recordedAt,
+            totalDuration: baseReport.totalDuration,
+            snoringDuration: baseReport.snoringDuration,
+            snoringEventCount: baseReport.snoringEventCount,
+            qualityScore: baseReport.qualityScore,
+            quality: baseReport.quality,
+            snoringEvents: baseReport.snoringEvents,
+            amplitudeTimeline: baseReport.amplitudeTimeline,
+            insights: [...baseReport.insights, healthInsight],
+            sleepDebtHours: baseReport.sleepDebtHours,
+            lightSleepPercent: baseReport.lightSleepPercent,
+            deepSleepPercent: baseReport.deepSleepPercent,
+            remSleepPercent: baseReport.remSleepPercent,
+            apneaRiskLevel: baseReport.apneaRiskLevel,
+            cpapUsageDuration: baseReport.cpapUsageDuration,
+            detectedApneaEvents: baseReport.detectedApneaEvents,
+            apneaHypopneaIndex: baseReport.apneaHypopneaIndex,
+            motionTimeline: baseReport.motionTimeline,
+            actigraphyAvailable: baseReport.actigraphyAvailable,
+            snoreAudioClips: baseReport.snoreAudioClips, // preserve clips
           );
         }
       }
 
-      _report = finalReport;
-      _state = AnalysisState.done;
-      RecordingLogger().info('Analysis successful. Snoring duration: ${report.snoringDuration.inSeconds}s, Quality: ${report.quality.name}');
-
-      // ── Save to Firestore ──────────────────────────────────────────
-      // Always use the Firebase Auth UID at save-time (most authoritative).
-      // Fall back to the cached device UID only if auth is not available.
+      // ── Snore Audio Extraction ──────────────────────────────────────────
       final firebaseUid = FirebaseAuth.instance.currentUser?.uid;
       final saveUid = firebaseUid ?? _currentUid ?? await FirestoreService.deviceUid;
       
+      List<SnoreAudioClip> snoreClips = [];
+      
+      if (finalReport.snoringEvents.isNotEmpty) {
+        RecordingLogger().info('Extracting snore audio clips...');
+        final localClips = await AudioAnalyzerService().extractSnoreAudio(
+          path, 
+          finalReport.snoringEvents,
+          actualDuration: finalReport.totalDuration,
+        );
+        
+        if (localClips.isNotEmpty) {
+          snoreClips = await AudioStorageService.uploadSnoreAudioClips(saveUid, localClips, startTime);
+        }
+      }
+
+      // ── Delete raw PCM to free space (only if app created it) ──────────────────
+      if (_isAppRecording) {
+        try {
+          final rawFile = File(path);
+          if (rawFile.existsSync()) {
+            rawFile.deleteSync();
+            RecordingLogger().info('Deleted raw recording to free space: $path');
+          }
+        } catch (e) {
+          RecordingLogger().error('Could not delete raw recording', e);
+        }
+      }
+
+      // Add audio paths to final report
+      finalReport = SleepReport(
+        fileName: finalReport.fileName,
+        recordedAt: finalReport.recordedAt,
+        totalDuration: finalReport.totalDuration,
+        snoringDuration: finalReport.snoringDuration,
+        snoringEventCount: finalReport.snoringEventCount,
+        qualityScore: finalReport.qualityScore,
+        quality: finalReport.quality,
+        snoringEvents: finalReport.snoringEvents,
+        amplitudeTimeline: finalReport.amplitudeTimeline,
+        insights: finalReport.insights,
+        sleepDebtHours: finalReport.sleepDebtHours,
+        lightSleepPercent: finalReport.lightSleepPercent,
+        deepSleepPercent: finalReport.deepSleepPercent,
+        remSleepPercent: finalReport.remSleepPercent,
+        apneaRiskLevel: finalReport.apneaRiskLevel,
+        cpapUsageDuration: finalReport.cpapUsageDuration,
+        detectedApneaEvents: finalReport.detectedApneaEvents,
+        apneaHypopneaIndex: finalReport.apneaHypopneaIndex,
+        motionTimeline: finalReport.motionTimeline,
+        actigraphyAvailable: finalReport.actigraphyAvailable,
+        snoreAudioClips: snoreClips,
+      );
+
+      _report = finalReport;
+      _state = AnalysisState.done;
+      RecordingLogger().info('Analysis successful. Snoring duration: ${finalReport.snoringDuration.inSeconds}s, Quality: ${finalReport.quality.name}, ML active: ${modelBuffer != null}');
+
+      // ── Save to Firestore ──────────────────────────────────────────
       debugPrint('[Analysis] Saving report to Firestore. firebaseUid=$firebaseUid, saveUid=$saveUid');
       
       await _storage.saveReport(saveUid, _report!);
@@ -205,7 +313,7 @@ class SleepAnalysisProvider extends ChangeNotifier {
 
   Future<void> deleteFromHistory(SleepReport report) async {
     if (_currentUid == null) return;
-    await _storage.deleteReport(_currentUid!, report.recordedAt);
+    await _storage.deleteReport(_currentUid!, report);
     await loadHistory(_currentUid!);
   }
 

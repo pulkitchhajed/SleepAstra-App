@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../models/subscription_plan.dart';
@@ -56,7 +57,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
           body: SingleChildScrollView(
             child: Column(
               children: [
-                _buildHeroImage(context),
+                _buildHeroImage(context).animate().fadeIn(duration: 400.ms),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
@@ -66,13 +67,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         'Unlock Deep Sleep',
                         style: Theme.of(context).textTheme.displayLarge,
                         textAlign: TextAlign.center,
-                      ),
+                      ).animate().fadeIn(delay: 100.ms, duration: 350.ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOut),
                       const SizedBox(height: 12),
                       Text(
                         'Start your 7-day free trial today. Get full access to AI insights, sleep stages, and apnea risk detection.',
                         style: Theme.of(context).textTheme.bodyLarge,
                         textAlign: TextAlign.center,
-                      ),
+                      ).animate().fadeIn(delay: 180.ms, duration: 350.ms),
                       const SizedBox(height: 32),
                       
                       if (provider.errorMessage != null) ...[
@@ -80,17 +81,17 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         const SizedBox(height: 16),
                       ],
 
-                      _buildPlanSelectionRow(provider),
+                      _buildPlanSelectionRow(provider).animate().fadeIn(delay: 250.ms, duration: 350.ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOut),
                       const SizedBox(height: 24),
-                      _buildSubscribeButton(provider),
+                      _buildSubscribeButton(provider).animate().fadeIn(delay: 320.ms, duration: 350.ms).slideY(begin: 0.06, end: 0, curve: Curves.easeOut),
                       const SizedBox(height: 16),
                       Text(
                         'Recurring billing. Cancel anytime.',
                         style: TextStyle(
                             fontSize: 12, color: Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary),
-                      ),
+                      ).animate().fadeIn(delay: 380.ms, duration: 300.ms),
                       const SizedBox(height: 40),
-                      const FeatureComparisonWidget(),
+                      const FeatureComparisonWidget().animate().fadeIn(delay: 440.ms, duration: 400.ms),
                       const SizedBox(height: 40),
                     ],
                   ),

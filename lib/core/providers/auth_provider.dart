@@ -213,7 +213,7 @@ class AuthProvider extends ChangeNotifier {
     await FirestoreService.clearCache();
     await _authService.signOut();
     _sessionKey++; // Force a sync even if uid is still null (e.g. guest sign out)
-    notifyListeners();
+    if (!_isDisposed) notifyListeners();
     _setLoading(false);
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -7,9 +8,10 @@ import 'dart:math';
 import '../modules/journal/screens/morning_journal_screen.dart';
 import '../modules/sleep_analysis/screens/sleep_stages_screen.dart';
 import '../modules/sleep_analysis/screens/snore_tracking_screen.dart';
-import '../modules/rewards/widgets/rewards_balance_chip.dart';
+
 
 import '../core/theme/app_theme.dart';
+import '../core/theme/chart_theme.dart';
 import '../core/providers/theme_provider.dart';
 import '../modules/onboarding/providers/onboarding_provider.dart';
 import '../modules/onboarding/models/user_profile.dart';
@@ -91,45 +93,45 @@ class _HomeScreenState extends State<HomeScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildHeader(profile.name, isLight, textPrimary, textSec, themeProvider),
-                ),
+                ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.08, end: 0, curve: Curves.easeOut),
                 const SizedBox(height: 20),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildDailyGoalCard(isLight, textPrimary, textSec, cardBg, cardBorder),
-                ),
+                ).animate().fadeIn(delay: 80.ms, duration: 350.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
                 const SizedBox(height: 20),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildHeroCard(isLight, textPrimary, textSec, cardBg, cardBorder),
-                ),
+                ).animate().fadeIn(delay: 150.ms, duration: 400.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
                 const SizedBox(height: 16),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildMetricsRow(profile, isLight, textPrimary, textSec, cardBg, cardBorder),
-                ),
+                ).animate().fadeIn(delay: 220.ms, duration: 350.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
                 const SizedBox(height: 24),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildWeeklyTrendChart(isLight, textPrimary, textSec, cardBg, cardBorder),
-                ),
+                ).animate().fadeIn(delay: 290.ms, duration: 350.ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOut),
                 const SizedBox(height: 24),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildCalendarSection(textPrimary),
-                ),
+                ).animate().fadeIn(delay: 350.ms, duration: 350.ms),
                 const SizedBox(height: 24),
                 // BlogHubWidget handles its own horizontal padding to bleed to edges
-                BlogHubWidget(isLight: isLight),
+                BlogHubWidget(isLight: isLight).animate().fadeIn(delay: 400.ms, duration: 350.ms),
                 const SizedBox(height: 20),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildAskNidraBanner(),
-                ),
+                ).animate().fadeIn(delay: 450.ms, duration: 350.ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOut),
                 const SizedBox(height: 20),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildQuickAccess(isLight, textPrimary, textSec, cardBg, cardBorder),
-                ),
+                ).animate().fadeIn(delay: 500.ms, duration: 350.ms),
               ],
             ),
           ),
@@ -499,7 +501,10 @@ class _HomeScreenState extends State<HomeScreen> {
         // Snoring Status — classify by DURATION not event count
         // <10 min = Minimal, 10-30 min = Moderate, >30 min = Heavy
         final snoreMins = report.snoringDuration.inMinutes;
-        if (snoreMins < 10) {
+        if (snoreMins == 0) {
+          snoreStatusStr = 'None';
+          snoreColor = AppTheme.accentTeal;
+        } else if (snoreMins < 10) {
           snoreStatusStr = 'Minimal';
           snoreColor = AppTheme.accentTeal;
         } else if (snoreMins < 30) {
@@ -532,10 +537,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: cardBg,
+        decoration: AppTheme.glassDecoration(
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: cardBorder),
+          isLightMode: isLight,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -629,10 +633,9 @@ class _HomeScreenState extends State<HomeScreen> {
         Container(
           height: 200,
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: cardBg,
+          decoration: AppTheme.glassDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: cardBorder),
+            isLightMode: isLight,
           ),
           child: BarChart(
             BarChartData(
@@ -649,12 +652,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       final text = (dayIndex >= 0 && dayIndex < dayLabels.length) ? dayLabels[dayIndex] : '';
                       return Padding(
                         padding: const EdgeInsets.only(top: 8.0),
-                        child: Text(text,
-                          style: TextStyle(
-                            color: dayIndex == 6 ? AppTheme.primaryIndigo : textSec,
-                            fontSize: 9,
-                            fontWeight: dayIndex == 6 ? FontWeight.w700 : FontWeight.w500,
-                          )),
+                        child: Text(text, style: ChartTheme.getAxisTextStyle(isLight, isHighlight: dayIndex == 6)),
                       );
                     },
                   ),
@@ -669,17 +667,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   sideTitles: SideTitles(showTitles: false),
                 ),
               ),
-              gridData: FlGridData(
-                show: true,
-                drawVerticalLine: false,
-                horizontalInterval: 25,
-                getDrawingHorizontalLine: (value) => FlLine(
-                  color: isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder,
-                  strokeWidth: 1,
-                  dashArray: [4, 4],
-                ),
-              ),
-              borderData: FlBorderData(show: false),
+              gridData: ChartTheme.gridData(isLight, horizontalInterval: 25),
+              borderData: ChartTheme.borderData,
               barGroups: List.generate(7, (index) {
                 final score = scores[index];
                 final color = score >= 80 ? AppTheme.accentTeal : (score >= 60 ? AppTheme.primaryGold : AppTheme.error);
@@ -691,11 +680,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: score == 0 ? Colors.transparent : color,
                       width: 12,
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                      backDrawRodData: BackgroundBarChartRodData(
-                        show: true,
-                        toY: 100,
-                        color: isLight ? Colors.grey.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.05),
-                      ),
+                      backDrawRodData: ChartTheme.backgroundBar(isLight, 100),
                     ),
                   ],
                 );
@@ -716,10 +701,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardBg,
+      decoration: AppTheme.glassDecoration(
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: cardBorder),
+        isLightMode: isLight,
       ),
       child: Row(
         children: [
@@ -778,65 +762,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Basic Profile Row ─────────────────────────────────────────────────
-  Widget _buildProfileRow(UserProfile? profile, bool isLight, Color textPrimary, Color textSec, Color cardBg, Color cardBorder) {
-    final heightCm = profile?.heightCm ?? 0.0;
-    final weightKg = profile?.weightKg ?? 0.0;
-    final bmi = profile?.bmi ?? 0.0;
-    final age = profile?.age ?? 0;
 
-    // Convert cm to feet/inches for display
-    String heightStr;
-    if (heightCm > 0) {
-      final totalInches = (heightCm / 2.54).round();
-      final ft = totalInches ~/ 12;
-      final inches = totalInches % 12;
-      heightStr = '$ft\'$inches"';
-    } else {
-      heightStr = '--';
-    }
-
-    final weightStr = weightKg > 0 ? '${weightKg.toStringAsFixed(0)} kg' : '--';
-    final bmiStr = bmi > 0 ? bmi.toStringAsFixed(1) : '--';
-    final ageStr = age > 0 ? '$age yrs' : '--';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cardBorder),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _profileItem(heightStr, 'Height', textPrimary, textSec),
-          _divider(isLight),
-          _profileItem(weightStr, 'Weight', textPrimary, textSec),
-          _divider(isLight),
-          _profileItem(bmiStr, 'BMI', textPrimary, textSec),
-          _divider(isLight),
-          _profileItem(ageStr, 'Age', textPrimary, textSec),
-        ],
-      ),
-    );
-  }
-
-  Widget _divider(bool isLight) => Container(
-    width: 1, height: 32,
-    color: isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder,
-  );
-
-  Widget _profileItem(String value, String label, Color textPrimary, Color textSec) {
-    return Column(
-      children: [
-        Text(value,
-            style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w700, color: textPrimary)),
-        const SizedBox(height: 2),
-        Text(label, style: TextStyle(fontSize: 11, color: textSec)),
-      ],
-    );
-  }
 
   // ── Ask Nidra AI Banner ───────────────────────────────────────────────
   Widget _buildAskNidraBanner() {

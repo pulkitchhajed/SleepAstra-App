@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../models/sleep_report.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/chart_theme.dart';
 import '../../../../core/providers/theme_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -23,10 +24,11 @@ class SnoreIntensityTimelineChart extends StatelessWidget {
     final gridLineColor = isLight ? AppTheme.cardBorderLight : Colors.white.withValues(alpha: 0.06);
 
     final rawSamples = report.amplitudeTimeline;
-    if (rawSamples.isEmpty) {
+    if (rawSamples.isEmpty || report.snoringEvents.isEmpty) {
       return const _EmptyChart(
         title: 'Snore Intensity Timeline',
         icon: Icons.show_chart_rounded,
+        message: 'No snoring detected in this recording',
       );
     }
 
@@ -87,13 +89,7 @@ class SnoreIntensityTimelineChart extends StatelessWidget {
               }).toList(),
             ),
           ),
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            horizontalInterval: 0.2,
-            getDrawingHorizontalLine: (_) =>
-                FlLine(color: gridLineColor, strokeWidth: 1),
-          ),
+          gridData: ChartTheme.gridData(isLight, horizontalInterval: 0.2),
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -114,15 +110,14 @@ class SnoreIntensityTimelineChart extends StatelessWidget {
                     meta: meta,
                     child: Text(
                       DateFormat('h a').format(absoluteTime),
-                      style: TextStyle(
-                          color: textSec, fontSize: 10),
+                      style: ChartTheme.getAxisTextStyle(isLight),
                     ),
                   );
                 },
               ),
             ),
           ),
-          borderData: FlBorderData(show: false),
+          borderData: ChartTheme.borderData,
           lineBarsData: [
             LineChartBarData(
               spots: allSpots,
@@ -181,7 +176,10 @@ class SnoreEventsPerHourChart extends StatelessWidget {
 
     if (report.snoringEvents.isEmpty) {
       return const _EmptyChart(
-          title: 'Snore Events / Hour', icon: Icons.bar_chart_rounded);
+        title: 'Snore Events / Hour',
+        icon: Icons.bar_chart_rounded,
+        message: 'No snoring detected in this recording',
+      );
     }
 
     final Map<int, int> hourlyCounts = {};
@@ -223,12 +221,7 @@ class SnoreEventsPerHourChart extends StatelessWidget {
         BarChartData(
           minY: 0,
           maxY: max(5, maxCount * 1.2),
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            getDrawingHorizontalLine: (_) =>
-                FlLine(color: gridLineColor, strokeWidth: 1),
-          ),
+          gridData: ChartTheme.gridData(isLight),
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -258,7 +251,7 @@ class SnoreEventsPerHourChart extends StatelessWidget {
               ),
             ),
           ),
-          borderData: FlBorderData(show: false),
+          borderData: ChartTheme.borderData,
           barGroups: barGroups,
         ),
       ),
@@ -275,7 +268,10 @@ class SeverityDistributionChart extends StatelessWidget {
   Widget build(BuildContext context) {
     if (report.snoringEvents.isEmpty) {
       return const _EmptyChart(
-          title: 'Severity Distribution', icon: Icons.pie_chart_rounded);
+        title: 'Severity Distribution',
+        icon: Icons.pie_chart_rounded,
+        message: 'No snoring detected in this recording',
+      );
     }
 
     int mild = 0, mod = 0, sev = 0, epic = 0;
@@ -292,7 +288,10 @@ class SeverityDistributionChart extends StatelessWidget {
     final total = mild + mod + sev + epic;
     if (total == 0) {
       return const _EmptyChart(
-          title: 'Severity Distribution', icon: Icons.pie_chart_rounded);
+        title: 'Severity Distribution',
+        icon: Icons.pie_chart_rounded,
+        message: 'No snoring detected in this recording',
+      );
     }
 
     List<PieChartSectionData> sections = [];
@@ -362,9 +361,12 @@ class ActivityHeatmapChart extends StatelessWidget {
     final isLight = context.watch<ThemeProvider>().isDarkMode == false;
     final textSec = isLight ? AppTheme.textSecondaryLight : Colors.white.withValues(alpha: 0.3);
 
-    if (report.amplitudeTimeline.isEmpty) {
+    if (report.amplitudeTimeline.isEmpty || report.snoringEvents.isEmpty) {
       return const _EmptyChart(
-          title: 'Snoring Hotspots', icon: Icons.grid_view_rounded);
+        title: 'Snoring Hotspots',
+        icon: Icons.grid_view_rounded,
+        message: 'No snoring detected in this recording',
+      );
     }
 
     final hours = report.totalDuration.inHours + 1;
@@ -546,12 +548,7 @@ class FftSpectrumChart extends StatelessWidget {
         BarChartData(
           minY: 0,
           maxY: max(5, maxCount * 1.2),
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            getDrawingHorizontalLine: (_) =>
-                FlLine(color: gridLineColor, strokeWidth: 1),
-          ),
+          gridData: ChartTheme.gridData(isLight),
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -563,8 +560,7 @@ class FftSpectrumChart extends StatelessWidget {
                   if (v % 200 == 0) {
                     return Text(
                       '${v.toInt()}Hz',
-                      style: TextStyle(
-                          color: textSec, fontSize: 10),
+                      style: ChartTheme.getAxisTextStyle(isLight),
                     );
                   }
                   return const SizedBox.shrink();
@@ -572,7 +568,7 @@ class FftSpectrumChart extends StatelessWidget {
               ),
             ),
           ),
-          borderData: FlBorderData(show: false),
+          borderData: ChartTheme.borderData,
           barGroups: barGroups,
         ),
       ),
@@ -639,15 +635,10 @@ class ApneaTimelineChart extends StatelessWidget {
       child: ScatterChart(
         ScatterChartData(
           minX: 0,
-          maxX: report.totalDuration.inSeconds / 3600,
+          maxX: max(0.1, report.totalDuration.inSeconds / 3600),
           minY: 0,
           maxY: max(20, maxGap * 1.2),
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            getDrawingHorizontalLine: (_) =>
-                FlLine(color: gridLineColor, strokeWidth: 1),
-          ),
+          gridData: ChartTheme.gridData(isLight),
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -677,7 +668,7 @@ class ApneaTimelineChart extends StatelessWidget {
               ),
             ),
           ),
-          borderData: FlBorderData(show: false),
+          borderData: ChartTheme.borderData,
           scatterSpots: spots
               .map((s) => ScatterSpot(
                     s.x,
@@ -839,12 +830,257 @@ class _ChartCard extends StatelessWidget {
   }
 }
 
+// ─── GRAPH 7: NOISE CLASSIFICATION BREAKDOWN ─────────────────────────
+class NoiseClassificationChart extends StatefulWidget {
+  final SleepReport report;
+  const NoiseClassificationChart({super.key, required this.report});
+
+  @override
+  State<NoiseClassificationChart> createState() => _NoiseClassificationChartState();
+}
+
+class _NoiseClassificationChartState extends State<NoiseClassificationChart> {
+  int? _touchedIndex;
+
+  static const _noiseColors = {
+    NoiseType.snoring:   Color(0xFF8B5CF6), // purple
+    NoiseType.talking:   Color(0xFF3B82F6), // blue
+    NoiseType.movement:  Color(0xFFF59E0B), // amber
+    NoiseType.ambient:   Color(0xFF64748B), // slate
+  };
+
+  static const _noiseLabels = {
+    NoiseType.snoring:   'Snoring',
+    NoiseType.talking:   'Talking',
+    NoiseType.movement:  'Movement',
+    NoiseType.ambient:   'Ambient',
+  };
+
+  static const _noiseDescriptions = {
+    NoiseType.snoring:   'Periodic low-frequency vibrations (60–300 Hz)',
+    NoiseType.talking:   'Higher-pitch vocal activity detected (>300 Hz)',
+    NoiseType.movement:  'Aperiodic wideband rustling (tossing & turning)',
+    NoiseType.ambient:   'Low-level constant background noise',
+  };
+
+  static const _noiseIcons = {
+    NoiseType.snoring:   '😴',
+    NoiseType.talking:   '🗣️',
+    NoiseType.movement:  '🔄',
+    NoiseType.ambient:   '🌙',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = context.watch<ThemeProvider>().isDarkMode == false;
+    final textPrimary = isLight ? AppTheme.textPrimaryLight : Colors.white;
+    final textSec = isLight ? AppTheme.textSecondaryLight : Colors.white.withValues(alpha: 0.45);
+
+    final timeline = widget.report.amplitudeTimeline;
+    if (timeline.isEmpty || widget.report.snoringEvents.isEmpty) {
+      return const _EmptyChart(
+        title: 'Noise Breakdown',
+        icon: Icons.donut_large_rounded,
+        message: 'No snoring detected in this recording',
+      );
+    }
+
+    // Count windows per noise type
+    final counts = <NoiseType, int>{
+      NoiseType.ambient:  0,
+      NoiseType.snoring:  0,
+      NoiseType.talking:  0,
+      NoiseType.movement: 0,
+    };
+    for (final s in timeline) {
+      counts[s.noiseType] = (counts[s.noiseType] ?? 0) + 1;
+    }
+
+    // Window duration in seconds
+    final winSec = timeline.length > 1
+        ? (timeline[1].timeSeconds - timeline[0].timeSeconds).abs()
+        : 3.0;
+
+    final totalWindows = timeline.length;
+    if (totalWindows == 0) {
+      return const _EmptyChart(
+        title: 'Noise Breakdown',
+        icon: Icons.donut_large_rounded,
+        message: 'No snoring detected in this recording',
+      );
+    }
+
+    // Build pie sections
+    final displayOrder = [
+      NoiseType.snoring,
+      NoiseType.talking,
+      NoiseType.movement,
+      NoiseType.ambient,
+    ];
+
+    final sections = <PieChartSectionData>[];
+    int displayIdx = 0;
+    for (final type in displayOrder) {
+      final count = counts[type] ?? 0;
+      if (count == 0) { displayIdx++; continue; }
+      final pct = count / totalWindows;
+      final isTouched = _touchedIndex == displayIdx;
+      sections.add(PieChartSectionData(
+        value: count.toDouble(),
+        color: _noiseColors[type]!,
+        radius: isTouched ? 72 : 58,
+        title: pct >= 0.05 ? '${(pct * 100).round()}%' : '',
+        titleStyle: TextStyle(
+          fontSize: isTouched ? 14 : 11,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+        badgeWidget: isTouched
+            ? Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _noiseColors[type]!.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [BoxShadow(color: _noiseColors[type]!.withValues(alpha: 0.5), blurRadius: 8)],
+                ),
+                child: Text(
+                  _noiseLabels[type]!,
+                  style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w700),
+                ),
+              )
+            : null,
+        badgePositionPercentageOffset: 1.2,
+      ));
+      displayIdx++;
+    }
+
+    // Active type for description
+    NoiseType? activeType;
+    if (_touchedIndex != null) {
+      int dIdx = 0;
+      for (final type in displayOrder) {
+        if ((counts[type] ?? 0) == 0) { dIdx++; continue; }
+        if (dIdx == _touchedIndex) { activeType = type; break; }
+        dIdx++;
+      }
+    }
+
+    return _ChartCard(
+      title: 'Noise Breakdown',
+      subtitle: 'What sounds were detected during your sleep.',
+      icon: Icons.donut_large_rounded,
+      iconColor: const Color(0xFF8B5CF6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Donut chart
+          SizedBox(
+            width: 160,
+            height: 160,
+            child: PieChart(
+              PieChartData(
+                sections: sections,
+                centerSpaceRadius: 38,
+                sectionsSpace: 3,
+                pieTouchData: PieTouchData(
+                  touchCallback: (event, response) {
+                    setState(() {
+                      if (response == null || response.touchedSection == null) {
+                        _touchedIndex = null;
+                        return;
+                      }
+                      _touchedIndex = response.touchedSection!.touchedSectionIndex;
+                    });
+                  },
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Legend + description
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...displayOrder.map((type) {
+                  final count = counts[type] ?? 0;
+                  if (count == 0) return const SizedBox.shrink();
+                  final pct = count / totalWindows;
+                  final dur = Duration(seconds: (count * winSec).round());
+                  final durStr = dur.inHours > 0
+                      ? '${dur.inHours}h ${dur.inMinutes.remainder(60)}m'
+                      : '${dur.inMinutes}m';
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: _noiseColors[type],
+                            shape: BoxShape.circle,
+                            boxShadow: [BoxShadow(color: _noiseColors[type]!.withValues(alpha: 0.5), blurRadius: 4)],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${_noiseIcons[type]} ${_noiseLabels[type]}',
+                                style: TextStyle(color: textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                              Text(
+                                '$durStr  ·  ${(pct * 100).round()}%',
+                                style: TextStyle(color: textSec, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                // Tap hint / active description
+                if (activeType != null) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _noiseColors[activeType]!.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: _noiseColors[activeType]!.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      _noiseDescriptions[activeType]!,
+                      style: TextStyle(
+                        color: _noiseColors[activeType],
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ] else
+                  Text('Tap a section for details', style: TextStyle(color: textSec, fontSize: 10)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── SHARED: Empty Chart ─────────────────────────────────────────────
 class _EmptyChart extends StatelessWidget {
   final String title;
   final IconData icon;
+  final String? message;
 
-  const _EmptyChart({required this.title, required this.icon});
+  const _EmptyChart({required this.title, required this.icon, this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -871,7 +1107,7 @@ class _EmptyChart extends StatelessWidget {
             Icon(icon, color: textSec, size: 28),
             const SizedBox(height: 8),
             Text(
-              'No data for $title',
+              message ?? 'No data for $title',
               style: TextStyle(
                   color: textSec, fontSize: 13),
             ),

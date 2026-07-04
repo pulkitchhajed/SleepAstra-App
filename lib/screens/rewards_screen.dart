@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../core/theme/app_theme.dart';
@@ -57,7 +58,7 @@ class RewardsScreen extends StatelessWidget {
                               ),
                             ),
                           ],
-                        ),
+                        ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.06, end: 0, curve: Curves.easeOut),
                         const Spacer(),
                         Container(
                           width: 48,

@@ -303,8 +303,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
                   const SizedBox(width: 10),
                   _miniStat('REM Sleep', '${stats.percentRem}%', AppTheme.primaryIndigo),
                   const SizedBox(width: 10),
-                  _miniStat('Restlessness', r.snoringEventCount < 5 ? 'Low' : r.snoringEventCount < 15 ? 'Medium' : 'High',
-                      r.snoringEventCount < 5 ? AppTheme.accentTeal : r.snoringEventCount < 15 ? AppTheme.primaryGold : AppTheme.error),
+                  _miniStat('Restlessness', r.snoringEventCount == 0 ? 'None' : (r.snoringEventCount < 5 ? 'Low' : r.snoringEventCount < 15 ? 'Medium' : 'High'),
+                      r.snoringEventCount == 0 ? AppTheme.accentTeal : (r.snoringEventCount < 5 ? AppTheme.accentTeal : r.snoringEventCount < 15 ? AppTheme.primaryGold : AppTheme.error)),
                 ]);
               }
             ),
