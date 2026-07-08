@@ -150,13 +150,32 @@ class RewardsScreen extends StatelessWidget {
                       const SizedBox(height: 32),
 
                       // ── Quick Actions ────────────────────────────────────
-                      Text(
-                        'Earn More',
-                        style: GoogleFonts.outfit(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: textPrimary,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            width: 3,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
+                              ),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.add_task_rounded, color: AppTheme.primaryIndigo, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Earn More',
+                            style: GoogleFonts.outfit(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: textPrimary,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
                       Row(
@@ -186,13 +205,32 @@ class RewardsScreen extends StatelessWidget {
                       const SizedBox(height: 32),
 
                       // ── Earning Rules ────────────────────────────────────
-                      Text(
-                        'Ways to Earn',
-                        style: GoogleFonts.outfit(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: textPrimary,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            width: 3,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
+                              ),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.rule_rounded, color: AppTheme.primaryIndigo, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Ways to Earn',
+                            style: GoogleFonts.outfit(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: textPrimary,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 12),
                       if (rewards.rules.isEmpty)
@@ -203,13 +241,32 @@ class RewardsScreen extends StatelessWidget {
                       const SizedBox(height: 32),
 
                       // ── Transaction History ──────────────────────────────
-                      Text(
-                        'History',
-                        style: GoogleFonts.outfit(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: textPrimary,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            width: 3,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
+                              ),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.history_rounded, color: AppTheme.primaryIndigo, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'History',
+                            style: GoogleFonts.outfit(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: textPrimary,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 12),
                       if (rewards.ledger.isEmpty)
@@ -313,6 +370,14 @@ class _QuickAction extends StatelessWidget {
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.15),
               shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+              border: Border.all(color: color.withValues(alpha: 0.3)),
             ),
             child: Icon(icon, color: color, size: 28),
           ),
@@ -349,6 +414,13 @@ class _EarnRuleRow extends StatelessWidget {
         color: cardColor,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isLight ? 0.03 : 0.15),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [

@@ -4,11 +4,17 @@ import SplashScreen from './screens/SplashScreen.jsx';
 import WelcomeScreen from './screens/WelcomeScreen.jsx';
 import OnboardingFlow from './screens/onboarding/OnboardingFlow.jsx';
 import MainShell from './screens/main/MainShell.jsx';
+import AdminDashboard from './screens/admin/AdminDashboard.jsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import './App.css';
 
 function AppRouter() {
   const { screen } = useApp();
+
+  // Hidden admin route bypasses the main app router
+  if (window.location.pathname === '/admin') {
+    return <AdminDashboard />;
+  }
 
   return (
     <div className="app-root">

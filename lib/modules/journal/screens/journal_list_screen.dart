@@ -15,6 +15,14 @@ class JournalListScreen extends StatefulWidget {
 }
 
 class _JournalListScreenState extends State<JournalListScreen> {
+  late bool isLight;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    isLight = Theme.of(context).brightness == Brightness.light;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -26,7 +34,7 @@ class _JournalListScreenState extends State<JournalListScreen> {
     final entries = context.watch<JournalProvider>().entries;
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: isLight ? AppTheme.backgroundLight : AppTheme.background,
       appBar: AppBar(
         title: const Text('Sleep Journal'),
         automaticallyImplyLeading: false,
@@ -102,9 +110,9 @@ class _JournalListScreenState extends State<JournalListScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppTheme.surface,
+          color: isLight ? AppTheme.surfaceLight : AppTheme.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppTheme.cardBorder),
+          border: Border.all(color: isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder),
         ),
         child: Row(children: [
           Container(
@@ -131,14 +139,14 @@ class _JournalListScreenState extends State<JournalListScreen> {
               if (isEvening)
                 Text(
                   '☕ ${e.caffeineUnits}  🍷 ${e.alcoholUnits}  😰 ${e.stressLevel}/10',
-                  style: const TextStyle(
-                      color: AppTheme.textSecondary, fontSize: 13),
+                  style: TextStyle(
+                      color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary, fontSize: 13),
                 )
               else
                 Text(
                   '${_moodEmoji(e.moodScore)} Mood ${e.moodScore}/10  🛏️ ${e.sleepPosition}${e.hadCongestion ? '  🤧' : ''}',
-                  style: const TextStyle(
-                      color: AppTheme.textSecondary, fontSize: 13),
+                  style: TextStyle(
+                      color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary, fontSize: 13),
                 ),
             ]),
           ),
@@ -150,7 +158,7 @@ class _JournalListScreenState extends State<JournalListScreen> {
   void _showAddMenu(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppTheme.surfaceElevated,
+      backgroundColor: isLight ? AppTheme.surfaceLight : AppTheme.surfaceElevated,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => SafeArea(
@@ -159,24 +167,24 @@ class _JournalListScreenState extends State<JournalListScreen> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             ListTile(
               leading: const Text('🌙', style: TextStyle(fontSize: 26)),
-              title: const Text('Evening Entry',
-                  style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600)),
+              title: Text('Evening Entry',
+                  style: TextStyle(color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary, fontWeight: FontWeight.w600)),
               subtitle: Text('Log before sleep',
                   style: Theme.of(context).textTheme.bodyMedium),
               onTap: () {
-                Navigator.pop(ctx);
+                if (ctx.mounted) Navigator.pop(ctx);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const EveningJournalScreen()));
               },
             ),
             ListTile(
               leading: const Text('☀️', style: TextStyle(fontSize: 26)),
-              title: const Text('Morning Entry',
-                  style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600)),
+              title: Text('Morning Entry',
+                  style: TextStyle(color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary, fontWeight: FontWeight.w600)),
               subtitle: Text('Log after waking up',
                   style: Theme.of(context).textTheme.bodyMedium),
               onTap: () {
-                Navigator.pop(ctx);
+                if (ctx.mounted) Navigator.pop(ctx);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const MorningJournalScreen()));
               },

@@ -38,6 +38,24 @@ class _InsightsScreenState extends State<InsightsScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final auth = context.read<AuthProvider>();
+    final history = context.read<SleepAnalysisProvider>().history;
+    if (auth.uid != _lastUid || history.length != _lastHistoryCount) {
+      _lastUid = auth.uid;
+      _lastHistoryCount = history.length;
+      _reports = history;
+      if (_reports.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _load(_reports));
+      } else {
+        _loading = false;
+        _aiSummary = null;
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
@@ -87,20 +105,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final history = context.watch<SleepAnalysisProvider>().history;
-    
-    if (auth.uid != _lastUid || history.length != _lastHistoryCount) {
-      _lastUid = auth.uid;
-      _lastHistoryCount = history.length;
-      _reports = history;
-      if (_reports.isNotEmpty) {
-        _load(_reports);
-      } else {
-        _loading = false;
-        _aiSummary = null;
-      }
-    }
+    context.watch<AuthProvider>();
+    context.watch<SleepAnalysisProvider>();
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -184,7 +190,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
               margin: const EdgeInsets.only(right: 10),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: (Theme.of(context).brightness == Brightness.light ? Colors.black.withValues : (Theme.of(context).brightness == Brightness.light ? Colors.black.withValues : Colors.white.withValues))(alpha: 0.01),
+                color: (Theme.of(context).brightness == Brightness.light ? Colors.black : Colors.white).withValues(alpha: 0.01),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.cardBorderLight : AppTheme.cardBorder).withValues(alpha: 0.2), width: 1),
               ),
@@ -222,7 +228,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
               margin: const EdgeInsets.only(right: 10),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: sel ? AppTheme.primaryIndigo.withValues(alpha: 0.15) : (Theme.of(context).brightness == Brightness.light ? Colors.black.withValues : (Theme.of(context).brightness == Brightness.light ? Colors.black.withValues : Colors.white.withValues))(alpha: 0.04),
+                color: sel ? AppTheme.primaryIndigo.withValues(alpha: 0.15) : (Theme.of(context).brightness == Brightness.light ? Colors.black : Colors.white).withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: sel ? AppTheme.primaryIndigo : (Theme.of(context).brightness == Brightness.light ? AppTheme.cardBorderLight : AppTheme.cardBorder), width: sel ? 2 : 1),
               ),
@@ -250,6 +256,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   }
 
   Widget _scoreCard() {
+    if (_reports.isEmpty || _selectedIdx >= _reports.length) return const SizedBox();
     final r = _reports[_selectedIdx];
     final score = r.qualityScore.toInt();
     final c = score >= 80 ? AppTheme.accentTeal : score >= 60 ? AppTheme.primaryGold : AppTheme.error;
@@ -370,7 +377,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   Widget _miniStat(String label, String val, Color c) => Expanded(
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(color: (Theme.of(context).brightness == Brightness.light ? Colors.black.withValues : (Theme.of(context).brightness == Brightness.light ? Colors.black.withValues : Colors.white.withValues))(alpha: 0.04), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: (Theme.of(context).brightness == Brightness.light ? Colors.black : Colors.white).withValues(alpha: 0.04), borderRadius: BorderRadius.circular(12)),
       child: Column(children: [
         Text(val, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c)),
         const SizedBox(height: 4),
@@ -385,6 +392,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   );
 
   Widget _sleepStagesChart() {
+    if (_reports.isEmpty || _selectedIdx >= _reports.length) return const SizedBox();
     final r = _reports[_selectedIdx];
     final totalSec = r.totalDuration.inSeconds.toDouble();
     if (totalSec == 0) return const SizedBox();
@@ -435,10 +443,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
                         interval: 1,
                         getTitlesWidget: (value, meta) {
                           switch (value.toInt()) {
-                            case 0: return Text('Deep', style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? Colors.black38 : (Theme.of(context).brightness == Brightness.light ? Colors.black38 : Colors.white38)), fontSize: 11));
-                            case 1: return Text('Light', style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? Colors.black38 : (Theme.of(context).brightness == Brightness.light ? Colors.black38 : Colors.white38)), fontSize: 11));
-                            case 2: return Text('REM', style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? Colors.black38 : (Theme.of(context).brightness == Brightness.light ? Colors.black38 : Colors.white38)), fontSize: 11));
-                            case 3: return Text('Awake', style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? Colors.black38 : (Theme.of(context).brightness == Brightness.light ? Colors.black38 : Colors.white38)), fontSize: 11));
+                            case 0: return Text('Deep', style: TextStyle(color: Theme.of(context).brightness == Brightness.light ? Colors.black38 : Colors.white38, fontSize: 11));
+                            case 1: return Text('Light', style: TextStyle(color: Theme.of(context).brightness == Brightness.light ? Colors.black38 : Colors.white38, fontSize: 11));
+                            case 2: return Text('REM', style: TextStyle(color: Theme.of(context).brightness == Brightness.light ? Colors.black38 : Colors.white38, fontSize: 11));
+                            case 3: return Text('Awake', style: TextStyle(color: Theme.of(context).brightness == Brightness.light ? Colors.black38 : Colors.white38, fontSize: 11));
                           }
                           return const SizedBox();
                         },
@@ -523,7 +531,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                   radius: 6,
                 ),
                 PieChartSectionData(
-                  color: (Theme.of(context).brightness == Brightness.light ? Colors.black12 : (Theme.of(context).brightness == Brightness.light ? Colors.black12 : Colors.white10)),
+                   color: Theme.of(context).brightness == Brightness.light ? Colors.black12 : Colors.white10,
                   value: max(1.0, (1.0 - fraction) * 360),
                   title: '',
                   radius: 6,
@@ -540,7 +548,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
               Text(title, style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? Colors.black : Colors.white), fontSize: 13, fontWeight: FontWeight.bold)),
               const SizedBox(height: 2),
               Text('$percentValue%', style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w800, height: 1.1)),
-              Text(_wordDur(duration), style: TextStyle(color: Color(0xFF64748B), fontSize: 11)),
+              Text(_wordDur(duration), style: TextStyle(color: Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary, fontSize: 11)),
             ],
           ),
         ),
@@ -559,6 +567,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   }
 
   Widget _snoringAnalysisCard() {
+    if (_reports.isEmpty || _selectedIdx >= _reports.length) return const SizedBox();
     final r = _reports[_selectedIdx];
     final timeline = r.amplitudeTimeline;
 
@@ -852,7 +861,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           decoration: BoxDecoration(
-            color: AppTheme.surface,
+            color: Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surface,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: AppTheme.primaryIndigo, width: 1.5),
             boxShadow: [

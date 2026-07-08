@@ -17,8 +17,9 @@ service cloud.firestore {
 
     // ── Users ──────────────────────────────────────────────────────────────────
     match /users/{userId} {
-      // Users can only read/write their own document.
-      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      // Users can only read/write their own document. Admins can read all users.
+      allow read: if (isAuthenticated() && request.auth.uid == userId) || isAdmin();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
 
       // Nested sleep reports — scoped to the owner only.
       match /sleep_reports/{reportId} {
@@ -47,6 +48,12 @@ service cloud.firestore {
 
       // Only admins can create, update, or delete blogs.
       allow create, update, delete: if isAdmin();
+    }
+
+    // ── Admin Notifications ───────────────────────────────────────────────────
+    match /scheduled_notifications/{docId} {
+      // Only admins can schedule notifications
+      allow read, write: if isAdmin();
     }
   }
 }

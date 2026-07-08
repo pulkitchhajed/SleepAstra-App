@@ -60,6 +60,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
 
   DateTime? _recordingStartTime;
   StreamSubscription<Amplitude>? _amplitudeSubscription;
+  final ValueNotifier<double> _liveAmplitude = ValueNotifier(0.0);
   
   final List<Map<String, String>> _sleepSounds = [
     {'name': 'Brown Noise',        'url': 'https://archive.org/download/WhiteBrownNoise/BrownNoise.ogg'},
@@ -473,7 +474,6 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
           encoder: AudioEncoder.wav,
           sampleRate: 16000,
           numChannels: 1, // mono is enough for sleep analysis
-          bitRate: 16000,
           autoGain: false,
           echoCancel: false,
           noiseSuppress: false,
@@ -535,12 +535,14 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
   void _listenToAmplitude(SleepAnalysisProvider provider) {
     // Cancel any existing subscription before creating a new one
     _amplitudeSubscription?.cancel();
-    // Poll every 2 seconds — 100ms is excessive overnight and causes thousands
-    // of unnecessary notifyListeners() calls that can destabilise long sessions.
-    _amplitudeSubscription = _recorder.onAmplitudeChanged(const Duration(seconds: 2)).listen((amp) {
-      if (!mounted) return; // Guard against callbacks after widget disposal
-      final normalized = (amp.current + 120).clamp(0, 120) / 120.0;
-      provider.updateAmplitude(normalized);
+    // Poll every 100ms for smooth live UI animation.
+    // We update a local ValueNotifier instead of the global provider to avoid
+    // triggering heavy screen rebuilds thousands of times overnight.
+    _amplitudeSubscription = _recorder.onAmplitudeChanged(const Duration(milliseconds: 100)).listen((amp) {
+      if (!mounted) return;
+      // Normalize from approx -60dB..0dB to 0.0..1.0
+      final normalized = (amp.current + 60).clamp(0, 60) / 60.0;
+      _liveAmplitude.value = normalized;
     });
   }
 
@@ -1192,55 +1194,74 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
   }
 
   Widget _buildPulsingMic(SleepAnalysisProvider provider) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([_pulseController, _rippleController]),
-      builder: (_, __) {
-        return SizedBox(
-          width: 180,
-          height: 180,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Ripple
-              Transform.scale(
-                scale: _rippleAnim.value,
-                child: Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppTheme.error.withValues(
-                          alpha: (1 - _rippleController.value) * 0.6),
-                      width: 2,
+    return ValueListenableBuilder<double>(
+      valueListenable: _liveAmplitude,
+      builder: (context, amplitude, child) {
+        return AnimatedBuilder(
+          animation: Listenable.merge([_pulseController, _rippleController]),
+          builder: (_, __) {
+            // Apply smoothing for a fluid UI response to loud noises
+            final double activeScale = amplitude * 1.5;
+            final bool isLoud = amplitude > 0.3;
+
+            return SizedBox(
+              width: 180,
+              height: 180,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Outer Ripple (expands heavily on sound)
+                  AnimatedScale(
+                    scale: _rippleAnim.value + activeScale,
+                    duration: const Duration(milliseconds: 100),
+                    curve: Curves.easeOut,
+                    child: Container(
+                      width: 140,
+                      height: 140,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppTheme.error.withValues(
+                              alpha: (1 - _rippleController.value) * 0.6),
+                          width: 2 + (amplitude * 6),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              // Pulse base
-              Transform.scale(
-                scale: _pulseAnim.value,
-                child: Container(
-                  width: 110,
-                  height: 110,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppTheme.error.withValues(alpha: 0.15),
-                    border: Border.all(
-                        color: AppTheme.error.withValues(alpha: 0.7), width: 2),
-                  ),
-                  child: Transform.scale(
-                    scale: 1.0 + (provider.currentAmplitude * 0.4),
-                    child: const Icon(
-                      Icons.mic_rounded,
-                      color: AppTheme.error,
-                      size: 52,
+                  // Inner Base Pulse
+                  AnimatedScale(
+                    scale: _pulseAnim.value + (activeScale * 0.5),
+                    duration: const Duration(milliseconds: 100),
+                    curve: Curves.easeOut,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 110,
+                      height: 110,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isLoud 
+                            ? AppTheme.error.withValues(alpha: 0.6) 
+                            : AppTheme.error.withValues(alpha: 0.15),
+                        border: Border.all(
+                          color: AppTheme.error.withValues(alpha: 0.7), 
+                          width: 2
+                        ),
+                      ),
+                      child: AnimatedScale(
+                        scale: 1.0 + (amplitude * 0.6),
+                        duration: const Duration(milliseconds: 100),
+                        child: Icon(
+                          Icons.mic_rounded,
+                          color: isLoud ? Colors.white : AppTheme.error,
+                          size: 52,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -1553,6 +1574,9 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     if (_alarmTime == null || _isAlarmRinging) return;
     final now = TimeOfDay.now();
     if (now.hour == _alarmTime!.hour && now.minute == _alarmTime!.minute) {
+      // Cancel timer immediately so it doesn't fire 60 times during this minute
+      _alarmTimer?.cancel();
+      _alarmTimer = null;
       _triggerAlarm();
     }
   }
@@ -1593,7 +1617,6 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     _playAlarmWithFallback();
 
     if (mounted) {
-      if (!mounted) return; // double-check after async _playAlarmWithFallback
       showGeneralDialog(
         context: context,
         barrierDismissible: false,

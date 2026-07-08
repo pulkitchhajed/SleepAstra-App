@@ -94,12 +94,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildHeader(profile.name, isLight, textPrimary, textSec, themeProvider),
                 ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.08, end: 0, curve: Curves.easeOut),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildDailyGoalCard(isLight, textPrimary, textSec, cardBg, cardBorder),
                 ).animate().fadeIn(delay: 80.ms, duration: 350.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildHeroCard(isLight, textPrimary, textSec, cardBg, cardBorder),
@@ -122,12 +122,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 24),
                 // BlogHubWidget handles its own horizontal padding to bleed to edges
                 BlogHubWidget(isLight: isLight).animate().fadeIn(delay: 400.ms, duration: 350.ms),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildAskNidraBanner(),
                 ).animate().fadeIn(delay: 450.ms, duration: 350.ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOut),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildQuickAccess(isLight, textPrimary, textSec, cardBg, cardBorder),
@@ -324,39 +324,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
-              // 4. Floating Pedestal
-              if (hasData)
-                Positioned(
-                  right: 20,
-                  bottom: 25,
-                  child: Container(
-                    width: 120,
-                    height: 35,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: isLight
-                            ? [Colors.white.withValues(alpha: 0.9), Colors.white.withValues(alpha: 0.5)]
-                            : [const Color(0xFF2A2E50), const Color(0xFF161A3A)],
-                      ),
-                      border: Border.all(
-                        color: isLight ? Colors.white : Colors.white.withValues(alpha: 0.15),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: isLight ? Colors.black.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.4),
-                          blurRadius: 10,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-              // 5. Left Content
+              // 4. Left Content
               Padding(
                 padding: const EdgeInsets.all(24),
                 child: Row(
@@ -369,9 +337,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           Text(
                             'Sleep Score',
-                            style: TextStyle(
-                              fontSize: 15,
+                            style: GoogleFonts.outfit(
+                              fontSize: 16,
                               fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
                               color: isLight ? const Color(0xFF1A1D36) : Colors.white,
                             ),
                           ),
@@ -380,14 +349,21 @@ class _HomeScreenState extends State<HomeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.baseline,
                             textBaseline: TextBaseline.alphabetic,
                             children: [
-                              Text(
-                                hasData ? '$score' : '--',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 64,
-                                  fontWeight: FontWeight.w800,
-                                  color: hasData ? scoreColor : textSec,
-                                  height: 1.0,
-                                  letterSpacing: -2,
+                              ShaderMask(
+                                shaderCallback: (bounds) => LinearGradient(
+                                  colors: [scoreColor, scoreColor.withValues(alpha: 0.7)],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                ).createShader(bounds),
+                                child: Text(
+                                  hasData ? '$score' : '--',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 64,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                    height: 1.0,
+                                    letterSpacing: -2,
+                                  ),
                                 ),
                               ),
                               if (hasData)
@@ -428,12 +404,26 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                             const Spacer(),
-                            Text(
-                              'view full report →',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: isLight ? const Color(0xFF7A84A6) : const Color(0xFF6B729E),
-                                fontWeight: FontWeight.w500,
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isLight ? Colors.black.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'View full report',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: isLight ? const Color(0xFF7A84A6) : const Color(0xFF8B94B2),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.arrow_forward_rounded, size: 14, color: isLight ? const Color(0xFF7A84A6) : const Color(0xFF8B94B2)),
+                                ],
                               ),
                             ),
                           ] else ...[
@@ -455,14 +445,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ],
                       ),
-                    ),
-                    
-                    // Vertical Divider
-                    Container(
-                      width: 1,
-                      height: double.infinity,
-                      margin: const EdgeInsets.only(right: 140), // leave space for right graphic
-                      color: isLight ? Colors.black.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.08),
                     ),
                   ],
                 ),
@@ -536,7 +518,7 @@ class _HomeScreenState extends State<HomeScreen> {
       Widget chart, bool isLight, Color textPrimary, Color textSec, Color cardBg, Color cardBorder) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         decoration: AppTheme.glassDecoration(
           borderRadius: BorderRadius.circular(16),
           isLightMode: isLight,
@@ -544,15 +526,33 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: TextStyle(fontSize: 10, color: textSec),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 6),
+            Row(
+              children: [
+                Container(
+                  width: 3,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(1.5),
+                    boxShadow: [
+                      BoxShadow(color: accent.withValues(alpha: 0.5), blurRadius: 4),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(title, style: TextStyle(fontSize: 12, color: textSec, fontWeight: FontWeight.w500),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
             Text(value,
                 style: GoogleFonts.outfit(
-                  fontSize: 15, fontWeight: FontWeight.w700, color: textPrimary)),
-            Text(sub, style: TextStyle(fontSize: 10, color: accent, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 10),
-            SizedBox(height: 32, child: chart),
+                  fontSize: 20, fontWeight: FontWeight.w700, color: textPrimary)),
+            Text(sub, style: TextStyle(fontSize: 12, color: accent, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 12),
+            SizedBox(height: 44, child: chart),
           ],
         ),
       ),
@@ -621,13 +621,33 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Weekly Trend',
-          style: GoogleFonts.outfit(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: textPrimary,
-          ),
+        Row(
+          children: [
+            Container(
+              width: 3,
+              height: 18,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
+                ),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Icon(Icons.bar_chart_rounded,
+                color: AppTheme.primaryIndigo, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              'Weekly Trend',
+              style: GoogleFonts.outfit(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         Container(
@@ -708,25 +728,34 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         children: [
           SizedBox(
-            width: 60,
-            height: 60,
+            width: 68,
+            height: 68,
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CircularProgressIndicator(
-                  value: 1.0,
-                  strokeWidth: 6,
-                  color: AppTheme.primaryIndigo.withValues(alpha: 0.1),
-                ),
-                CircularProgressIndicator(
-                  value: progress,
-                  strokeWidth: 6,
-                  backgroundColor: Colors.transparent,
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.accentTeal),
-                  strokeCap: StrokeCap.round,
+                CustomPaint(
+                  painter: _GoalProgressPainter(
+                    progress: progress,
+                    isLight: isLight,
+                    color: AppTheme.accentTeal,
+                  ),
                 ),
                 Center(
-                  child: Icon(Icons.nights_stay_rounded, color: AppTheme.accentTeal, size: 24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.nights_stay_rounded, color: AppTheme.accentTeal, size: 18),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${(progress * 100).toInt()}%',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -756,6 +785,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
+          ),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: textSec.withValues(alpha: 0.5),
+            size: 24,
           ),
         ],
       ),
@@ -945,9 +979,34 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Quick Access',
-            style: GoogleFonts.outfit(
-                fontSize: 18, fontWeight: FontWeight.w700, color: textPrimary)),
+        Row(
+          children: [
+            Container(
+              width: 3,
+              height: 18,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
+                ),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Icon(Icons.bolt_rounded,
+                color: AppTheme.primaryIndigo, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              'Quick Access',
+              style: GoogleFonts.outfit(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 16),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -979,21 +1038,28 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             children: [
               Container(
-                width: 60,
-                height: 60,
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
-                  color: cardBg,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      color.withValues(alpha: 0.15),
+                      color.withValues(alpha: 0.05),
+                    ],
+                  ),
                   shape: BoxShape.circle,
-                  border: Border.all(color: cardBorder),
+                  border: Border.all(color: color.withValues(alpha: 0.2)),
                   boxShadow: [
-                    BoxShadow(color: color.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 4)),
+                    BoxShadow(color: color.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 4)),
                   ],
                 ),
-                child: Icon(icon, color: color, size: 26),
+                child: Icon(icon, color: color, size: 24),
               ),
               const SizedBox(height: 8),
               Text(label,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: textSec),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textSec),
                   textAlign: TextAlign.center),
             ],
           ),
@@ -1001,6 +1067,59 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
+
+class _GoalProgressPainter extends CustomPainter {
+  final double progress;
+  final bool isLight;
+  final Color color;
+
+  _GoalProgressPainter({required this.progress, required this.isLight, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = min(size.width / 2, size.height / 2) - 4; // padding for stroke
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    // Background track
+    final bgPaint = Paint()
+      ..color = isLight ? Colors.black.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.05)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(rect, -pi / 2, 2 * pi, false, bgPaint);
+
+    if (progress > 0) {
+      // Glow
+      final glowPaint = Paint()
+        ..color = color.withValues(alpha: 0.4)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 10
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+      
+      canvas.drawArc(rect, -pi / 2, 2 * pi * progress, false, glowPaint);
+
+      // Progress arc
+      final progressPaint = Paint()
+        ..shader = SweepGradient(
+          colors: [color.withValues(alpha: 0.5), color],
+          startAngle: -pi / 2,
+          endAngle: -pi / 2 + 2 * pi * progress,
+          transform: GradientRotation(-pi / 2),
+        ).createShader(rect)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawArc(rect, -pi / 2, 2 * pi * progress, false, progressPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
 

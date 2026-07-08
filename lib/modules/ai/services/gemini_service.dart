@@ -261,11 +261,28 @@ CRITICAL RULE: You must append the following exact sentence to the very end of y
       );
 
       // ── 6. Build conversation history ─────────────────────────────
-      final chatHistory = <Content>[];
+      final mergedHistory = <Map<String, String>>[];
       for (final msg in history) {
         final role = msg['role'];
         final text = msg['text'] ?? '';
-        if (text.isEmpty) continue;
+        if (text.isEmpty || role == null) continue;
+        
+        if (mergedHistory.isNotEmpty && mergedHistory.last['role'] == role) {
+          mergedHistory.last['text'] = '${mergedHistory.last['text']}\n\n$text';
+        } else {
+          mergedHistory.add(Map.from(msg));
+        }
+      }
+      
+      // History must end with a 'model' message before we send the next 'user' message
+      if (mergedHistory.isNotEmpty && mergedHistory.last['role'] == 'user') {
+        mergedHistory.removeLast();
+      }
+
+      final chatHistory = <Content>[];
+      for (final msg in mergedHistory) {
+        final role = msg['role'];
+        final text = msg['text'] ?? '';
         if (role == 'user') {
           chatHistory.add(Content.text(text));
         } else if (role == 'model') {

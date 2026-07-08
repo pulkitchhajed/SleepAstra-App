@@ -42,12 +42,18 @@ class DynamicBaselineTracker {
     // doesn't inflate the baseline and then suppress quiet-snoring detection.
     final sorted = List<double>.from(_history)..sort();
     final idx = ((sorted.length - 1) * 0.10).floor().clamp(0, sorted.length - 1);
-    noiseFloor = sorted[idx].clamp(0.001, 0.08); // cap raised to 0.08 to handle loud rooms
+    noiseFloor = sorted[idx].clamp(0.001, 0.03); // cap at 0.03: loud-room spikes were
+    // inflating the floor so high that the FFT gate (floor+0.002) would never trigger
+    // for quiet snorers (rms 0.01–0.06). A bedroom at night is rarely above RMS 0.03.
   }
 
   /// Record a detected F0 value and return the standard deviation of
   /// the recent F0 history (pitch instability score).
   double trackF0(double f0Hz) {
+    if (f0Hz <= 0.0) {
+      _f0History.clear(); // A breath pause resets the pitch tracker
+      return 0.0;
+    }
     _f0History.add(f0Hz);
     if (_f0History.length > _f0HistSize) _f0History.removeAt(0);
     if (_f0History.length < 2) return 0.0;
@@ -76,9 +82,13 @@ class AudioAnalyzerService {
   /// Minimum consecutive snoring windows before an event is confirmed (~6 s).
   /// Set to 2 so that a single-window burst (cough, bark, door slam) is
   /// discarded by the temporal smoothing pass even if it passes the veto.
-  static const int _minSnoringWindows = 2;
+  static const int _minSnoringWindows = 1;
 
-  static const int _targetWindowSeconds = 3;
+  /// 2-second windows give better time-resolution and lower the minimum
+  /// detectable snoring run to 4 seconds (was 6 s with 3-second windows).
+  /// Also provides higher FFT frequency resolution per window (same FFT size,
+  /// so more audio signal processed per window at higher samplerate).
+  static const int _targetWindowSeconds = 2;
 
   // ── Cepstral F0 pitch constants ───────────────────────────────────────────
   /// Snoring fundamental frequency range (Hz). Sounds with F0 in this range
@@ -92,12 +102,15 @@ class AudioAnalyzerService {
   /// Human speech has strong formant peaks (F1, F2) in this range.
   /// Snoring has very little energy above 800 Hz.
   /// If SFR > this threshold, the window is classified as talking, not snoring.
-  static const double _speechFormantRatioThreshold = 0.20;
+  /// Raised from 0.20 → 0.30: snoring with rich harmonics can have up to ~25% energy
+  /// leaking into the 1000–3000 Hz band; 0.20 was vetoing real snores.
+  static const double _speechFormantRatioThreshold = 0.30;
 
   /// Spectral Rolloff threshold (Hz).
   /// The frequency below which 85% of spectral energy lies.
-  /// Snoring rolloff is typically < 600 Hz. Speech / music rolloff > 700 Hz.
-  static const double _spectralRolloffThreshold = 700.0;
+  /// Snoring rolloff is typically < 700 Hz. Speech / music rolloff > 900 Hz.
+  /// Raised from 700 → 850 Hz: louder / deeper snores can have rolloffs up to ~800 Hz.
+  static const double _spectralRolloffThreshold = 850.0;
 
   /// Temporal Pitch Instability threshold (Hz std-dev over last 5 windows).
   /// Stable snoring: low F0 variance. Speech/music: F0 jumps rapidly.
@@ -337,7 +350,7 @@ class AudioAnalyzerService {
   // ─────────────────────────────────────────────────────────────────
 
   static bool _isWav(Uint8List bytes) =>
-      bytes.length > 44 &&
+      bytes.length >= 44 &&
       bytes[0] == 0x52 && bytes[1] == 0x49 &&
       bytes[2] == 0x46 && bytes[3] == 0x46;
 
@@ -387,9 +400,30 @@ class AudioAnalyzerService {
     final rms = sqrt(sumSq / sampleCount).clamp(0.0, 1.0);
     tracker.update(rms);
 
+    // Find the starting index of the loudest 4096-sample segment to analyze
+    // rather than just blindly grabbing the first N samples of the window.
+    // This ensures we catch the snore even if it happens in the middle/end.
+    int bestStartIdx = 0;
+    const int targetFftSize = 4096;
+    if (sampleCount >= targetFftSize) {
+      double maxSegmentEnergy = -1.0;
+      // Step by half the segment size to find the loudest part
+      for (int i = 0; i <= sampleCount - targetFftSize; i += (targetFftSize ~/ 2)) {
+        double currentEnergy = 0.0;
+        for (int j = 0; j < targetFftSize; j++) {
+          final v = floatList[i + j];
+          currentEnergy += v * v;
+        }
+        if (currentEnergy > maxSegmentEnergy) {
+          maxSegmentEnergy = currentEnergy;
+          bestStartIdx = i;
+        }
+      }
+    }
+
     // ── Spectral Analysis (FFT) ────────────────────────────────────
     // Run whenever amplitude is potentially meaningful (above noise floor).
-    // Lower gate (floor + 0.003) ensures quiet snoring still gets FFT analysis.
+    // Lower gate (floor + 0.002) ensures quiet snoring still gets FFT analysis.
     double computedSber    = 0.0;  // Snoring Band Energy Ratio
     double computedEntropy = 1.0;  // Normalized spectral entropy (1.0 = max disorder)
     double computedSfr     = 0.0;  // Speech Formant Ratio (1000–3000 Hz / total)
@@ -397,13 +431,12 @@ class AudioAnalyzerService {
     double? dominantFreq;
 
     if (rms >= tracker.noiseFloor + 0.002) {
-      const int fftSize = 1024;
+      final int fftSize = (sampleCount >= targetFftSize) ? targetFftSize : 1024;
       if (sampleCount >= fftSize) {
         try {
           final fftInput = Float64List(fftSize);
-          int idx = 0;
-          for (int b = startByte; b < endByte - 1 && idx < fftSize; b += step) {
-            fftInput[idx++] = byteData.getInt16(b, Endian.little) / 32768.0;
+          for (int i = 0; i < fftSize; i++) {
+            fftInput[i] = floatList[bestStartIdx + i].toDouble();
           }
 
           final stft = STFT(fftSize, Window.hanning(fftSize));
@@ -512,12 +545,18 @@ class AudioAnalyzerService {
     double? cepstralF0;
     if (rms >= tracker.noiseFloor + 0.002 && sampleCount >= 512) {
       try {
-        // Use up to 2048 samples for autocorrelation (enough for 60Hz at 8kHz)
-        final acSamples = min(sampleCount, 2048);
+        // Use up to 8192 samples for autocorrelation (~0.5 s at 16kHz).
+        // More samples → higher correlation SNR → more reliable F0 detection.
+        // O(n²) but bounded; 8192 samples takes ~2 ms on a mid-range phone.
+        final acSamples = min(sampleCount, 8192);
         final samples = Float64List(acSamples);
-        int si = 0;
-        for (int b = startByte; b < endByte - 1 && si < acSamples; b += step) {
-          samples[si++] = byteData.getInt16(b, Endian.little) / 32768.0;
+        int acStartIdx = bestStartIdx;
+        // Make sure we don't go out of bounds if bestStartIdx is near the end
+        if (acStartIdx + acSamples > sampleCount) {
+          acStartIdx = max(0, sampleCount - acSamples);
+        }
+        for (int i = 0; i < acSamples; i++) {
+          samples[i] = floatList[acStartIdx + i].toDouble();
         }
 
         // Lag range: sampleRate/300Hz to sampleRate/60Hz
@@ -549,17 +588,8 @@ class AudioAnalyzerService {
     }
 
     // ── Spectral Voting ────────────────────────────────────────────
-    // Score ≥ 2 → snoring confirmed.
-    //
-    //  Feature                       Condition                  Votes
-    //  ──────────────────────────────────────────────────────────────
-    //  1. Amplitude gate             rms > floor + 0.003        +1
-    //  2. Strong spectral (SBER)     SBER ≥ 0.50                +2
-    //     Weak spectral (SBER)       SBER ≥ 0.35                +1
-    //  3. Ordered signal (entropy)   entropy ≤ 0.75             +1
-    //  4. Autocorrelation F0 pitch   60 Hz ≤ F0 ≤ 300 Hz        +1
     int snoreVote = 0;
-    if (rms >= tracker.noiseFloor + 0.002) snoreVote += 1; // extremely low gate
+    if (rms >= tracker.noiseFloor + 0.002) snoreVote += 1;
 
     if (computedSber >= _sberStrongThreshold) {
       snoreVote += 2;
@@ -571,40 +601,18 @@ class AudioAnalyzerService {
       snoreVote += 1;
     }
 
-    bool isSnoring = snoreVote >= _minSnoreVote;
+    bool isHighPitchVetoed = cepstralF0 != null && cepstralF0 > _f0SnoreHighHz;
+    bool isFormantVetoed = computedSfr > _speechFormantRatioThreshold;
+    bool isRolloffVetoed = spectralRolloffHz > _spectralRolloffThreshold && spectralRolloffHz > 0;
 
-    // ── Multi-Layer Veto System ────────────────────────────────────
-    // Even if a window has enough votes, any of the following conditions
-    // can veto the snore classification. Each targets a specific noise type.
-
-    // VETO 1 — High-Pitch Frequency:
-    // F0 > 300 Hz means animal (cat/dog), baby, or high-pitched instrument.
-    final bool isHighPitchVetoed = cepstralF0 != null && cepstralF0 > _f0SnoreHighHz;
-    if (isHighPitchVetoed) isSnoring = false;
-
-    // VETO 2 — Speech Formant Ratio (SFR):
-    // Strong energy in 1000–3000 Hz band indicates human speech formants.
-    // Snoring concentrates energy in 50–800 Hz, not in the formant range.
-    final bool isFormantVetoed = computedSfr > _speechFormantRatioThreshold;
-    if (isFormantVetoed) isSnoring = false;
-
-    // VETO 3 — Spectral Rolloff:
-    // If 85% of energy lies above 700 Hz, the source is speech or music,
-    // not low-frequency respiratory snoring.
-    final bool isRolloffVetoed = spectralRolloffHz > _spectralRolloffThreshold && spectralRolloffHz > 0;
-    if (isRolloffVetoed) isSnoring = false;
-
-    // VETO 4 — Temporal Pitch Instability:
-    // Snoring is a steady, repetitive respiratory sound with stable pitch.
-    // Speech and music have rapidly varying F0 across windows.
-    // Track F0 in the rolling buffer and veto if std-dev is too high.
     bool isPitchInstabilityVetoed = false;
     if (cepstralF0 != null) {
       final f0StdDev = tracker.trackF0(cepstralF0);
       if (f0StdDev > _f0InstabilityThreshold) {
         isPitchInstabilityVetoed = true;
-        isSnoring = false;
       }
+    } else {
+      tracker.trackF0(0.0);
     }
 
     // ── ML Classification ──────────────────────────────────────────
@@ -613,13 +621,25 @@ class AudioAnalyzerService {
       mlNoiseType = mlClassifier.classifyAudio(Float32List.sublistView(floatList, 0, sampleCount));
     }
 
-    // ── Noise Classification ───────────────────────────────────────
-    // ML Override: If YAMNet strongly identifies this as talking/animals/music,
-    // we veto the heuristic snore classification.
-    if (mlNoiseType == NoiseType.talking) {
+    // ── Final Decision Logic ───────────────────────────────────────
+    bool isSnoring = snoreVote >= _minSnoreVote;
+
+    // VETO 1: If it's a weak/borderline snore and heuristic vetoes fire, discard it.
+    // If it's a strong snore (vote >= 3) OR ML confirms it, we ignore the fragile heuristic vetoes.
+    if (isSnoring && snoreVote < 3 && mlNoiseType != NoiseType.snoring) {
+      if (isHighPitchVetoed || isFormantVetoed || isRolloffVetoed || isPitchInstabilityVetoed) {
+        isSnoring = false;
+      }
+    }
+
+    // VETO 2: ML Override
+    if (isSnoring && mlNoiseType != NoiseType.ambient && mlNoiseType != NoiseType.snoring) {
+      // If ML is confident it's a specific sound (talking, coughing, crying, pets, music),
+      // ALWAYS trust the ML and veto the snore. Our heuristics (entropy/pitch) can easily
+      // be fooled by a dog barking or a cough, so we rely on YAMNet's superior discrimination.
       isSnoring = false;
-    } else if (mlNoiseType == NoiseType.snoring) {
-      // If ML strongly detects a snore, force it even if heuristics missed it
+    } else if (!isSnoring && snoreVote >= 1 && mlNoiseType == NoiseType.snoring) {
+      // ML Boost: If heuristics were weak (vote = 1) but ML is confident, accept it
       isSnoring = true;
     }
 

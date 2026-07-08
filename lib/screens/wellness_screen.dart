@@ -85,16 +85,24 @@ class _WellnessScreenState extends State<WellnessScreen> {
         await _audioPlayer.setAudioSource(audioSource);
         _audioPlayer.setLoopMode(LoopMode.one);
 
-        // Listen for when buffering is ready, then play
+        // Listen for when buffering is ready, then play, with timeout
         _audioPlayer.processingStateStream.firstWhere(
           (s) => s == ProcessingState.ready || s == ProcessingState.completed,
-        ).then((_) {
+        ).timeout(const Duration(seconds: 15)).then((_) {
           if (mounted && _activeTrackIndex == index) {
             _audioPlayer.play();
             setState(() {
               _isPlaying = true;
               _isLoading = false;
             });
+          }
+        }).catchError((e) {
+          if (mounted && _activeTrackIndex == index) {
+            setState(() {
+              _isLoading = false;
+              _activeTrackIndex = null;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to load audio. Check your connection.')));
           }
         });
 
@@ -168,11 +176,15 @@ class _WellnessScreenState extends State<WellnessScreen> {
                           margin: const EdgeInsets.only(right: 12),
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                           decoration: BoxDecoration(
-                            color: isSelected ? AppTheme.primaryIndigo : (isLight ? AppTheme.surfaceLight : AppTheme.surface),
+                            gradient: isSelected ? const LinearGradient(colors: [AppTheme.primaryIndigo, Color(0xFF818CF8)]) : null,
+                            color: !isSelected ? (isLight ? AppTheme.surfaceLight : AppTheme.surface) : null,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: isSelected ? AppTheme.primaryIndigo : (isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder),
+                              color: isSelected ? Colors.transparent : (isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder),
                             ),
+                            boxShadow: isSelected ? [
+                              BoxShadow(color: AppTheme.primaryIndigo.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 2))
+                            ] : null,
                           ),
                           child: Center(
                             child: Text(
@@ -354,6 +366,13 @@ class _WellnessScreenState extends State<WellnessScreen> {
                 color: ex.color.withValues(alpha: isLight ? 0.1 : 0.18),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: ex.color.withValues(alpha: 0.25)),
+                boxShadow: [
+                  BoxShadow(
+                    color: ex.color.withValues(alpha: 0.15),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Stack(
                 children: [
@@ -407,13 +426,30 @@ class _WellnessScreenState extends State<WellnessScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 3,
+                height: 18,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
+                  ),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
+                ),
+              ),
+            ],
           ),
           if (title != 'Recommended for you')
             GestureDetector(
@@ -429,8 +465,11 @@ class _WellnessScreenState extends State<WellnessScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryIndigo.withValues(alpha: 0.1),
+                  gradient: LinearGradient(
+                    colors: [AppTheme.primaryIndigo.withValues(alpha: 0.15), const Color(0xFF818CF8).withValues(alpha: 0.15)],
+                  ),
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppTheme.primaryIndigo.withValues(alpha: 0.2)),
                 ),
                 child: const Text(
                   'See All',
@@ -456,19 +495,46 @@ class _WellnessScreenState extends State<WellnessScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Wellness Videos',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
-                ),
+              Row(
+                children: [
+                  Container(
+                    width: 3,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
+                      ),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Wellness Videos',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
+                    ),
+                  ),
+                ],
               ),
               GestureDetector(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VideoListScreen())),
-                child: const Text(
-                  'See All',
-                  style: TextStyle(color: AppTheme.primaryIndigo, fontWeight: FontWeight.w600, fontSize: 14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppTheme.primaryIndigo.withValues(alpha: 0.15), const Color(0xFF818CF8).withValues(alpha: 0.15)],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppTheme.primaryIndigo.withValues(alpha: 0.2)),
+                  ),
+                  child: const Text(
+                    'See All',
+                    style: TextStyle(color: AppTheme.primaryIndigo, fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
                 ),
               ),
             ],

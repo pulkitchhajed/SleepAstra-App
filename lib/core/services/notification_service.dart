@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:permission_handler/permission_handler.dart';
 
 
 class NotificationService {
@@ -33,6 +34,14 @@ class NotificationService {
 
   Future<void> requestPermissions() async {
     if (kIsWeb) return;
+
+    if (await Permission.notification.isDenied) {
+      await Permission.notification.request();
+    }
+    if (await Permission.scheduleExactAlarm.isDenied) {
+      await Permission.scheduleExactAlarm.request();
+    }
+
     final androidImplementation = _notifications.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
 

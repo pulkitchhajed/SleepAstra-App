@@ -98,7 +98,7 @@ class SuspectedApneaEvent {
 }
 
 /// Categories of detected noises
-enum NoiseType { snoring, talking, movement, ambient }
+enum NoiseType { snoring, talking, movement, ambient, coughing, babyCrying, pets, music, environmental }
 
 /// Amplitude sample for the timeline chart
 class AmplitudeSample {

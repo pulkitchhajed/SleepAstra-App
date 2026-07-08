@@ -6,6 +6,7 @@ import '../services/firestore_service.dart';
 import '../../modules/blogs/services/blog_service.dart';
 import '../../modules/videos/services/video_service.dart';
 import 'dart:async';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 /// Provider to manage Authentication state across the app.
 class AuthProvider extends ChangeNotifier {
@@ -31,6 +32,7 @@ class AuthProvider extends ChangeNotifier {
       if (user != null) {
         BlogService.seedDemoBlogs();
         VideoService.seedDemoVideos();
+        _updateFcmToken(user.uid);
       }
       if (!_isDisposed) notifyListeners();
     });
@@ -68,6 +70,18 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {
       _role = 'user';
     }
+  }
+
+  Future<void> _updateFcmToken(String uid) async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        await FirebaseFirestore.instance.collection('users').doc(uid).set(
+          {'fcmToken': token},
+          SetOptions(merge: true),
+        );
+      }
+    } catch (_) {}
   }
 
   /// Guest Login.

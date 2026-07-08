@@ -46,17 +46,21 @@ class BlogHubWidget extends StatelessWidget {
                   Row(
                     children: [
                       Container(
-                        width: 36,
-                        height: 36,
+                        width: 3,
+                        height: 18,
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [AppTheme.primaryIndigo, Color(0xFF818CF8)],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
                           ),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                        child: const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 18),
                       ),
                       const SizedBox(width: 10),
+                      const Icon(Icons.auto_stories_rounded,
+                          color: AppTheme.primaryIndigo, size: 18),
+                      const SizedBox(width: 8),
                       Text(
                         'Blogs & Stories',
                         style: GoogleFonts.outfit(
@@ -103,141 +107,13 @@ class BlogHubWidget extends StatelessWidget {
                   final b = displayBlogs[i];
                   final isLocked = !isPremium && i >= 2;
 
-                  return GestureDetector(
-                    onTap: () {
-                      if (isLocked) {
-                        Navigator.pushNamed(context, AppRouter.paywall);
-                      } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => BlogDetailScreen(blog: b)),
-                        );
-                      }
-                    },
-                    child: SizedBox(
-                      width: 200,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // ── Full-size immersive thumbnail ──
-                          Container(
-                            height: 150,
-                            margin: const EdgeInsets.only(right: 16),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: isLight ? 0.12 : 0.35),
-                                  blurRadius: 18,
-                                  spreadRadius: 0,
-                                  offset: const Offset(0, 8),
-                                ),
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: isLight ? 0.06 : 0.15),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  b.coverImageUrl.isNotEmpty
-                                      ? Image.network(
-                                          b.coverImageUrl,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => _placeholderCover(i),
-                                        )
-                                      : _placeholderCover(i),
-                                  // Gradient overlay at bottom for readability
-                                  Positioned(
-                                    bottom: 0, left: 0, right: 0,
-                                    child: Container(
-                                      height: 50,
-                                      decoration: const BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.bottomCenter,
-                                          end: Alignment.topCenter,
-                                          colors: [Colors.black54, Colors.transparent],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  // Category badge
-                                  Positioned(
-                                    top: 10,
-                                    left: 10,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha: 0.55),
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                                      ),
-                                      child: Text(
-                                        b.category,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  // Lock overlay
-                                  if (isLocked)
-                                    Container(
-                                      color: Colors.black54,
-                                      child: const Center(
-                                        child: Icon(Icons.lock_rounded, color: AppTheme.primaryGold, size: 32),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          // ── Text below thumbnail ──
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(2, 10, 18, 0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    b.title,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: textPrimary,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
-                                      height: 1.3,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.schedule_rounded, size: 11, color: textSec),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${b.readTimeMinutes} min read',
-                                        style: TextStyle(color: textSec, fontSize: 11),
-                                      ),
-                                      const Spacer(),
-                                      Icon(Icons.favorite_rounded, size: 11, color: AppTheme.error.withValues(alpha: 0.7)),
-                                      const SizedBox(width: 3),
-                                      Text('${b.likes.length}', style: TextStyle(color: textSec, fontSize: 11)),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  return _BlogCardItem(
+                    blog: b,
+                    isLocked: isLocked,
+                    isLight: isLight,
+                    index: i,
+                    textPrimary: textPrimary,
+                    textSec: textSec,
                   );
                 },
               ),
@@ -245,6 +121,178 @@ class BlogHubWidget extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _BlogCardItem extends StatefulWidget {
+  final BlogModel blog;
+  final bool isLocked;
+  final bool isLight;
+  final int index;
+  final Color textPrimary;
+  final Color textSec;
+
+  const _BlogCardItem({
+    required this.blog,
+    required this.isLocked,
+    required this.isLight,
+    required this.index,
+    required this.textPrimary,
+    required this.textSec,
+  });
+
+  @override
+  State<_BlogCardItem> createState() => _BlogCardItemState();
+}
+
+class _BlogCardItemState extends State<_BlogCardItem> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
+      onTap: () {
+        if (widget.isLocked) {
+          Navigator.pushNamed(context, AppRouter.paywall);
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => BlogDetailScreen(blog: widget.blog)),
+          );
+        }
+      },
+      child: AnimatedScale(
+        scale: _isPressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        child: SizedBox(
+          width: 220,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Full-size immersive thumbnail ──
+              Container(
+                height: 150,
+                margin: const EdgeInsets.only(right: 16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: widget.isLight ? 0.12 : 0.35),
+                      blurRadius: 18,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 8),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: widget.isLight ? 0.06 : 0.15),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      widget.blog.coverImageUrl.isNotEmpty
+                          ? Image.network(
+                              widget.blog.coverImageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _placeholderCover(widget.index),
+                            )
+                          : _placeholderCover(widget.index),
+                      // Gradient overlay at bottom for readability
+                      Positioned(
+                        bottom: 0, left: 0, right: 0,
+                        child: Container(
+                          height: 50,
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [Colors.black54, Colors.transparent],
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Category badge
+                      Positioned(
+                        top: 10,
+                        left: 10,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                          ),
+                          child: Text(
+                            widget.blog.category,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Lock overlay
+                      if (widget.isLocked)
+                        Container(
+                          color: Colors.black54,
+                          child: const Center(
+                            child: Icon(Icons.lock_rounded, color: AppTheme.primaryGold, size: 32),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              // ── Text below thumbnail ──
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(2, 10, 18, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.blog.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: widget.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          height: 1.3,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.schedule_rounded, size: 11, color: widget.textSec),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${widget.blog.readTimeMinutes} min read',
+                            style: TextStyle(color: widget.textSec, fontSize: 11),
+                          ),
+                          const Spacer(),
+                          Icon(Icons.favorite_rounded, size: 11, color: AppTheme.error.withValues(alpha: 0.7)),
+                          const SizedBox(width: 3),
+                          Text('${widget.blog.likes.length}', style: TextStyle(color: widget.textSec, fontSize: 11)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

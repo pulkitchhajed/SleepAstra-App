@@ -843,31 +843,51 @@ class _NoiseClassificationChartState extends State<NoiseClassificationChart> {
   int? _touchedIndex;
 
   static const _noiseColors = {
-    NoiseType.snoring:   Color(0xFF8B5CF6), // purple
-    NoiseType.talking:   Color(0xFF3B82F6), // blue
-    NoiseType.movement:  Color(0xFFF59E0B), // amber
-    NoiseType.ambient:   Color(0xFF64748B), // slate
+    NoiseType.snoring:       Color(0xFF8B5CF6), // purple
+    NoiseType.talking:       Color(0xFF3B82F6), // blue
+    NoiseType.coughing:      Color(0xFFEF4444), // red
+    NoiseType.babyCrying:    Color(0xFFEC4899), // pink
+    NoiseType.pets:          Color(0xFFF97316), // orange
+    NoiseType.music:         Color(0xFF14B8A6), // teal
+    NoiseType.environmental: Color(0xFF64748B), // slate
+    NoiseType.movement:      Color(0xFFF59E0B), // amber
+    NoiseType.ambient:       Color(0xFF94A3B8), // slate light
   };
 
-  static const _noiseLabels = {
-    NoiseType.snoring:   'Snoring',
-    NoiseType.talking:   'Talking',
-    NoiseType.movement:  'Movement',
-    NoiseType.ambient:   'Ambient',
+  static const Map<NoiseType, String> _noiseLabels = {
+    NoiseType.snoring:       'Snoring',
+    NoiseType.talking:       'Talking',
+    NoiseType.coughing:      'Coughing',
+    NoiseType.babyCrying:    'Crying',
+    NoiseType.pets:          'Pets',
+    NoiseType.music:         'Music',
+    NoiseType.environmental: 'Environmental',
+    NoiseType.movement:      'Movement',
+    NoiseType.ambient:       'Ambient',
   };
 
-  static const _noiseDescriptions = {
-    NoiseType.snoring:   'Periodic low-frequency vibrations (60–300 Hz)',
-    NoiseType.talking:   'Higher-pitch vocal activity detected (>300 Hz)',
-    NoiseType.movement:  'Aperiodic wideband rustling (tossing & turning)',
-    NoiseType.ambient:   'Low-level constant background noise',
+  static const Map<NoiseType, String> _noiseDescs = {
+    NoiseType.snoring:       'Periodic low-frequency vibrations (60–300 Hz)',
+    NoiseType.talking:       'Higher-pitch vocal activity detected (>300 Hz)',
+    NoiseType.coughing:      'Abrupt broadband percussive bursts',
+    NoiseType.babyCrying:    'High-pitched harmonic cries',
+    NoiseType.pets:          'Dog barking, cat meowing, etc.',
+    NoiseType.music:         'Music, radio, or TV playback',
+    NoiseType.environmental: 'Vehicles, wind, sirens, etc.',
+    NoiseType.movement:      'Aperiodic wideband rustling (tossing & turning)',
+    NoiseType.ambient:       'Low-level constant background noise',
   };
 
-  static const _noiseIcons = {
-    NoiseType.snoring:   '😴',
-    NoiseType.talking:   '🗣️',
-    NoiseType.movement:  '🔄',
-    NoiseType.ambient:   '🌙',
+  static const Map<NoiseType, String> _noiseEmojis = {
+    NoiseType.snoring:       '😴',
+    NoiseType.talking:       '🗣️',
+    NoiseType.coughing:      '🤧',
+    NoiseType.babyCrying:    '👶',
+    NoiseType.pets:          '🐶',
+    NoiseType.music:         '🎵',
+    NoiseType.environmental: '🚗',
+    NoiseType.movement:      '🔄',
+    NoiseType.ambient:       '🌙',
   };
 
   @override
@@ -885,12 +905,8 @@ class _NoiseClassificationChartState extends State<NoiseClassificationChart> {
       );
     }
 
-    // Count windows per noise type
     final counts = <NoiseType, int>{
-      NoiseType.ambient:  0,
-      NoiseType.snoring:  0,
-      NoiseType.talking:  0,
-      NoiseType.movement: 0,
+      for (var type in NoiseType.values) type: 0,
     };
     for (final s in timeline) {
       counts[s.noiseType] = (counts[s.noiseType] ?? 0) + 1;
@@ -913,7 +929,12 @@ class _NoiseClassificationChartState extends State<NoiseClassificationChart> {
     // Build pie sections
     final displayOrder = [
       NoiseType.snoring,
+      NoiseType.coughing,
+      NoiseType.babyCrying,
       NoiseType.talking,
+      NoiseType.pets,
+      NoiseType.music,
+      NoiseType.environmental,
       NoiseType.movement,
       NoiseType.ambient,
     ];
@@ -1030,8 +1051,8 @@ class _NoiseClassificationChartState extends State<NoiseClassificationChart> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${_noiseIcons[type]} ${_noiseLabels[type]}',
-                                style: TextStyle(color: textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                                '${_noiseEmojis[type]} ${_noiseLabels[type]}',
+                                style: TextStyle(color: textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
                               ),
                               Text(
                                 '$durStr  ·  ${(pct * 100).round()}%',
@@ -1055,7 +1076,7 @@ class _NoiseClassificationChartState extends State<NoiseClassificationChart> {
                       border: Border.all(color: _noiseColors[activeType]!.withValues(alpha: 0.3)),
                     ),
                     child: Text(
-                      _noiseDescriptions[activeType]!,
+                      _noiseDescs[activeType]!,
                       style: TextStyle(
                         color: _noiseColors[activeType],
                         fontSize: 10,

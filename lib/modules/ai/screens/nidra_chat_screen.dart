@@ -97,7 +97,11 @@ class _NidraChatScreenState extends State<NidraChatScreen>
       if (historyStr != null) {
         try {
           final List<dynamic> decoded = jsonDecode(historyStr);
-          _messages.addAll(decoded.map((e) => _Message.fromJson(e)).toList());
+          _messages.addAll(decoded.map((e) {
+            final m = _Message.fromJson(e);
+            return _Message(m.text, isUser: m.isUser, isLoading: false);
+          }).toList());
+          _messages.removeWhere((m) => !m.isUser && m.text.isEmpty);
         } catch (_) {}
       }
 
@@ -139,21 +143,17 @@ class _NidraChatScreenState extends State<NidraChatScreen>
   Widget build(BuildContext context) {
     final isLightMode = Theme.of(context).brightness == Brightness.light;
     return Scaffold(
-      backgroundColor: widget.isModal
-          ? (isLightMode ? AppTheme.backgroundLight : AppTheme.background)
-          : Colors.transparent,
+      backgroundColor: isLightMode ? AppTheme.backgroundLight : AppTheme.background,
       body: Container(
-        decoration: widget.isModal
-            ? BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: isLightMode
-                      ? [AppTheme.backgroundLight, AppTheme.surfaceLight]
-                      : [const Color(0xFF0D0F1E), const Color(0xFF080A13)],
-                ),
-              )
-            : null,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isLightMode
+                ? [AppTheme.backgroundLight, AppTheme.surfaceLight]
+                : [const Color(0xFF0D0F1E), const Color(0xFF080A13)],
+          ),
+        ),
         child: Column(
           children: [
             _buildAppBar(),
@@ -745,7 +745,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
       (i) => AnimationController(
         vsync: this,
         duration: const Duration(milliseconds: 500),
-      )..repeat(reverse: true),
+      ),
     );
 
     // stagger each dot

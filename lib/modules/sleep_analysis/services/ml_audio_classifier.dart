@@ -14,9 +14,13 @@ class MLAudioClassifierService {
   // Key YAMNet class indices
   static const int indexSpeech = 0;
   static const int indexSnoring = 48;
+  static const int indexCough = 22;
+  static const int indexBabyCrying = 42;
   static const int indexDog = 71;
   static const int indexCat = 73;
   static const int indexMusic = 137;
+  static const int indexVehicle = 322;
+  static const int indexWind = 382;
 
   Future<void> initializeFromBuffer(Uint8List modelBuffer) async {
     if (_isInitialized) return;
@@ -70,21 +74,39 @@ class MLAudioClassifierService {
       // Extract specific scores
       double snoreScore = avgScores[indexSnoring];
       double speechScore = avgScores[indexSpeech];
+      double coughScore = avgScores[indexCough];
+      double babyScore = avgScores[indexBabyCrying];
       double dogScore = avgScores[indexDog];
       double catScore = avgScores[indexCat];
       double musicScore = avgScores[indexMusic];
+      double envScore = avgScores[indexVehicle] + avgScores[indexWind];
 
       debugPrint('ML YAMNet Scores - Snore: ${snoreScore.toStringAsFixed(3)}, '
                  'Speech: ${speechScore.toStringAsFixed(3)}, '
                  'Cat: ${catScore.toStringAsFixed(3)}');
 
       // Classification Logic
-      if (snoreScore > 0.1 && snoreScore > speechScore && snoreScore > catScore && snoreScore > dogScore) {
+      // KEY RULE: If there is meaningful speech signal, ALWAYS classify as talking.
+      // Talking and snoring can have overlapping acoustic features,
+      // so we must never let a marginal snore score override clear speech evidence.
+      if (speechScore > 0.02) {
+        return NoiseType.talking;
+      } else if (babyScore > 0.15) {
+        return NoiseType.babyCrying;
+      } else if (coughScore > 0.15) {
+        return NoiseType.coughing;
+      } else if (snoreScore > 0.15 && snoreScore > (speechScore * 2.0) && snoreScore > catScore && snoreScore > dogScore) {
+        // Only classify as snoring if snore confidence is strong AND
+        // at least 2x stronger than any residual speech signal.
         return NoiseType.snoring;
-      } else if (speechScore > 0.1 || catScore > 0.1 || dogScore > 0.1 || musicScore > 0.1) {
-        return NoiseType.talking; // Maps to any vetoed talking/animal sound
+      } else if (catScore > 0.15 || dogScore > 0.15) {
+        return NoiseType.pets;
+      } else if (musicScore > 0.15) {
+        return NoiseType.music;
+      } else if (envScore > 0.15) {
+        return NoiseType.environmental;
       } else {
-        return NoiseType.ambient; // Or movement if amplitude was high
+        return NoiseType.ambient;
       }
 
     } catch (e) {

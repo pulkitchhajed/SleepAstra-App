@@ -109,7 +109,7 @@ class _MainNavScreenState extends State<MainNavScreen>
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      height: 70,
+      height: 74,
       decoration: BoxDecoration(
         color: navBg,
         borderRadius: BorderRadius.circular(32),
@@ -119,6 +119,12 @@ class _MainNavScreenState extends State<MainNavScreen>
             color: shadowColor,
             blurRadius: 32,
             offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: AppTheme.primaryIndigo.withValues(alpha: isLight ? 0.05 : 0.1),
+            blurRadius: 20,
+            spreadRadius: 1,
+            offset: const Offset(0, -2), // Top glow
           ),
         ],
       ),
@@ -199,15 +205,9 @@ class _MainNavScreenState extends State<MainNavScreen>
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = i),
       behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected
-              ? AppTheme.primaryIndigo.withValues(alpha: 0.15)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        color: Colors.transparent,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -224,6 +224,19 @@ class _MainNavScreenState extends State<MainNavScreen>
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 color: selected ? AppTheme.primaryIndigo : unselectedColor,
                 letterSpacing: 0.3,
+              ),
+            ),
+            const SizedBox(height: 2),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: selected ? 12 : 0,
+              height: 3,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryIndigo,
+                borderRadius: BorderRadius.circular(1.5),
+                boxShadow: [
+                  BoxShadow(color: AppTheme.primaryIndigo.withValues(alpha: 0.5), blurRadius: 4)
+                ],
               ),
             ),
           ],
