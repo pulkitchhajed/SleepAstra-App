@@ -17,6 +17,7 @@ import '../../rewards/providers/rewards_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/utils/file_reader.dart';
+import '../../../core/utils/audio_tracks.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/recording_logger.dart';
 import '../services/actigraphy_service.dart';
@@ -62,16 +63,8 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
   StreamSubscription<Amplitude>? _amplitudeSubscription;
   final ValueNotifier<double> _liveAmplitude = ValueNotifier(0.0);
   
-  final List<Map<String, String>> _sleepSounds = [
-    {'name': 'Brown Noise',        'url': 'https://archive.org/download/WhiteBrownNoise/BrownNoise.ogg'},
-    {'name': 'Soft Rain',          'url': 'https://archive.org/download/RelaxingRainAndLoudThunderFreeFieldRecordingOfNatureSoundsForSleepOrMeditation/soft.ogg'},
-    {'name': 'Waterfalls',         'url': 'https://archive.org/download/WhiteBrownNoise/VirtualWaterfalls.ogg'},
-    {'name': 'Guided Meditation',  'url': 'https://archive.org/download/swmp167/SWMP167.mp3'},
-    {'name': 'Calm Piano',         'url': 'https://archive.org/download/DreamlandByMikeHuber/16%20The%20End%20Of%20The%20Day%20Revox.mp3'},
-    {'name': 'Instrumental Sleep', 'url': 'https://archive.org/download/sunflowertracks/sunflowertracks.mp3'},
-    {'name': 'Forest Night',       'url': 'https://archive.org/download/QuietForestNightSoundEffects/Quiet%20Forest%20Night.mp3'},
-    {'name': 'Ocean Waves',        'url': 'https://archive.org/download/OceanWaves_447/OceanWaves.mp3'},
-  ];
+  // Sleep sounds are sourced from the shared audio_tracks.dart constant.
+  // This avoids duplicating the URL list that wellness_screen.dart also uses.
 
   @override
   void initState() {
@@ -1877,10 +1870,10 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
               const SizedBox(height: 24),
               Text('Sleep Sounds', style: Theme.of(context).textTheme.headlineMedium),
               const SizedBox(height: 16),
-              ..._sleepSounds.map((snd) {
-                final isPlaying = _activeSoundName == snd['name'];
+              ...kSleepTracks.map((snd) {
+                final isPlaying = _activeSoundName == snd.name;
                 return ListTile(
-                  title: Text(snd['name']!, style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textPrimaryLight : AppTheme.textPrimary))),
+                  title: Text(snd.name, style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textPrimaryLight : AppTheme.textPrimary))),
                   trailing: isPlaying ? const Icon(Icons.stop_circle, color: AppTheme.accentTeal) : Icon(Icons.play_circle_outline, color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary)),
                   onTap: () async {
                     if (isPlaying) {
@@ -1888,10 +1881,10 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
                       setState(() => _activeSoundName = null);
                       setSheetState(() => _activeSoundName = null);
                     } else {
-                      setState(() => _activeSoundName = snd['name']);
-                      setSheetState(() => _activeSoundName = snd['name']);
+                      setState(() => _activeSoundName = snd.name);
+                      setSheetState(() => _activeSoundName = snd.name);
                       try {
-                        await _soundsPlayer.setUrl(snd['url']!);
+                        await _soundsPlayer.setUrl(snd.url);
                         _soundsPlayer.setLoopMode(LoopMode.one); // loop infinitely
                         _soundsPlayer.setVolume(1.0);
                         _soundsPlayer.play();

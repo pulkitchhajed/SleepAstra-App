@@ -293,8 +293,10 @@ class SleepReport {
     if (detectedApneaEvents.isNotEmpty) return detectedApneaEvents;
 
     // Simple gap scanner fallback (legacy)
+    // Require at least 5 snoring events to reduce false positives from
+    // coincidental silences between just 2-3 snore bursts.
     final apneas = <SuspectedApneaEvent>[];
-    if (snoringEvents.length < 2) return apneas;
+    if (snoringEvents.length < 5) return apneas;
 
     for (int i = 0; i < snoringEvents.length - 1; i++) {
       final current = snoringEvents[i];

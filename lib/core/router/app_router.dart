@@ -70,8 +70,10 @@ class AppRouter {
       case sleepHistory:
         return _slideRoute(const SleepHistoryScreen(), s);
       case snoreClips:
-        final clips = s.arguments as List<SnoreAudioClip>? ?? [];
-        return _slideRoute(SnoreClipsScreen(clips: clips), s);
+        final args = s.arguments as Map<String, dynamic>? ?? {};
+        final clips = args['clips'] as List<SnoreAudioClip>? ?? [];
+        final recordedAt = args['recordedAt'] as DateTime? ?? DateTime.now();
+        return _slideRoute(SnoreClipsScreen(clips: clips, recordedAt: recordedAt), s);
       case eveningJournal:
         return _slideRoute(const EveningJournalScreen(), s);
       case morningJournal:

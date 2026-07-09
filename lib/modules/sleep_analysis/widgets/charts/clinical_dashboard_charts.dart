@@ -24,11 +24,11 @@ class SnoreIntensityTimelineChart extends StatelessWidget {
     final gridLineColor = isLight ? AppTheme.cardBorderLight : Colors.white.withValues(alpha: 0.06);
 
     final rawSamples = report.amplitudeTimeline;
-    if (rawSamples.isEmpty || report.snoringEvents.isEmpty) {
+    if (rawSamples.isEmpty) {
       return const _EmptyChart(
-        title: 'Snore Intensity Timeline',
+        title: 'Sound Intensity Timeline',
         icon: Icons.show_chart_rounded,
-        message: 'No snoring detected in this recording',
+        message: 'No audio data recorded',
       );
     }
 
@@ -164,100 +164,286 @@ class SnoreIntensityTimelineChart extends StatelessWidget {
 }
 
 // ─── GRAPH 2: SNORE EVENTS PER HOUR ──────────────────────────────────
-class SnoreEventsPerHourChart extends StatelessWidget {
+// ─── GRAPH 2: NOISE EVENTS PER HOUR (STACKED) ───────────────────────
+class NoiseEventsPerHourChart extends StatelessWidget {
   final SleepReport report;
-  const SnoreEventsPerHourChart({super.key, required this.report});
+  const NoiseEventsPerHourChart({super.key, required this.report});
+
+  // Ordered display groups (merge less-common into broader categories for legibility)
+  static const _displayTypes = [
+    NoiseType.snoring,
+    NoiseType.talking,
+    NoiseType.coughing,
+    NoiseType.babyCrying,
+    NoiseType.pets,
+    NoiseType.music,
+    NoiseType.environmental,
+    NoiseType.movement,
+    NoiseType.ambient,
+  ];
+
+  static const _colors = {
+    NoiseType.snoring:       Color(0xFF8B5CF6), // purple
+    NoiseType.talking:       Color(0xFF3B82F6), // blue
+    NoiseType.coughing:      Color(0xFFEF4444), // red
+    NoiseType.babyCrying:    Color(0xFFEC4899), // pink
+    NoiseType.pets:          Color(0xFFF97316), // orange
+    NoiseType.music:         Color(0xFF14B8A6), // teal
+    NoiseType.environmental: Color(0xFF64748B), // slate
+    NoiseType.movement:      Color(0xFFF59E0B), // amber
+    NoiseType.ambient:       Color(0xFF94A3B8), // light slate
+  };
+
+  static const _labels = {
+    NoiseType.snoring:       'Snoring',
+    NoiseType.talking:       'Talking',
+    NoiseType.coughing:      'Coughing',
+    NoiseType.babyCrying:    'Crying',
+    NoiseType.pets:          'Pets',
+    NoiseType.music:         'Music',
+    NoiseType.environmental: 'Environment',
+    NoiseType.movement:      'Movement',
+    NoiseType.ambient:       'Ambient',
+  };
+
+  static const _emojis = {
+    NoiseType.snoring:       '😴',
+    NoiseType.talking:       '🗣️',
+    NoiseType.coughing:      '🤧',
+    NoiseType.babyCrying:    '👶',
+    NoiseType.pets:          '🐾',
+    NoiseType.music:         '🎵',
+    NoiseType.environmental: '🚗',
+    NoiseType.movement:      '🔄',
+    NoiseType.ambient:       '🌙',
+  };
 
   @override
   Widget build(BuildContext context) {
     final isLight = context.watch<ThemeProvider>().isDarkMode == false;
-    final textSec = isLight ? AppTheme.textSecondaryLight : Colors.white.withValues(alpha: 0.35);
-    final gridLineColor = isLight ? AppTheme.cardBorderLight : Colors.white.withValues(alpha: 0.06);
+    final textPrimary = isLight ? AppTheme.textPrimaryLight : Colors.white;
+    final textSec = isLight ? AppTheme.textSecondaryLight : Colors.white.withValues(alpha: 0.45);
+    final cardBg = isLight ? AppTheme.surfaceLight : const Color(0xFF1A1D33);
+    final cardBorder = isLight ? AppTheme.cardBorderLight : AppTheme.primaryIndigo.withValues(alpha: 0.25);
 
-    if (report.snoringEvents.isEmpty) {
+    final timeline = report.amplitudeTimeline;
+    if (timeline.isEmpty) {
       return const _EmptyChart(
-        title: 'Snore Events / Hour',
+        title: 'Sound Activity Per Hour',
         icon: Icons.bar_chart_rounded,
-        message: 'No snoring detected in this recording',
+        message: 'No audio data recorded',
       );
     }
 
-    final Map<int, int> hourlyCounts = {};
-    for (var e in report.snoringEvents) {
-      final hourOffset = e.timestamp.inHours;
-      hourlyCounts[hourOffset] = (hourlyCounts[hourOffset] ?? 0) + 1;
+    // Use 15-min buckets for recordings < 2 hours; hourly otherwise
+    final totalMinutes = report.totalDuration.inMinutes;
+    final useMinuteBuckets = totalMinutes < 120;
+    final bucketSizeMin = useMinuteBuckets ? 15 : 60;
+    final bucketCount = max(1, (totalMinutes / bucketSizeMin).ceil());
+    final chartTitle = useMinuteBuckets ? 'Sound Activity (15-min buckets)' : 'Sound Activity Per Hour';
+
+    // Build per-bucket counts per NoiseType
+    final Map<int, Map<NoiseType, int>> hourlyData = {};
+    for (int b = 0; b < bucketCount; b++) {
+      hourlyData[b] = {for (var t in _displayTypes) t: 0};
     }
 
-    final maxHour = report.totalDuration.inHours + 1;
-    final List<BarChartGroupData> barGroups = [];
-    double maxCount = 0;
+    for (final sample in timeline) {
+      final bucketIndex = (sample.timeSeconds / (bucketSizeMin * 60)).floor().clamp(0, bucketCount - 1);
+      final type = sample.noiseType;
+      if (hourlyData[bucketIndex] != null) {
+        hourlyData[bucketIndex]![type] = (hourlyData[bucketIndex]![type] ?? 0) + 1;
+      }
+    }
 
-    for (int i = 0; i < maxHour; i++) {
-      final count = hourlyCounts[i] ?? 0;
-      if (count > maxCount) maxCount = count.toDouble();
+    // Build bar groups with stacked rods
+    double globalMax = 0;
+    final List<BarChartGroupData> barGroups = [];
+
+    for (int b = 0; b < bucketCount; b++) {
+      final counts = hourlyData[b]!;
+      final total = counts.values.fold(0, (a, b) => a + b).toDouble();
+      if (total > globalMax) globalMax = total;
+
+      final List<BarChartRodStackItem> stackItems = [];
+      double fromY = 0;
+      for (final type in _displayTypes) {
+        final count = (counts[type] ?? 0).toDouble();
+        if (count == 0) continue;
+        stackItems.add(BarChartRodStackItem(fromY, fromY + count, _colors[type]!));
+        fromY += count;
+      }
+
       barGroups.add(BarChartGroupData(
-        x: i,
+        x: b,
         barRods: [
           BarChartRodData(
-            toY: count.toDouble(),
-            gradient: const LinearGradient(
-              begin: Alignment.bottomCenter,
-              end: Alignment.topCenter,
-              colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
-            ),
-            width: 14,
-            borderRadius: BorderRadius.circular(6),
+            toY: total,
+            width: bucketCount > 8 ? 10 : 18,
+            borderRadius: BorderRadius.circular(5),
+            rodStackItems: stackItems,
+            color: Colors.transparent,
           ),
         ],
       ));
     }
 
-    return _ChartCard(
-      title: 'Snore Events Per Hour',
-      subtitle: 'Frequency of snoring bursts during the night.',
-      icon: Icons.bar_chart_rounded,
-      iconColor: AppTheme.accentTeal,
-      child: BarChart(
-        BarChartData(
-          minY: 0,
-          maxY: max(5, maxCount * 1.2),
-          gridData: ChartTheme.gridData(isLight),
-          titlesData: FlTitlesData(
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 28,
-                getTitlesWidget: (v, m) => Text(
-                  v.toInt().toString(),
-                  style: TextStyle(
-                      color: textSec, fontSize: 10),
+    // Which noise types actually appeared?
+    final activeTypes = _displayTypes.where((t) {
+      return hourlyData.values.any((m) => (m[t] ?? 0) > 0);
+    }).toList();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryIndigo.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryIndigo.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppTheme.primaryIndigo.withValues(alpha: 0.3)),
+                ),
+                child: const Icon(Icons.bar_chart_rounded, color: AppTheme.primaryIndigo, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(chartTitle,
+                        style: TextStyle(color: textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
+                    Text('Noise type breakdown throughout the night',
+                        style: TextStyle(color: textSec, fontSize: 11)),
+                  ],
                 ),
               ),
-            ),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (v, m) {
-                  final time = report.recordedAt
-                      .add(Duration(hours: v.toInt()));
-                  return Text(
-                    DateFormat('h a').format(time),
-                    style: TextStyle(
-                        color: textSec, fontSize: 10),
-                  );
-                },
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Bar Chart
+          SizedBox(
+            height: 180,
+            child: BarChart(
+              BarChartData(
+                minY: 0,
+                maxY: max(5, globalMax * 1.15),
+                gridData: ChartTheme.gridData(isLight),
+                borderData: ChartTheme.borderData,
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 28,
+                      getTitlesWidget: (v, m) => Text(
+                        v.toInt().toString(),
+                        style: TextStyle(color: textSec, fontSize: 9),
+                      ),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 22,
+                      getTitlesWidget: (v, m) {
+                        final bucketIndex = v.toInt();
+                        final offsetSeconds = bucketIndex * bucketSizeMin * 60;
+                        final time = report.recordedAt.add(Duration(seconds: offsetSeconds));
+                        final label = useMinuteBuckets
+                            ? DateFormat('h:mm').format(time)
+                            : DateFormat('h a').format(time);
+                        return SideTitleWidget(
+                          meta: m,
+                          child: Text(
+                            label,
+                            style: TextStyle(color: textSec, fontSize: 9),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (_) => isLight
+                        ? AppTheme.surfaceLight
+                        : const Color(0xFF1A1D33),
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      final bucketIndex = group.x;
+                      final offsetSeconds = bucketIndex * bucketSizeMin * 60;
+                      final time = report.recordedAt.add(Duration(seconds: offsetSeconds));
+                      final timeLabel = useMinuteBuckets
+                          ? DateFormat('h:mm a').format(time)
+                          : DateFormat('h a').format(time);
+                      final counts = hourlyData[bucketIndex]!;
+                      final lines = _displayTypes
+                          .where((t) => (counts[t] ?? 0) > 0)
+                          .map((t) => '${_emojis[t]} ${_labels[t]}: ${counts[t]}')
+                          .join('\n');
+                      return BarTooltipItem(
+                        '$timeLabel\n$lines',
+                        TextStyle(color: textPrimary, fontSize: 11, fontWeight: FontWeight.w600),
+                      );
+                    },
+                  ),
+                ),
+                barGroups: barGroups,
               ),
             ),
           ),
-          borderData: ChartTheme.borderData,
-          barGroups: barGroups,
-        ),
+
+          const SizedBox(height: 16),
+
+          // Legend
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: activeTypes.map((type) {
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 10, height: 10,
+                    decoration: BoxDecoration(
+                      color: _colors[type],
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    '${_emojis[type]} ${_labels[type]}',
+                    style: TextStyle(color: textSec, fontSize: 10, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }
 }
+
 
 // ─── GRAPH 3: SEVERITY DISTRIBUTION ──────────────────────────────────
 class SeverityDistributionChart extends StatelessWidget {
@@ -897,11 +1083,20 @@ class _NoiseClassificationChartState extends State<NoiseClassificationChart> {
     final textSec = isLight ? AppTheme.textSecondaryLight : Colors.white.withValues(alpha: 0.45);
 
     final timeline = widget.report.amplitudeTimeline;
-    if (timeline.isEmpty || widget.report.snoringEvents.isEmpty) {
+    if (timeline.isEmpty) {
       return const _EmptyChart(
         title: 'Noise Breakdown',
         icon: Icons.donut_large_rounded,
-        message: 'No snoring detected in this recording',
+        message: 'No audio data recorded',
+      );
+    }
+    // Also check if all sounds are ambient (truly silent recording)
+    final hasAnyNonAmbient = timeline.any((s) => s.noiseType != NoiseType.ambient || s.amplitude > 0.01);
+    if (!hasAnyNonAmbient) {
+      return const _EmptyChart(
+        title: 'Noise Breakdown',
+        icon: Icons.donut_large_rounded,
+        message: 'No significant sounds detected',
       );
     }
 

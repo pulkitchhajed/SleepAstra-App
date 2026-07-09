@@ -5,11 +5,13 @@ import 'package:just_audio/just_audio.dart';
 class SnoreAudioPlayer extends StatefulWidget {
   final String? audioUrl;
   final String? localPath;
+  final DateTime? recordedTime;
 
   const SnoreAudioPlayer({
     super.key,
     this.audioUrl,
     this.localPath,
+    this.recordedTime,
   });
 
   @override
@@ -120,12 +122,22 @@ class _SnoreAudioPlayerState extends State<SnoreAudioPlayer> {
               children: [
                 const Icon(Icons.mic, color: Colors.indigoAccent),
                 const SizedBox(width: 8),
-                Text(
-                  'Snore Highlights',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                Expanded(
+                  child: Text(
+                    'Snore Recording',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
                 ),
+                if (widget.recordedTime != null)
+                  Text(
+                    TimeOfDay.fromDateTime(widget.recordedTime!).format(context),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
               ],
             ),
             const SizedBox(height: 16),

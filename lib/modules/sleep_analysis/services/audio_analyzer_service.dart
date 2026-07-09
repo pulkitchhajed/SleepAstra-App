@@ -813,16 +813,18 @@ class AudioAnalyzerService {
     // Use the already-computed stage field from _analyseWindow / smoothing / cycle model
     // instead of re-classifying from raw amplitude (which throws away all that work).
     final quietWindows = timeline.where((s) => !s.isSnoring).toList();
-    int deepCount = 0, remCount = 0, lightCount = 0;
+    int deepCount = 0, remCount = 0, lightCount = 0, awakeCount = 0;
     for (final s in quietWindows) {
       switch (s.stage) {
         case SleepStage.deep:  deepCount++;  break;
         case SleepStage.rem:   remCount++;   break;
         case SleepStage.light: lightCount++; break;
-        default: lightCount++; // awake windows during non-snoring = treat as light
+        case SleepStage.awake: awakeCount++; break;
       }
     }
     final nonSnoringTotal = max(1, quietWindows.length);
+    // Clamp each stage to physiologically realistic ranges.
+    // Awake is excluded from the sleep stage percentages (it's shown separately via sleepEfficiencyPercent).
     double deep  = (deepCount  / nonSnoringTotal).clamp(0.10, 0.40);
     double rem   = (remCount   / nonSnoringTotal).clamp(0.10, 0.35);
     double light = (lightCount / nonSnoringTotal).clamp(0.15, 0.70);

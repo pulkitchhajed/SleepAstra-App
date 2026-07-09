@@ -202,6 +202,20 @@ class _NidraChatScreenState extends State<NidraChatScreen>
       ),
       child: Row(
         children: [
+          if (widget.isModal)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: IconButton(
+                icon: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: isLightMode ? AppTheme.textPrimaryLight : Colors.white,
+                  size: 20,
+                ),
+                onPressed: () => Navigator.pop(context),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ),
           // Avatar with glow
           Container(
             width: 40,

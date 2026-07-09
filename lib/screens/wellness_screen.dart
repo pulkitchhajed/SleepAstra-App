@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 import '../core/theme/app_theme.dart';
 import '../core/providers/theme_provider.dart';
+import '../core/utils/audio_tracks.dart';
 import '../modules/videos/models/video_model.dart';
 import '../modules/videos/services/video_service.dart';
 import '../modules/videos/screens/video_list_screen.dart';
@@ -29,18 +30,9 @@ class _WellnessScreenState extends State<WellnessScreen> {
   int _selectedCategoryIndex = 0;
   final List<String> _categories = ['For You', 'Meditation', 'Sleep Sounds', 'Breathwork', 'Music'];
 
-  static const _tracks = [
-    _Track('Brown Noise', 'Ambient', '10 Min', Icons.waves, Color(0xFF5D4037), 'https://archive.org/download/WhiteBrownNoise/BrownNoise.ogg', 'Sleep Sounds'),
-    _Track('Soft Rain', 'Nature', '15 Min', Icons.water_drop, Color(0xFF4FC3F7), 'https://archive.org/download/RelaxingRainAndLoudThunderFreeFieldRecordingOfNatureSoundsForSleepOrMeditation/soft.ogg', 'Sleep Sounds'),
-    _Track('Waterfalls', 'Nature', '20 Min', Icons.pool, Color(0xFF00796B), 'https://archive.org/download/WhiteBrownNoise/VirtualWaterfalls.ogg', 'Sleep Sounds'),
-    _Track('Guided Meditation', 'Voices', '10 Min', Icons.self_improvement, Color(0xFF8E24AA), 'https://archive.org/download/swmp167/SWMP167.mp3', 'Meditation'),
-    _Track('Calm Piano', 'Music', '30 Min', Icons.music_note, Color(0xFF3949AB), 'https://archive.org/download/DreamlandByMikeHuber/16%20The%20End%20Of%20The%20Day%20Revox.mp3', 'Music'),
-    _Track('Instrumental Sleep', 'Music', '45 Min', Icons.spa, Color(0xFF43A047), 'https://archive.org/download/sunflowertracks/sunflowertracks.mp3', 'Music'),
-    _Track('Forest Night', 'Nature', '60 Min', Icons.forest, Color(0xFF1B5E20), 'https://archive.org/download/QuietForestNightSoundEffects/Quiet%20Forest%20Night.mp3', 'Sleep Sounds'),
-    _Track('Ocean Waves', 'Nature', '15 Min', Icons.waves, Color(0xFF0277BD), 'https://archive.org/download/OceanWaves_447/OceanWaves.mp3', 'Sleep Sounds'),
-    _Track('White Noise', 'Ambient', '30 Min', Icons.blur_on, Color(0xFF9E9E9E), 'https://archive.org/download/WhiteNoise10Min/WhiteNoise.mp3', 'Sleep Sounds'),
-    _Track('Binaural Beats', 'Healing', '20 Min', Icons.headphones, Color(0xFF512DA8), 'https://archive.org/download/binaural-beats-sleep/binaural.mp3', 'Meditation'),
-  ];
+  // Tracks are sourced from the shared kSleepTracks constant (core/utils/audio_tracks.dart)
+  // to avoid duplicating URLs with the Sleep Analysis screen.
+  static final List<SleepTrack> _tracks = kSleepTracks;
 
   @override
   void dispose() {
@@ -230,8 +222,8 @@ class _WellnessScreenState extends State<WellnessScreen> {
                         if (_selectedCategoryIndex == 0 || _selectedCategoryIndex == 1) ...[
                           _buildSectionTitle('Meditation', isLight).animate().fadeIn(delay: 100.ms, duration: 300.ms),
                           _buildHorizontalList(
-                            tracks: _tracks.where((t) => t.category == 'Meditation').toList(),
-                            indices: _tracks.asMap().entries.where((e) => e.value.category == 'Meditation').map((e) => e.key).toList(),
+                            tracks: _tracks.where((t) => t.type == 'Meditation').toList(),
+                            indices: _tracks.asMap().entries.where((e) => e.value.type == 'Meditation').map((e) => e.key).toList(),
                             isLight: isLight,
                           ).animate().fadeIn(delay: 150.ms, duration: 350.ms).slideX(begin: 0.05, end: 0, curve: Curves.easeOut),
                           const SizedBox(height: 32),
@@ -240,8 +232,8 @@ class _WellnessScreenState extends State<WellnessScreen> {
                         if (_selectedCategoryIndex == 0 || _selectedCategoryIndex == 2) ...[
                           _buildSectionTitle('Sleep Sounds', isLight).animate().fadeIn(delay: 100.ms, duration: 300.ms),
                           _buildHorizontalList(
-                            tracks: _tracks.where((t) => t.category == 'Sleep Sounds').toList(),
-                            indices: _tracks.asMap().entries.where((e) => e.value.category == 'Sleep Sounds').map((e) => e.key).toList(),
+                            tracks: _tracks.where((t) => t.type == 'Sleep Sounds').toList(),
+                            indices: _tracks.asMap().entries.where((e) => e.value.type == 'Sleep Sounds').map((e) => e.key).toList(),
                             isLight: isLight,
                           ).animate().fadeIn(delay: 150.ms, duration: 350.ms).slideX(begin: 0.05, end: 0, curve: Curves.easeOut),
                           const SizedBox(height: 32),
@@ -256,8 +248,8 @@ class _WellnessScreenState extends State<WellnessScreen> {
                         if (_selectedCategoryIndex == 0 || _selectedCategoryIndex == 4) ...[
                           _buildSectionTitle('Music', isLight).animate().fadeIn(delay: 100.ms, duration: 300.ms),
                           _buildHorizontalList(
-                            tracks: _tracks.where((t) => t.category == 'Music').toList(),
-                            indices: _tracks.asMap().entries.where((e) => e.value.category == 'Music').map((e) => e.key).toList(),
+                            tracks: _tracks.where((t) => t.type == 'Music').toList(),
+                            indices: _tracks.asMap().entries.where((e) => e.value.type == 'Music').map((e) => e.key).toList(),
                             isLight: isLight,
                           ).animate().fadeIn(delay: 150.ms, duration: 350.ms).slideX(begin: 0.05, end: 0, curve: Curves.easeOut),
                           const SizedBox(height: 32),
@@ -697,7 +689,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
 
 
   Widget _buildHorizontalList({
-    required List<_Track> tracks,
+    required List<SleepTrack> tracks,
     required List<int> indices,
     required bool isLight,
     bool isLarge = false,
@@ -768,7 +760,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 8.0),
                             child: Text(
-                              track.title,
+                              track.name,
                               textAlign: TextAlign.center,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
@@ -780,7 +772,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
                             ),
                           ),
                           const SizedBox(height: 3),
-                          Text(track.artist, style: TextStyle(fontSize: 11, color: textSec)),
+                          Text(track.category, style: TextStyle(fontSize: 11, color: textSec)),
                         ],
                       ),
                     ),
@@ -862,7 +854,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_tracks[_activeTrackIndex!].title, 
+                Text(_tracks[_activeTrackIndex!].name, 
                     style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
                 Text('Now Playing', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
               ],
@@ -904,17 +896,8 @@ class _WellnessScreenState extends State<WellnessScreen> {
 
 }
 
-class _Track {
-  final String title;
-  final String artist;
-  final String duration;
-  final IconData icon;
-  final Color color;
-  final String url;
-  final String category;
-
-  const _Track(this.title, this.artist, this.duration, this.icon, this.color, this.url, this.category);
-}
+// _Track class removed — SleepTrack from core/utils/audio_tracks.dart is used instead.
+// Wellness filter uses SleepTrack.type field for category matching.
 
 
 class BreathingExerciseSheet extends StatefulWidget {

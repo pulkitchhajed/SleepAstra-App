@@ -22,20 +22,29 @@ class AuthProvider extends ChangeNotifier {
     _user = _authService.currentUser;
     if (_user != null) {
       _fetchRole();
-      BlogService.seedDemoBlogs();
-      VideoService.seedDemoVideos();
+      // Seed only once — guard against double-call when auth stream
+      // fires immediately on subscribe for an already-logged-in user.
+      _triggerSeedOnce();
     }
     // Listen to auth changes for future updates.
     _authSubscription = _authService.userChanges.listen((User? user) async {
       _user = user;
       await _fetchRole();
       if (user != null) {
-        BlogService.seedDemoBlogs();
-        VideoService.seedDemoVideos();
+        _triggerSeedOnce();
         _updateFcmToken(user.uid);
       }
       if (!_isDisposed) notifyListeners();
     });
+  }
+
+  bool _seeded = false;
+
+  void _triggerSeedOnce() {
+    if (_seeded) return;
+    _seeded = true;
+    BlogService.seedDemoBlogs();
+    VideoService.seedDemoVideos();
   }
 
   @override

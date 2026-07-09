@@ -4,8 +4,9 @@ import '../widgets/snore_audio_player.dart';
 
 class SnoreClipsScreen extends StatelessWidget {
   final List<SnoreAudioClip> clips;
+  final DateTime recordedAt;
 
-  const SnoreClipsScreen({super.key, required this.clips});
+  const SnoreClipsScreen({super.key, required this.clips, required this.recordedAt});
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +69,7 @@ class SnoreClipsScreen extends StatelessWidget {
               SnoreAudioPlayer(
                 localPath: clip.localPath,
                 audioUrl: clip.remoteUrl,
+                recordedTime: recordedAt.add(clip.timestamp),
               ),
             ],
           );

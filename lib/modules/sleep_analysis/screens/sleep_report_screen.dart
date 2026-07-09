@@ -94,6 +94,7 @@ class _SleepReportScreenState extends State<SleepReportScreen>
                           child: SnoreAudioPlayer(
                             localPath: clip.localPath,
                             audioUrl: clip.remoteUrl,
+                            recordedTime: widget.report.recordedAt.add(clip.timestamp),
                           ),
                         );
                       }),
@@ -102,7 +103,10 @@ class _SleepReportScreenState extends State<SleepReportScreen>
                           onPressed: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => SnoreClipsScreen(clips: widget.report.snoreAudioClips),
+                                builder: (_) => SnoreClipsScreen(
+                                  clips: widget.report.snoreAudioClips,
+                                  recordedAt: widget.report.recordedAt,
+                                ),
                               ),
                             );
                           },
@@ -158,7 +162,10 @@ class _SleepReportScreenState extends State<SleepReportScreen>
                       _buildAudioClipsCard(cardBg, cardBorder, textPrimary, textSec),
 
 
-                    // Noise Classification Breakdown (new)
+                    // Sound Activity Per Hour (Stacked by noise type)
+                    NoiseEventsPerHourChart(report: widget.report),
+
+                    // Noise Classification Breakdown (pie)
                     NoiseClassificationChart(report: widget.report),
 
                     // Snore Episode Burst Pattern
@@ -174,17 +181,10 @@ class _SleepReportScreenState extends State<SleepReportScreen>
                     if (widget.report.apneaHypopneaIndex > 0 || widget.report.detectedApneaEvents.isNotEmpty)
                       _buildAhiCard(cardBg, cardBorder, textPrimary, textSec),
 
-                    // --- Hidden Charts ---
-                    /*
-                    SnoreHeatmapTimeline(report: widget.report),
-                    SnoreEventsPerHourChart(report: widget.report),
-                    SeverityDistributionChart(report: widget.report),
-                    ActivityHeatmapChart(report: widget.report),
-                    FftSpectrumChart(report: widget.report),
-                    */
                     const SizedBox(height: 32),
                     _buildActionButtons(context),
                     const SizedBox(height: 48),
+
                   ],
                 ),
               ),
@@ -616,7 +616,10 @@ class _SleepReportScreenState extends State<SleepReportScreen>
         Navigator.pushNamed(
           context, 
           AppRouter.snoreClips, 
-          arguments: widget.report.snoreAudioClips,
+          arguments: {
+            'clips': widget.report.snoreAudioClips,
+            'recordedAt': widget.report.recordedAt,
+          },
         );
       },
       child: Container(

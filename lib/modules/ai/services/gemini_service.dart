@@ -182,17 +182,24 @@ USER PROFILE:
                 : latestReport.qualityScore >= 45
                     ? 'Fair'
                     : 'Poor';
+        final snoringLabel = latestReport.snoringDuration.inMinutes == 0
+            ? 'None'
+            : latestReport.snoringDuration.inMinutes < 15
+                ? 'Mild'
+                : latestReport.snoringDuration.inMinutes < 30
+                    ? 'Moderate'
+                    : 'Heavy';
         sessionContext = '''
 LATEST SLEEP SESSION (${_formatDate(latestReport.recordedAt)}):
 - Quality Score: ${latestReport.qualityScore.toInt()}/100 ($scoreLabel)
 - Total Sleep: ${latestReport.totalDuration.inHours}h ${latestReport.totalDuration.inMinutes % 60}m
-- Snoring Duration: ${latestReport.snoringDuration.inMinutes} minutes (${latestReport.snoringPercentage.toStringAsFixed(1)}% of night)
-- Snoring Events: ${latestReport.snoringEventCount}
-- Apnea Risk: ${latestReport.apneaRiskLevel}
-- Sleep Stages: Deep ${(latestReport.deepSleepPercent * 100).toStringAsFixed(0)}%, REM ${(latestReport.remSleepPercent * 100).toStringAsFixed(0)}%, Light ${(latestReport.lightSleepPercent * 100).toStringAsFixed(0)}%
-- Sleep Debt: ${latestReport.sleepDebtHours.toStringAsFixed(1)} hours''';
+- Snoring Duration: ${latestReport.snoringDuration.inMinutes} minutes ($snoringLabel — ${latestReport.snoringPercentage.toStringAsFixed(1)}% of night)
+- Snoring Events: ${latestReport.snoringEventCount} individual episodes
+- Apnea Risk Level: ${latestReport.apneaRiskLevel}
+- Sleep Stages: Deep ${(latestReport.deepSleepPercent * 100).toStringAsFixed(0)}%, REM ${(latestReport.remSleepPercent * 100).toStringAsFixed(0)}%, Light ${(latestReport.lightSleepPercent * 100).toStringAsFixed(0)}%, Awake ${(100 - (latestReport.deepSleepPercent + latestReport.remSleepPercent + latestReport.lightSleepPercent) * 100).clamp(0, 100).toStringAsFixed(0)}%
+- Sleep Debt: ${latestReport.sleepDebtHours.toStringAsFixed(1)} hours behind goal''';
       } else {
-        sessionContext = 'The user has not recorded any sleep sessions yet.';
+        sessionContext = 'The user has not recorded any sleep sessions yet. Encourage them to start their first recording tonight so Nidra can provide personalised data-driven insights.';
       }
 
       // ── 3. Latest Journal Context ─────────────────────────────────
@@ -225,23 +232,96 @@ ${latestJournal.notes.isNotEmpty ? '- User Notes: "${latestJournal.notes}"' : ''
         final avgScore = recent.map((r) => r.qualityScore).reduce((a, b) => a + b) / recent.length;
         final avgSnoreMin = recent.map((r) => r.snoringDuration.inMinutes).reduce((a, b) => a + b) / recent.length;
         final highRiskCount = recent.where((r) => r.apneaRiskLevel == 'High').length;
+        final trend = recent.length >= 3
+            ? (recent.first.qualityScore > recent.last.qualityScore ? 'Improving 📈' : recent.first.qualityScore < recent.last.qualityScore ? 'Declining 📉' : 'Stable ➡️')
+            : 'Not enough data';
+        final sessionLines = recent.asMap().entries.map((e) {
+          final i = e.key + 1;
+          final r = e.value;
+          return 'Session $i (${_formatDate(r.recordedAt)}): Score=${r.qualityScore.toInt()}, Snore=${r.snoringDuration.inMinutes}min, Risk=${r.apneaRiskLevel}';
+        }).join('\n  ');
         historyContext = '''
 SLEEP HISTORY TREND (last ${recent.length} sessions):
+- Overall Trend: $trend
 - Average Quality Score: ${avgScore.toStringAsFixed(1)}/100
 - Average Snoring: ${avgSnoreMin.toStringAsFixed(0)} minutes per night
-- High Apnea Risk sessions: $highRiskCount out of ${recent.length}''';
+- High Apnea Risk sessions: $highRiskCount out of ${recent.length}
+- Session Breakdown:
+  $sessionLines''';
       }
 
-      // ── 5. Build full system instruction ─────────────────────────
-      final systemInstruction = '''You are Nidra, a professional and warm AI sleep assistant for the SnoreClinics app.
-Your role is to help users understand their sleep patterns, snoring data, and overall sleep health.
-You specialize in Obstructive Sleep Apnea (OSA), CPAP machines, and specific breathing exercises.
-Provide accurate, scientifically-grounded answers about sleep disorders, sleep hygiene, and snoring mechanics.
-Give thorough, actionable, and easy-to-understand responses.
-When relevant, mention https://snoreclinics.org/ for professional help.
-You may use markdown formatting like **bold**, bullet lists, and headers to structure your responses clearly.
-Always personalize your answers using the user's data below when available.
-Always address the user by their name when you know it.
+      // ── 5. Build few-shot examples ─────────────────────────────
+      const fewShotExamples = '''
+FEW-SHOT EXAMPLES (follow this format and tone exactly):
+
+User: "Why do I snore?"
+Nidra: "Great question! 😴 Snoring happens when airflow through your throat is partially blocked during sleep, causing the surrounding tissue to vibrate.
+
+The most common culprits are:
+- **Throat muscle relaxation**: Your muscles relax deeply during sleep, narrowing the airway.
+- **Sleep position**: Sleeping on your back allows gravity to push the tongue and soft palate backward.
+- **Weight**: Extra tissue around the neck puts pressure on your airway (BMI above 25 significantly increases risk).
+- **Alcohol or sedatives**: These relax throat muscles even further, making snoring worse.
+- **Nasal congestion**: Blocked nasal passages force you to breathe through your mouth, increasing vibration.
+
+Do you tend to snore more on nights when you've had a drink or two? That's often a revealing clue! 🍷
+
+*I am an AI, please consult a doctor for a professional diagnosis.*"
+
+User: "What is sleep apnea?"
+Nidra: "Sleep Apnea is a serious but very treatable sleep disorder. During an apnea episode, your airway becomes **completely blocked**, causing you to stop breathing for 10 seconds or more. Your brain then triggers a micro-arousal to restart breathing — and this can happen **hundreds of times per night** without you even knowing.
+
+**The 3 types:**
+- 🔴 **Obstructive Sleep Apnea (OSA)**: Throat tissue collapses. Most common type.
+- 🟡 **Central Sleep Apnea**: Your brain forgets to send the signal to breathe.
+- 🟠 **Complex Sleep Apnea**: A combination of both.
+
+**Warning signs to watch for:**
+- Loud snoring with pauses
+- Waking up gasping or choking
+- Extreme daytime fatigue despite a full night's sleep
+- Morning headaches
+- Poor concentration
+
+Have you or a bed partner noticed any pauses in your breathing at night? That is the key diagnostic question!
+
+*I am an AI, please consult a doctor for a professional diagnosis.*"
+
+User: "How can I stop snoring tonight?"
+Nidra: "Here are some proven changes you can make **right now** tonight! 💪
+
+**Immediate steps:**
+1. **Sleep on your side** — Use the tennis ball trick: tape a tennis ball to the back of your pyjama top to prevent rolling onto your back.
+2. **Elevate your head** — Add an extra pillow or raise the head of your bed by 4 inches to reduce airway collapse.
+3. **Skip the nightcap** — Avoid alcohol for at least 4 hours before bed.
+4. **Clear your nasal passages** — Try a saline nasal rinse or a nasal strip (like Breathe Right) before sleep.
+5. **Stay hydrated** — Dehydration thickens nasal secretions, making congestion and snoring worse.
+
+**Longer-term strategies:**
+- Practice **myofunctional exercises** (tongue and throat exercises) — studies show these reduce snoring by up to 39%.
+- Maintain a healthy weight — even a 5–10% weight loss can significantly open the airway.
+
+Would you like me to walk you through a specific throat exercise routine you can start tonight? 🏋️"
+''';
+
+      // ── 6. Build full system instruction ─────────────────────────
+      final systemInstruction = '''You are Nidra, a professional, empathetic, and highly knowledgeable AI sleep coach for the SnoreClinics app.
+Your primary role is to help users deeply understand their sleep patterns, snoring data, and overall sleep health, and to guide them toward better sleep hygiene.
+
+CORE COMPETENCIES & KNOWLEDGE:
+- Snoring Mechanics: You know exactly why people snore (soft palate relaxation, nasal congestion, weight, alcohol relaxing throat muscles, back-sleeping gravity effects).
+- Obstructive Sleep Apnea (OSA): You understand the AHI index, apnea risk factors, and the severe health impacts of untreated OSA (hypertension, fatigue, poor focus).
+- CPAP & Treatments: You are knowledgeable about CPAP machines, oral appliances, positional therapy, and myofunctional (throat/tongue) exercises.
+- Lifestyle Impact: You know how caffeine, alcohol, stress, late meals, and screen time negatively affect REM and Deep sleep cycles.
+
+BEHAVIOR & TONE:
+1. Warm & Empathetic: Validate the user's struggles with sleep. Be encouraging and supportive.
+2. Clinical yet Accessible: Explain complex medical concepts (like REM sleep or apnea) in simple, easy-to-understand terms.
+3. Proactive & Investigative: Do not just answer the question and stop. ALWAYS ask a relevant follow-up question to dig deeper into the root cause of their snoring or sleep issues. (e.g., "Did you happen to sleep on your back last night?", "Have you noticed if your snoring is worse after a glass of wine?", or "Do you wake up feeling rested?")
+4. Hyper-Personalized: ALWAYS use the user's provided data (BMI, journal entries, sleep scores, snoring duration) to give specific, tailored advice rather than generic tips. Mention their data explicitly.
+5. Structured Responses: Use Markdown (**bolding**, bullet points, headers) to make your responses easy to skim. Use emojis sparingly but effectively.
+6. Professional Referral: When relevant, or if the user shows signs of high apnea risk, recommend visiting https://snoreclinics.org/ for professional evaluation.
+7. Address the user by their name when available.
 
 $profileContext
 
@@ -251,7 +331,9 @@ $journalContext
 
 $historyContext
 
-CRITICAL RULE: You must append the following exact sentence to the very end of your response for any medical or diagnostic questions:
+$fewShotExamples
+
+CRITICAL RULE: You must append the following exact sentence to the very end of your response for any medical, diagnostic, or treatment-related questions:
 "*I am an AI, please consult a doctor for a professional diagnosis.*"''';
 
       final model = GenerativeModel(
@@ -363,10 +445,44 @@ CRITICAL RULE: You must append the following exact sentence to the very end of y
   }
 
   Stream<String> _offlineChat(String msg, SleepReport? r) async* {
-    const errorMsg = 'I am currently running in offline mode because the Gemini API key is either missing or invalid. Please update the `.env` file with a valid Gemini API key from Google AI Studio and rebuild the app to activate my full AI capabilities!';
-    for (final chunk in errorMsg.split(' ')) {
+    // Smart offline fallback — provides context-aware responses without the API.
+    final lc = msg.toLowerCase();
+    String response;
+
+    if (r != null) {
+      // Personalised responses based on available sleep data.
+      final snoreMin = r.snoringDuration.inMinutes;
+      final score = r.qualityScore.toInt();
+      final risk = r.apneaRiskLevel;
+
+      if (lc.contains('snor') || lc.contains('snore')) {
+        response = snoreMin == 0
+            ? "Great news — your last session showed **no significant snoring**! 🎉 Your airway stayed clear. Keep up whatever you did before bed — it\'s clearly working.\n\nWould you like tips on maintaining this? Or are you curious about what factors usually trigger snoring?"
+            : snoreMin < 20
+                ? "Your last session recorded **mild snoring** ($snoreMin minutes). This is common and not immediately alarming, but it\'s worth monitoring.\n\n**Quick wins for tonight:**\n- Try sleeping on your side\n- Skip alcohol for 4 hours before bed\n- Try a nasal strip if you feel congested\n\nDid you sleep on your back last night? That\'s the most common trigger for mild snoring. 🛌\n\n*I am an AI, please consult a doctor for a professional diagnosis.*"
+                : "Your last session flagged **heavy snoring** ($snoreMin minutes — ${r.snoringPercentage.toStringAsFixed(0)}% of your night). Your Apnea Risk is currently **$risk**.\n\n**I\'d recommend:**\n1. Sleeping strictly on your side\n2. Elevating your head by 4+ inches\n3. Avoiding alcohol entirely on weeknights\n4. Practising throat exercises daily\n\nIf this persists, a professional sleep study is strongly advised. Visit **snoreclinics.org** for expert evaluation.\n\n*I am an AI, please consult a doctor for a professional diagnosis.*";
+      } else if (lc.contains('apnea') || lc.contains('apnoea') || lc.contains('stop breathing')) {
+        response = "Based on your last session, your Apnea Risk is **$risk**.\n\nObstructive Sleep Apnea happens when your airway **completely collapses** during sleep, causing you to stop breathing for 10+ seconds. Warning signs include:\n- Loud snoring with pauses\n- Waking up gasping\n- Extreme daytime fatigue\n- Morning headaches\n\nYour snoring data (${r.snoringEventCount} events in your last session) is a meaningful signal.${risk == 'High' ? ' **Your High risk level warrants a professional evaluation.** Please visit snoreclinics.org.' : ''}\n\nHave you ever woken up gasping for air? 🤔\n\n*I am an AI, please consult a doctor for a professional diagnosis.*";
+      } else if (lc.contains('score') || lc.contains('quality') || lc.contains('how was') || lc.contains('last night')) {
+        final label = score >= 80 ? 'Excellent 🌟' : score >= 60 ? 'Fair 🌙' : 'Poor 😴';
+        response = "Your last sleep session scored **$score/100** — $label\n\n**Breakdown:**\n- Snoring: $snoreMin minutes\n- Apnea Risk: $risk\n- Sleep: ${r.totalDuration.inHours}h ${r.totalDuration.inMinutes % 60}m\n\n${score >= 80 ? 'That\'s a strong recovery night! Would you like to know what drove that great score?' : score >= 60 ? 'A decent night, but there\'s room to improve. The biggest factor was your ${snoreMin > 10 ? "snoring duration" : "sleep staging"}.' : 'This was a rough night. Let\'s work backwards — do you remember anything unusual about yesterday evening?'}";
+      } else if (lc.contains('cpap') || lc.contains('machine') || lc.contains('device')) {
+        response = "**CPAP (Continuous Positive Airway Pressure)** therapy is the gold standard treatment for Obstructive Sleep Apnea. 🏆\n\nHere\'s how it works:\n- A mask worn over your nose/mouth delivers a constant gentle stream of pressurised air.\n- This air acts as a **pneumatic splint**, keeping your airway open all night.\n- Most people see dramatic improvement in snoring, energy, and focus within the first week.\n\n**Common concerns:**\n- 😟 *\'It looks uncomfortable\'* — Modern CPAP masks are lightweight and come in many styles (nasal pillows, full face, nasal cradle).\n- 😟 *\'I can\'t sleep with it on\'* — There\'s a 2–4 week adjustment period. Most people can\'t imagine sleeping without it afterwards.\n\nWould you like to know if CPAP might be right for you based on your snoring data? 🤔\n\n*I am an AI, please consult a doctor for a professional diagnosis.*";
+      } else {
+        response = "Hi! I\'m Nidra, your AI sleep coach. 😊 Your last sleep session gave you a score of **$score/100** with **$snoreMin minutes of snoring**.\n\nI\'m here to help you understand your snoring, improve your sleep, and answer any questions about sleep apnea or sleep hygiene.\n\nWhat would you like to explore? You could ask me:\n- *Why do I snore?*\n- *What does my sleep score mean?*\n- *How can I stop snoring tonight?*\n- *What is sleep apnea?*";
+      }
+    } else {
+      // No sleep data at all.
+      if (lc.contains('snor')) {
+        response = "Snoring occurs when the soft tissue in your throat **vibrates** as relaxed muscles partially block your airway during sleep.\n\n**Top causes:**\n- Sleeping on your back\n- Alcohol before bed\n- Nasal congestion\n- Excess weight around the neck\n- Airway anatomy\n\nOnce you record your first sleep session, I can give you **personalised** insights based on your actual snoring data! 🎤\n\nWould you like to know how to start your first recording?";
+      } else {
+        response = "Hi! I\'m Nidra, your personal AI sleep coach from SnoreClinics. 😊\n\nI can help you understand:\n- 🌙 Your sleep stages and quality\n- 📊 Your snoring patterns and causes\n- 😴 How to treat snoring and sleep apnea\n- 💡 Lifestyle changes that dramatically improve sleep\n\nRecord your first sleep session tonight, and I\'ll give you a full personalised analysis! In the meantime, feel free to ask me anything about snoring or sleep health.";
+      }
+    }
+
+    for (final chunk in response.split(' ')) {
       yield '$chunk ';
-      await Future.delayed(const Duration(milliseconds: 30));
+      await Future.delayed(const Duration(milliseconds: 25));
     }
   }
 
