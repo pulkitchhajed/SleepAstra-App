@@ -24,7 +24,7 @@ class _Message {
 
   Map<String, dynamic> toJson() => {'text': text, 'isUser': isUser, 'isLoading': isLoading};
   factory _Message.fromJson(Map<String, dynamic> json) => _Message(
-    json['text'] as String,
+    json['text'] as String? ?? '',
     isUser: json['isUser'] as bool? ?? false,
     isLoading: json['isLoading'] as bool? ?? false,
   );
@@ -706,24 +706,34 @@ class _NidraChatScreenState extends State<NidraChatScreen>
         .map((m) => {'role': m.isUser ? 'user' : 'model', 'text': m.text})
         .toList();
 
-    await for (final chunk in _gemini.chat(
-      msg,
-      userProfile: _userProfile,
-      latestReport: _latestReport,
-      latestJournal: _latestJournal,
-      sleepHistory: _sleepHistory,
-      history: history,
-    )) {
-      buffer.write(chunk);
+    try {
+      await for (final chunk in _gemini.chat(
+        msg,
+        userProfile: _userProfile,
+        latestReport: _latestReport,
+        latestJournal: _latestJournal,
+        sleepHistory: _sleepHistory,
+        history: history,
+      )) {
+        buffer.write(chunk);
+        if (mounted) {
+          setState(() {
+            _messages[idx] = _Message(buffer.toString());
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('NidraChat UI Error: $e');
       if (mounted) {
         setState(() {
-          _messages[idx] = _Message(buffer.toString());
+          _messages[idx] = _Message("I'm sorry, I'm having trouble connecting right now. Please try again later.");
         });
       }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+      _saveHistory();
+      _scrollDown();
     }
-    if (mounted) setState(() => _sending = false);
-    _saveHistory();
-    _scrollDown();
   }
 
   void _scrollDown() {

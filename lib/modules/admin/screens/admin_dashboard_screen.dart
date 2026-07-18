@@ -4,8 +4,11 @@ import '../../videos/models/video_model.dart';
 import '../../videos/services/video_service.dart';
 import '../../blogs/models/blog_model.dart';
 import '../../blogs/services/blog_service.dart';
+import '../../audio/models/audio_track_model.dart';
+import '../../audio/services/audio_track_service.dart';
 import 'upload_video_screen.dart';
 import 'upload_blog_screen.dart';
+import 'upload_audio_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
@@ -13,7 +16,7 @@ class AdminDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         backgroundColor: AppTheme.background,
         appBar: AppBar(
@@ -29,6 +32,7 @@ class AdminDashboardScreen extends StatelessWidget {
             tabs: [
               Tab(text: 'Videos'),
               Tab(text: 'Blogs'),
+              Tab(text: 'Audio'),
             ],
           ),
         ),
@@ -36,6 +40,7 @@ class AdminDashboardScreen extends StatelessWidget {
           children: [
             _AdminVideosTab(),
             _AdminBlogsTab(),
+            _AdminAudioTab(),
           ],
         ),
         floatingActionButton: Column(
@@ -66,6 +71,20 @@ class AdminDashboardScreen extends StatelessWidget {
               icon: const Icon(Icons.post_add_rounded, color: Colors.white),
               label: const Text(
                 'Upload Blog',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 12),
+            FloatingActionButton.extended(
+              heroTag: 'upload_audio',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const UploadAudioScreen()),
+              ),
+              backgroundColor: AppTheme.primaryIndigo,
+              icon: const Icon(Icons.audiotrack_rounded, color: Colors.white),
+              label: const Text(
+                'Upload Audio',
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
               ),
             ),
@@ -389,6 +408,144 @@ class _AdminBlogCard extends StatelessWidget {
             child: const Text('Delete', style: TextStyle(color: AppTheme.error)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AdminAudioTab extends StatelessWidget {
+  const _AdminAudioTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final service = AudioTrackService();
+    return StreamBuilder<List<AudioTrackModel>>(
+      stream: service.getAudioTracks(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: AppTheme.primaryIndigo),
+          );
+        }
+        final tracks = snapshot.data ?? [];
+        if (tracks.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.audiotrack_outlined,
+                    color: AppTheme.textSecondary, size: 56),
+                const SizedBox(height: 16),
+                const Text(
+                  'No audio tracks yet. Upload one!',
+                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
+                ),
+              ],
+            ),
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+          itemCount: tracks.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, i) => _AdminAudioCard(track: tracks[i], service: service),
+        );
+      },
+    );
+  }
+}
+
+class _AdminAudioCard extends StatelessWidget {
+  final AudioTrackModel track;
+  final AudioTrackService service;
+  
+  const _AdminAudioCard({required this.track, required this.service});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: AppTheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              width: 60, height: 60,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                image: track.thumbnailUrl.isNotEmpty
+                    ? DecorationImage(
+                        image: NetworkImage(track.thumbnailUrl),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+                color: AppTheme.primaryIndigo.withValues(alpha: 0.2),
+              ),
+              child: track.thumbnailUrl.isEmpty
+                  ? const Icon(Icons.audiotrack, color: AppTheme.primaryIndigo)
+                  : null,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    track.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${track.category} • ${track.duration}',
+                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, color: AppTheme.primaryIndigo),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => UploadAudioScreen(existingAudio: track)),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: AppTheme.error),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (c) => AlertDialog(
+                    backgroundColor: AppTheme.surface,
+                    title: const Text('Delete Audio', style: TextStyle(color: Colors.white)),
+                    content: const Text('Are you sure you want to delete this track?', style: TextStyle(color: AppTheme.textSecondary)),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(c, false),
+                        child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(c, true),
+                        child: const Text('Delete', style: TextStyle(color: AppTheme.error)),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await service.deleteAudioTrack(track.id);
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

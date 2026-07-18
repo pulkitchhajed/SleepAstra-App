@@ -32,33 +32,42 @@ class SnoreIntensityTimelineChart extends StatelessWidget {
       );
     }
 
-    const int maxPoints = 150;
-    final int bucketSize = max(1, (rawSamples.length / maxPoints).ceil());
+    const int maxBars = 100;
+    final int bucketSize = max(1, (rawSamples.length / maxBars).ceil());
     
-    final List<FlSpot> allSpots = [];
-    final List<FlSpot> snoreSpots = [];
-    bool hasSnoring = false;
+    final List<BarChartGroupData> barGroups = [];
     double peak = 0.1;
-
+    
+    int bucketIndex = 0;
     for (int i = 0; i < rawSamples.length; i += bucketSize) {
       final chunk = rawSamples.skip(i).take(bucketSize);
       double maxAmp = 0.0;
-      bool isSnore = false;
+      int snoreCount = 0;
       for (var s in chunk) {
         if (s.amplitude > maxAmp) maxAmp = s.amplitude;
-        if (s.isSnoring) {
-          isSnore = true;
-          hasSnoring = true;
-        }
+        if (s.isSnoring) snoreCount++;
       }
       
       final x = chunk.first.timeSeconds;
       if (x < 0) continue;
       
-      allSpots.add(FlSpot(x, maxAmp));
-      snoreSpots.add(isSnore ? FlSpot(x, maxAmp) : FlSpot.nullSpot);
-      
       if (maxAmp > peak) peak = maxAmp;
+      
+      // If at least 15% of the time bucket is snoring, highlight it as a snore bucket
+      final isSnoringBucket = (snoreCount / chunk.length) > 0.15;
+      
+      barGroups.add(BarChartGroupData(
+        x: bucketIndex,
+        barRods: [
+          BarChartRodData(
+            toY: maxAmp,
+            color: isSnoringBucket ? AppTheme.error : AppTheme.primaryIndigo.withValues(alpha: 0.6),
+            width: 3.0,
+            borderRadius: BorderRadius.zero,
+          ),
+        ],
+      ));
+      bucketIndex++;
     }
 
     final maxY = min(1.0, peak * 1.5);
@@ -68,25 +77,21 @@ class SnoreIntensityTimelineChart extends StatelessWidget {
       subtitle: 'How loud snoring was throughout the night (approx. dB).',
       icon: Icons.show_chart_rounded,
       iconColor: AppTheme.primaryIndigo,
-      child: LineChart(
-        LineChartData(
+      child: BarChart(
+        BarChartData(
           minY: 0,
           maxY: maxY,
-          lineTouchData: LineTouchData(
-            touchTooltipData: LineTouchTooltipData(
+          barTouchData: BarTouchData(
+            touchTooltipData: BarTouchTooltipData(
               getTooltipColor: (_) => tooltipBg,
-              getTooltipItems: (touchedSpots) => touchedSpots.map((spot) {
-                if (spot.barIndex != 0) return null;
-                final time = report.recordedAt
-                    .add(Duration(seconds: spot.x.toInt()));
-                return LineTooltipItem(
-                  '${(spot.y * 100).toInt()} dB\n${DateFormat('hh:mm a').format(time)}',
-                  TextStyle(
-                      color: textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600),
+              getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                final offsetSeconds = (groupIndex * bucketSize * (report.totalDuration.inSeconds / max(1, rawSamples.length))).toInt();
+                final time = report.recordedAt.add(Duration(seconds: offsetSeconds));
+                return BarTooltipItem(
+                  '${(rod.toY * 100).toInt()} dB\n${DateFormat('hh:mm a').format(time)}',
+                  TextStyle(color: textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
                 );
-              }).toList(),
+              },
             ),
           ),
           gridData: ChartTheme.gridData(isLight, horizontalInterval: 0.2),
@@ -98,18 +103,33 @@ class SnoreIntensityTimelineChart extends StatelessWidget {
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 22,
-                interval: max(3600,
-                    (report.totalDuration.inSeconds / 4).floorToDouble()),
+                interval: max(1, (barGroups.length / 4).floorToDouble()),
                 getTitlesWidget: (value, meta) {
-                  if (value < 0 || value > report.totalDuration.inSeconds) {
+                  final groupIndex = value.toInt();
+                  if (groupIndex < 0 || groupIndex >= barGroups.length) return const SizedBox.shrink();
+                  
+                  // Manually enforce interval to prevent label overlapping on short recordings
+                  final int step = max(1, (barGroups.length / 4).floor());
+                  if (groupIndex % step != 0 && groupIndex != barGroups.length - 1) {
                     return const SizedBox.shrink();
                   }
-                  final absoluteTime = report.recordedAt
-                      .add(Duration(seconds: value.toInt()));
+
+                  final offsetSeconds = (groupIndex * bucketSize * (report.totalDuration.inSeconds / max(1, rawSamples.length))).toInt();
+                  // Adaptive label based on recording length
+                  String label;
+                  if (report.totalDuration.inMinutes < 10) {
+                    final mins = offsetSeconds ~/ 60;
+                    final secs = offsetSeconds % 60;
+                    label = '$mins:${secs.toString().padLeft(2, '0')}';
+                  } else if (report.totalDuration.inHours < 2) {
+                    label = DateFormat('h:mm a').format(report.recordedAt.add(Duration(seconds: offsetSeconds)));
+                  } else {
+                    label = DateFormat('h a').format(report.recordedAt.add(Duration(seconds: offsetSeconds)));
+                  }
                   return SideTitleWidget(
                     meta: meta,
                     child: Text(
-                      DateFormat('h a').format(absoluteTime),
+                      label,
                       style: ChartTheme.getAxisTextStyle(isLight),
                     ),
                   );
@@ -118,45 +138,7 @@ class SnoreIntensityTimelineChart extends StatelessWidget {
             ),
           ),
           borderData: ChartTheme.borderData,
-          lineBarsData: [
-            LineChartBarData(
-              spots: allSpots,
-              isCurved: true,
-              color: AppTheme.primaryIndigo.withValues(alpha: 0.5),
-              barWidth: 2,
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    AppTheme.primaryIndigo.withValues(alpha: 0.25),
-                    AppTheme.primaryIndigo.withValues(alpha: 0.0),
-                  ],
-                ),
-              ),
-            ),
-            if (hasSnoring)
-              LineChartBarData(
-                spots: snoreSpots,
-                isCurved: true,
-                color: AppTheme.error,
-                barWidth: 2.5,
-                dotData: const FlDotData(show: false),
-                belowBarData: BarAreaData(
-                  show: true,
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AppTheme.error.withValues(alpha: 0.2),
-                      AppTheme.error.withValues(alpha: 0.0),
-                    ],
-                  ),
-                ),
-              ),
-          ],
+          barGroups: barGroups,
         ),
       ),
     );
@@ -240,19 +222,21 @@ class NoiseEventsPerHourChart extends StatelessWidget {
     final useMinuteBuckets = totalMinutes < 120;
     final bucketSizeMin = useMinuteBuckets ? 15 : 60;
     final bucketCount = max(1, (totalMinutes / bucketSizeMin).ceil());
-    final chartTitle = useMinuteBuckets ? 'Sound Activity (15-min buckets)' : 'Sound Activity Per Hour';
+    final chartTitle = useMinuteBuckets ? 'Noise Duration (15-min buckets)' : 'Noise Duration Per Hour';
 
-    // Build per-bucket counts per NoiseType
-    final Map<int, Map<NoiseType, int>> hourlyData = {};
+    final double sampleDurationMins = (report.totalDuration.inSeconds / 60.0) / max(1, timeline.length);
+
+    // Build per-bucket durations per NoiseType
+    final Map<int, Map<NoiseType, double>> hourlyData = {};
     for (int b = 0; b < bucketCount; b++) {
-      hourlyData[b] = {for (var t in _displayTypes) t: 0};
+      hourlyData[b] = {for (var t in _displayTypes) t: 0.0};
     }
 
     for (final sample in timeline) {
       final bucketIndex = (sample.timeSeconds / (bucketSizeMin * 60)).floor().clamp(0, bucketCount - 1);
       final type = sample.noiseType;
       if (hourlyData[bucketIndex] != null) {
-        hourlyData[bucketIndex]![type] = (hourlyData[bucketIndex]![type] ?? 0) + 1;
+        hourlyData[bucketIndex]![type] = (hourlyData[bucketIndex]![type] ?? 0.0) + sampleDurationMins;
       }
     }
 
@@ -262,14 +246,14 @@ class NoiseEventsPerHourChart extends StatelessWidget {
 
     for (int b = 0; b < bucketCount; b++) {
       final counts = hourlyData[b]!;
-      final total = counts.values.fold(0, (a, b) => a + b).toDouble();
+      final total = counts.values.fold(0.0, (a, b) => a + b);
       if (total > globalMax) globalMax = total;
 
       final List<BarChartRodStackItem> stackItems = [];
       double fromY = 0;
       for (final type in _displayTypes) {
-        final count = (counts[type] ?? 0).toDouble();
-        if (count == 0) continue;
+        final count = counts[type] ?? 0.0;
+        if (count < 0.1) continue; // Ignore less than 6 seconds of noise
         stackItems.add(BarChartRodStackItem(fromY, fromY + count, _colors[type]!));
         fromY += count;
       }
@@ -356,7 +340,7 @@ class NoiseEventsPerHourChart extends StatelessWidget {
                       showTitles: true,
                       reservedSize: 28,
                       getTitlesWidget: (v, m) => Text(
-                        v.toInt().toString(),
+                        '${v.toInt()}m',
                         style: TextStyle(color: textSec, fontSize: 9),
                       ),
                     ),
@@ -365,8 +349,17 @@ class NoiseEventsPerHourChart extends StatelessWidget {
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 22,
+                      interval: max(1, (bucketCount / 6).floorToDouble()),
                       getTitlesWidget: (v, m) {
                         final bucketIndex = v.toInt();
+                        if (bucketIndex < 0 || bucketIndex >= bucketCount) return const SizedBox.shrink();
+
+                        // Manually enforce interval to prevent label overlapping
+                        final int step = max(1, (bucketCount / 6).floor());
+                        if (bucketIndex % step != 0 && bucketIndex != bucketCount - 1) {
+                          return const SizedBox.shrink();
+                        }
+
                         final offsetSeconds = bucketIndex * bucketSizeMin * 60;
                         final time = report.recordedAt.add(Duration(seconds: offsetSeconds));
                         final label = useMinuteBuckets
@@ -397,8 +390,8 @@ class NoiseEventsPerHourChart extends StatelessWidget {
                           : DateFormat('h a').format(time);
                       final counts = hourlyData[bucketIndex]!;
                       final lines = _displayTypes
-                          .where((t) => (counts[t] ?? 0) > 0)
-                          .map((t) => '${_emojis[t]} ${_labels[t]}: ${counts[t]}')
+                          .where((t) => (counts[t] ?? 0.0) >= 0.1)
+                          .map((t) => '${_emojis[t]} ${_labels[t]}: ${counts[t]!.toStringAsFixed(1)}m')
                           .join('\n');
                       return BarTooltipItem(
                         '$timeLabel\n$lines',
@@ -503,7 +496,7 @@ class SeverityDistributionChart extends StatelessWidget {
 
     return _ChartCard(
       title: 'Severity Breakdown',
-      subtitle: 'Percentage of time spent at each snoring volume level.',
+      subtitle: '% of snoring time at each volume level.',
       icon: Icons.pie_chart_rounded,
       iconColor: AppTheme.primaryGold,
       child: Row(
@@ -555,7 +548,10 @@ class ActivityHeatmapChart extends StatelessWidget {
       );
     }
 
-    final hours = report.totalDuration.inHours + 1;
+    // Use ceil so a 7h15m recording gets 8 columns (not 9 with the +1 hack).
+    // The +1 previously caused the last column to accumulate overflow samples,
+    // making it appear artificially brighter.
+    final hours = max(1, (report.totalDuration.inSeconds / 3600.0).ceil());
     const segmentsPerHour = 6; // 10-minute segments
 
     List<List<double>> grid =
@@ -842,13 +838,24 @@ class ApneaTimelineChart extends StatelessWidget {
             bottomTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
+                interval: max(1, (report.totalDuration.inSeconds / 3600 / 5).floorToDouble()),
                 getTitlesWidget: (v, m) {
+                  final int maxHours = max(1, (report.totalDuration.inSeconds / 3600).ceil());
+                  final int step = max(1, (maxHours / 5).floor());
+                  
+                  if (v.toInt() % step != 0) {
+                    return const SizedBox.shrink();
+                  }
+
                   final time = report.recordedAt
                       .add(Duration(hours: v.toInt()));
-                  return Text(
-                    DateFormat('h a').format(time),
-                    style: TextStyle(
-                        color: textSec, fontSize: 10),
+                  return SideTitleWidget(
+                    meta: m,
+                    child: Text(
+                      DateFormat('h a').format(time),
+                      style: TextStyle(
+                          color: textSec, fontSize: 10),
+                    ),
                   );
                 },
               ),
@@ -1107,11 +1114,6 @@ class _NoiseClassificationChartState extends State<NoiseClassificationChart> {
       counts[s.noiseType] = (counts[s.noiseType] ?? 0) + 1;
     }
 
-    // Window duration in seconds
-    final winSec = timeline.length > 1
-        ? (timeline[1].timeSeconds - timeline[0].timeSeconds).abs()
-        : 3.0;
-
     final totalWindows = timeline.length;
     if (totalWindows == 0) {
       return const _EmptyChart(
@@ -1119,6 +1121,25 @@ class _NoiseClassificationChartState extends State<NoiseClassificationChart> {
         icon: Icons.donut_large_rounded,
         message: 'No snoring detected in this recording',
       );
+    }
+
+    // ── Duration per noise type ───────────────────────────────────────────
+    // For Snoring we use the authoritative snoringDuration from the model,
+    // which is the sum of all SnoringEvent.duration values — the most
+    // accurate figure and the same one used by the report card percentage.
+    // For every other type we derive duration proportionally from totalDuration
+    // so all entries are consistent and the math always sums cleanly.
+    final totalDurSec = widget.report.totalDuration.inSeconds.toDouble();
+    final snoreDurSec = widget.report.snoringDuration.inSeconds.toDouble();
+    final nonSnoreWindows = totalWindows - (counts[NoiseType.snoring] ?? 0);
+
+    Duration _durationFor(NoiseType type, int count) {
+      if (type == NoiseType.snoring) {
+        return widget.report.snoringDuration;
+      }
+      if (nonSnoreWindows == 0 || count == 0) return Duration.zero;
+      final nonSnoreSec = totalDurSec - snoreDurSec;
+      return Duration(seconds: ((count / nonSnoreWindows) * nonSnoreSec).round());
     }
 
     // Build pie sections
@@ -1223,7 +1244,7 @@ class _NoiseClassificationChartState extends State<NoiseClassificationChart> {
                   final count = counts[type] ?? 0;
                   if (count == 0) return const SizedBox.shrink();
                   final pct = count / totalWindows;
-                  final dur = Duration(seconds: (count * winSec).round());
+                  final dur = _durationFor(type, count);
                   final durStr = dur.inHours > 0
                       ? '${dur.inHours}h ${dur.inMinutes.remainder(60)}m'
                       : '${dur.inMinutes}m';
@@ -1250,7 +1271,7 @@ class _NoiseClassificationChartState extends State<NoiseClassificationChart> {
                                 style: TextStyle(color: textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
                               ),
                               Text(
-                                '$durStr  ·  ${(pct * 100).round()}%',
+                                '$durStr  ·  ${(pct * 100).round()}% of sleep',
                                 style: TextStyle(color: textSec, fontSize: 11),
                               ),
                             ],

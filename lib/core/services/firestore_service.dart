@@ -401,87 +401,136 @@ class FirestoreService {
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   static SleepReport _mapToReport(Map<String, dynamic> data) {
-    final recordedAt = data['recordedAt'] is Timestamp
-        ? (data['recordedAt'] as Timestamp).toDate()
-        : DateTime.parse(data['recordedAt'] as String);
+    try {
+      final recordedAt = data['recordedAt'] is Timestamp
+          ? (data['recordedAt'] as Timestamp).toDate()
+          : DateTime.tryParse(data['recordedAt'] as String? ?? '') ?? DateTime.now();
 
-    List<dynamic> eventsData = [];
-    if (data['snoringEvents'] is String) {
-      try {
-        final decodedBytes = base64Decode(data['snoringEvents'] as String);
-        final decompressed = gzip.decode(decodedBytes);
-        eventsData = jsonDecode(utf8.decode(decompressed)) as List<dynamic>;
-      } catch (e) {
-        debugPrint('Error decoding snoring events: $e');
+      List<dynamic> eventsData = [];
+      if (data['snoringEvents'] is String) {
+        try {
+          final decodedBytes = base64Decode(data['snoringEvents'] as String);
+          final decompressed = gzip.decode(decodedBytes);
+          eventsData = jsonDecode(utf8.decode(decompressed)) as List<dynamic>;
+        } catch (e) {
+          debugPrint('Error decoding snoring events: $e');
+        }
+      } else {
+        eventsData = (data['snoringEvents'] as List?) ?? [];
       }
-    } else {
-      eventsData = (data['snoringEvents'] as List?) ?? [];
-    }
 
-    List<dynamic> timelineData = [];
-    if (data['amplitudeTimeline'] is String) {
-      try {
-        final decodedBytes = base64Decode(data['amplitudeTimeline'] as String);
-        final decompressed = gzip.decode(decodedBytes);
-        timelineData = jsonDecode(utf8.decode(decompressed)) as List<dynamic>;
-      } catch (e) {
-        debugPrint('Error decoding timeline: $e');
+      List<dynamic> timelineData = [];
+      if (data['amplitudeTimeline'] is String) {
+        try {
+          final decodedBytes = base64Decode(data['amplitudeTimeline'] as String);
+          final decompressed = gzip.decode(decodedBytes);
+          timelineData = jsonDecode(utf8.decode(decompressed)) as List<dynamic>;
+        } catch (e) {
+          debugPrint('Error decoding timeline: $e');
+        }
+      } else {
+        timelineData = (data['amplitudeTimeline'] as List?) ?? [];
       }
-    } else {
-      timelineData = (data['amplitudeTimeline'] as List?) ?? [];
-    }
 
-    return SleepReport(
-      fileName: data['fileName'] as String? ?? '',
-      recordedAt: recordedAt,
-      totalDuration: Duration(milliseconds: (data['totalDurationMs'] as num?)?.toInt() ?? 0),
-      snoringDuration: Duration(milliseconds: (data['snoringDurationMs'] as num?)?.toInt() ?? 0),
-      snoringEventCount: (data['snoringEventCount'] as num?)?.toInt() ?? 0,
-      qualityScore: (data['qualityScore'] as num?)?.toDouble() ?? 0.0,
-      quality: SleepQuality.values.firstWhere(
-        (q) => q.name == data['quality'],
-        orElse: () => SleepQuality.good,
-      ),
-      snoringEvents: eventsData
-          .map((e) => SnoringEvent(
-                timestamp: Duration(milliseconds: (e['timestampMs'] as num).toInt()),
-                amplitude: (e['amplitude'] as num).toDouble(),
-                duration: Duration(milliseconds: (e['durationMs'] as num).toInt()),
-              ))
-          .toList(),
-      amplitudeTimeline: timelineData
-          .map((s) => AmplitudeSample.fromJson(s as Map<String, dynamic>))
-          .toList(),
-      insights: (data['insights'] as List?)
-              ?.map((i) => SleepInsight(
-                    title: i['title'] as String? ?? '',
-                    description: i['description'] as String? ?? '',
-                    emoji: i['emoji'] as String? ?? '',
-                  ))
-              .toList() ??
-          [],
-      sleepDebtHours: (data['sleepDebtHours'] as num?)?.toDouble() ?? 0.0,
-      lightSleepPercent: (data['lightSleepPercent'] as num?)?.toDouble() ?? 0.50,
-      deepSleepPercent: (data['deepSleepPercent'] as num?)?.toDouble() ?? 0.25,
-      remSleepPercent: (data['remSleepPercent'] as num?)?.toDouble() ?? 0.25,
-      apneaRiskLevel: data['apneaRiskLevel'] as String? ?? 'Low',
-      cpapUsageDuration: Duration(milliseconds: (data['cpapUsageDurationMs'] as num?)?.toInt() ?? (data['totalDurationMs'] as num?)?.toInt() ?? 0),
-      apneaHypopneaIndex: (data['apneaHypopneaIndex'] as num?)?.toDouble() ?? 0.0,
-      detectedApneaEvents: ((data['detectedApneaEvents'] as List?) ?? []).map((e) {
-        return SuspectedApneaEvent(
-          timestamp: Duration(milliseconds: (e['timestampMs'] as num?)?.toInt() ?? 0),
-          gapDuration: Duration(milliseconds: (e['gapDurationMs'] as num?)?.toInt() ?? 0),
-          type: ApneaEventType.values.firstWhere(
-            (t) => t.name == e['type'],
-            orElse: () => ApneaEventType.breathingPause,
-          ),
-          peakRecoveryAmplitude: (e['peakRecoveryAmplitude'] as num?)?.toDouble() ?? 0.0,
-          confidence: (e['confidence'] as num?)?.toDouble() ?? 0.5,
-        );
-      }).toList(),
-      snoreAudioClips: (data['snoreAudioClips'] as List?)?.map((c) => SnoreAudioClip.fromJson(c as Map<String, dynamic>)).toList() ?? [],
-    );
+      return SleepReport(
+        fileName: data['fileName'] as String? ?? '',
+        recordedAt: recordedAt,
+        totalDuration: Duration(milliseconds: (data['totalDurationMs'] as num?)?.toInt() ?? 0),
+        snoringDuration: Duration(milliseconds: (data['snoringDurationMs'] as num?)?.toInt() ?? 0),
+        snoringEventCount: (data['snoringEventCount'] as num?)?.toInt() ?? 0,
+        qualityScore: (data['qualityScore'] as num?)?.toDouble() ?? 0.0,
+        quality: SleepQuality.values.firstWhere(
+          (q) => q.name == data['quality'],
+          orElse: () => SleepQuality.good,
+        ),
+        snoringEvents: eventsData.map((e) {
+          try {
+            return SnoringEvent(
+              timestamp: Duration(milliseconds: (e['timestampMs'] as num?)?.toInt() ?? 0),
+              amplitude: (e['amplitude'] as num?)?.toDouble() ?? 0.0,
+              duration: Duration(milliseconds: (e['durationMs'] as num?)?.toInt() ?? 0),
+            );
+          } catch (_) {
+            return const SnoringEvent(
+              timestamp: Duration.zero,
+              amplitude: 0,
+              duration: Duration.zero,
+            );
+          }
+        }).toList(),
+        amplitudeTimeline: timelineData.map((s) {
+          try {
+            return AmplitudeSample.fromJson(s as Map<String, dynamic>);
+          } catch (_) {
+            return const AmplitudeSample(timeSeconds: 0, amplitude: 0, isSnoring: false);
+          }
+        }).toList(),
+        insights: (data['insights'] as List?)
+                ?.map((i) {
+                  try {
+                    return SleepInsight(
+                      title: i['title'] as String? ?? '',
+                      description: i['description'] as String? ?? '',
+                      emoji: i['emoji'] as String? ?? '',
+                    );
+                  } catch (_) {
+                    return const SleepInsight(title: '', description: '', emoji: '');
+                  }
+                })
+                .toList() ??
+            [],
+        sleepDebtHours: (data['sleepDebtHours'] as num?)?.toDouble() ?? 0.0,
+        lightSleepPercent: (data['lightSleepPercent'] as num?)?.toDouble() ?? 0.50,
+        deepSleepPercent: (data['deepSleepPercent'] as num?)?.toDouble() ?? 0.25,
+        remSleepPercent: (data['remSleepPercent'] as num?)?.toDouble() ?? 0.25,
+        apneaRiskLevel: data['apneaRiskLevel'] as String? ?? 'Low',
+        cpapUsageDuration: Duration(milliseconds: (data['cpapUsageDurationMs'] as num?)?.toInt() ?? (data['totalDurationMs'] as num?)?.toInt() ?? 0),
+        apneaHypopneaIndex: (data['apneaHypopneaIndex'] as num?)?.toDouble() ?? 0.0,
+        detectedApneaEvents: ((data['detectedApneaEvents'] as List?) ?? []).map((e) {
+          try {
+            return SuspectedApneaEvent(
+              timestamp: Duration(milliseconds: (e['timestampMs'] as num?)?.toInt() ?? 0),
+              gapDuration: Duration(milliseconds: (e['gapDurationMs'] as num?)?.toInt() ?? 0),
+              type: ApneaEventType.values.firstWhere(
+                (t) => t.name == (e['type'] as String?),
+                orElse: () => ApneaEventType.breathingPause,
+              ),
+              peakRecoveryAmplitude: (e['peakRecoveryAmplitude'] as num?)?.toDouble() ?? 0.0,
+              confidence: (e['confidence'] as num?)?.toDouble() ?? 0.5,
+            );
+          } catch (_) {
+            return const SuspectedApneaEvent(
+              timestamp: Duration.zero, gapDuration: Duration.zero,
+              type: ApneaEventType.breathingPause, peakRecoveryAmplitude: 0,
+            );
+          }
+        }).toList(),
+        snoreAudioClips: (data['snoreAudioClips'] as List?)?.map((c) {
+          try {
+            return SnoreAudioClip.fromJson(c as Map<String, dynamic>);
+          } catch (_) {
+            return const SnoreAudioClip(timestamp: Duration.zero, duration: Duration.zero, localPath: '');
+          }
+        }).toList() ?? [],
+      );
+    } catch (e, stack) {
+      debugPrint('[Firestore] _mapToReport failed: $e\n$stack');
+      // Return a minimal placeholder so one bad document doesn't break the entire list
+      return SleepReport(
+        fileName: data['fileName'] as String? ?? 'Unknown',
+        recordedAt: DateTime.now(),
+        totalDuration: Duration.zero,
+        snoringDuration: Duration.zero,
+        snoringEventCount: 0,
+        qualityScore: 0,
+        quality: SleepQuality.poor,
+        snoringEvents: const [],
+        amplitudeTimeline: const [],
+        insights: const [],
+      );
+    }
   }
+
   /// Migrates data from a guest UID to an authenticated UID.
   /// SAFETY: Only runs if the guestUid is a local device UUID (not a Firebase Auth UID).
   /// This prevents cross-account data contamination when switching between Google accounts.

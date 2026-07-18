@@ -177,7 +177,7 @@ class _SleepStagesScreenState extends State<SleepStagesScreen> {
         orElse: () => null,
       );
       if (r != null) {
-        totalHours += r.totalDuration.inMinutes / 60.0;
+        totalHours += r.totalDuration.inSeconds / 3600.0;
         count++;
       }
     }
@@ -199,7 +199,8 @@ class _SleepStagesScreenState extends State<SleepStagesScreen> {
   Widget _buildChart(List<SleepReport> history, Color cardBorder, Color textPrimary, Color textSec, bool isLight) {
     final dates = _getDatesToAnalyze();
     final bars = <BarChartGroupData>[];
-    double maxTotal = 8.0;
+    double maxTotal = 1.0; // Minimum scale of 1 hour to see short test recordings
+    bool hasData = false;
 
     for (int i = 0; i < dates.length; i++) {
       final d = dates[i];
@@ -214,7 +215,8 @@ class _SleepStagesScreenState extends State<SleepStagesScreen> {
       double awakeHrs = 0;
 
       if (r != null) {
-        final totalHrs = r.totalDuration.inMinutes / 60.0;
+        hasData = true;
+        final totalHrs = r.totalDuration.inSeconds / 3600.0;
         if (totalHrs > maxTotal) maxTotal = totalHrs;
 
         deepHrs = totalHrs * r.deepSleepPercent;
@@ -242,6 +244,21 @@ class _SleepStagesScreenState extends State<SleepStagesScreen> {
           )
         ]
       ));
+    }
+
+    if (!hasData) {
+      return Container(
+        height: 220,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.bedtime_off_rounded, size: 48, color: textSec.withValues(alpha: 0.5)),
+            const SizedBox(height: 16),
+            Text('No sleep data for this period', style: TextStyle(color: textSec, fontSize: 16)),
+          ],
+        ),
+      );
     }
 
     return SizedBox(
@@ -303,7 +320,7 @@ class _SleepStagesScreenState extends State<SleepStagesScreen> {
         orElse: () => null,
       );
       if (r != null) {
-        final totalHrs = r.totalDuration.inMinutes / 60.0;
+        final totalHrs = r.totalDuration.inSeconds / 3600.0;
         deepHrs += totalHrs * r.deepSleepPercent;
         remHrs += totalHrs * r.remSleepPercent;
         lightHrs += totalHrs * r.lightSleepPercent;

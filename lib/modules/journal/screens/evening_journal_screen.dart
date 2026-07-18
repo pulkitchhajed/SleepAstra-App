@@ -5,6 +5,7 @@ import '../../../core/theme/app_theme.dart';
 import '../providers/journal_provider.dart';
 import '../models/journal_entry.dart';
 import '../../rewards/providers/rewards_provider.dart';
+import '../../ai/services/gemini_service.dart';
 
 class EveningJournalScreen extends StatefulWidget {
   const EveningJournalScreen({super.key});
@@ -17,7 +18,12 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
   int _alcohol = 0;
   int _stress = 5;
   int _hoursBeforeMeal = 2;
+  int _screenTimeHours = 2;
+  bool _workedOut = false;
   final _notesCtrl = TextEditingController();
+  
+  bool _isSaving = false;
+  String? _aiProjection;
 
   @override
   void dispose() {
@@ -56,6 +62,56 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
           _sectionHeader('🍷 Alcohol Units Today'),
           _counterRow(_alcohol, 5, (v) => setState(() => _alcohol = v),
               ['0', '1', '2', '3', '4', '5+']),
+          const SizedBox(height: 24),
+
+          _sectionHeader('📱 Screen Time (hours)'),
+          Slider(
+            value: _screenTimeHours.toDouble(),
+            min: 0, max: 10, divisions: 10,
+            label: '$_screenTimeHours h',
+            activeColor: AppTheme.primaryIndigo,
+            onChanged: (v) => setState(() => _screenTimeHours = v.round()),
+          ),
+          Center(
+              child: Text('$_screenTimeHours hours of screen time',
+                  style: const TextStyle(
+                      color: AppTheme.primaryIndigo, fontWeight: FontWeight.w600))),
+          const SizedBox(height: 24),
+
+          _sectionHeader('💪 Did you workout today?'),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _workedOut = true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: _workedOut ? AppTheme.success.withValues(alpha: 0.2) : AppTheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _workedOut ? AppTheme.success : AppTheme.cardBorder),
+                    ),
+                    child: Center(child: Text('Yes', style: TextStyle(color: _workedOut ? AppTheme.success : AppTheme.textSecondary, fontWeight: FontWeight.w700))),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _workedOut = false),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: !_workedOut ? AppTheme.error.withValues(alpha: 0.2) : AppTheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: !_workedOut ? AppTheme.error : AppTheme.cardBorder),
+                    ),
+                    child: Center(child: Text('No', style: TextStyle(color: !_workedOut ? AppTheme.error : AppTheme.textSecondary, fontWeight: FontWeight.w700))),
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 24),
 
           _sectionHeader('😰 Stress Level'),
@@ -113,19 +169,46 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
           ),
           const SizedBox(height: 36),
 
+          if (_aiProjection != null) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryIndigo.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.primaryIndigo.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.auto_awesome, color: AppTheme.primaryIndigo, size: 20),
+                      SizedBox(width: 8),
+                      Text('Nidra\'s Projection for Tonight', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(_aiProjection!, style: const TextStyle(color: AppTheme.textSecondary, height: 1.4)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+
           SizedBox(
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
-              onPressed: _save,
+              onPressed: _isSaving ? null : _save,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryGold,
                 foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16)),
               ),
-              child: const Text('Save Evening Entry',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              child: _isSaving 
+                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.black))
+                  : const Text('Save & Get Projection', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
             ),
           ),
         ]),
@@ -134,15 +217,43 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
   }
 
   Future<void> _save() async {
+    setState(() => _isSaving = true);
     final p = context.read<JournalProvider>();
-    p.updateEveningDraft(JournalEntry.newEvening().copyWith(
+    
+    // Create the entry
+    JournalEntry entry = JournalEntry.newEvening().copyWith(
       caffeineUnits: _caffeine,
       alcoholUnits: _alcohol,
       stressLevel: _stress,
       hoursBeforeBedMeal: _hoursBeforeMeal,
+      screenTimeHours: _screenTimeHours,
+      workedOut: _workedOut,
       notes: _notesCtrl.text.trim(),
-    ));
+    );
+
+    // Call Gemini for a projection if we don't have one yet
+    if (_aiProjection == null) {
+      try {
+        final gemini = GeminiService();
+        final projection = await gemini.projectSleepQuality(entry);
+        if (!mounted) return;
+        setState(() {
+          _aiProjection = projection;
+          entry = entry.copyWith(aiProjection: projection);
+          _isSaving = false;
+        });
+        // We stop here to let them read the projection, they can press save again to exit
+        p.updateEveningDraft(entry);
+        await p.saveEvening();
+        return;
+      } catch (e) {
+        // Silently fail projection on error and just save
+      }
+    }
+
+    p.updateEveningDraft(entry);
     await p.saveEvening();
+    
     if (mounted) {
       context.read<RewardsProvider>().earn('journal_entry', 'journal_evening_${DateTime.now().toIso8601String().substring(0, 10)}');
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(

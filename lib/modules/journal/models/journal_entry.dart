@@ -14,6 +14,9 @@ class JournalEntry {
   final int alcoholUnits;       // 0–5
   final int stressLevel;        // 1–10
   final int? hoursBeforeBedMeal; // hours since last meal
+  final int screenTimeHours;    // 0-10+
+  final bool workedOut;
+  final String aiProjection;    // Projected sleep quality by Nidra
 
   // ── Morning factors ──────────────────────────────────────────
   final int moodScore;          // 1–10 (1=terrible, 10=great)
@@ -30,6 +33,9 @@ class JournalEntry {
     this.alcoholUnits = 0,
     this.stressLevel = 5,
     this.hoursBeforeBedMeal,
+    this.screenTimeHours = 2,
+    this.workedOut = false,
+    this.aiProjection = '',
     this.moodScore = 7,
     this.energyLevel = 'Medium',
     this.sleepPosition = 'side',
@@ -54,6 +60,9 @@ class JournalEntry {
     int? alcoholUnits,
     int? stressLevel,
     int? hoursBeforeBedMeal,
+    int? screenTimeHours,
+    bool? workedOut,
+    String? aiProjection,
     int? moodScore,
     String? energyLevel,
     String? sleepPosition,
@@ -68,6 +77,9 @@ class JournalEntry {
       alcoholUnits: alcoholUnits ?? this.alcoholUnits,
       stressLevel: stressLevel ?? this.stressLevel,
       hoursBeforeBedMeal: hoursBeforeBedMeal ?? this.hoursBeforeBedMeal,
+      screenTimeHours: screenTimeHours ?? this.screenTimeHours,
+      workedOut: workedOut ?? this.workedOut,
+      aiProjection: aiProjection ?? this.aiProjection,
       moodScore: moodScore ?? this.moodScore,
       energyLevel: energyLevel ?? this.energyLevel,
       sleepPosition: sleepPosition ?? this.sleepPosition,
@@ -84,6 +96,9 @@ class JournalEntry {
     'alcoholUnits': alcoholUnits,
     'stressLevel': stressLevel,
     'hoursBeforeBedMeal': hoursBeforeBedMeal,
+    'screenTimeHours': screenTimeHours,
+    'workedOut': workedOut,
+    'aiProjection': aiProjection,
     'moodScore': moodScore,
     'energyLevel': energyLevel,
     'sleepPosition': sleepPosition,
@@ -102,6 +117,9 @@ class JournalEntry {
     alcoholUnits: json['alcoholUnits'] as int? ?? 0,
     stressLevel: json['stressLevel'] as int? ?? 5,
     hoursBeforeBedMeal: json['hoursBeforeBedMeal'] as int?,
+    screenTimeHours: json['screenTimeHours'] as int? ?? 2,
+    workedOut: json['workedOut'] as bool? ?? false,
+    aiProjection: json['aiProjection'] as String? ?? '',
     moodScore: json['moodScore'] as int? ?? 7,
     energyLevel: json['energyLevel'] as String? ?? 'Medium',
     sleepPosition: json['sleepPosition'] as String? ?? 'side',

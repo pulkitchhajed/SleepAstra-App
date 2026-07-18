@@ -14,7 +14,9 @@ class MLAudioClassifierService {
   // Key YAMNet class indices
   static const int indexSpeech = 0;
   static const int indexWhistling = 13;
+  static const int indexSnort = 47;
   static const int indexSnoring = 48;
+  static const int indexBreathing = 288;
   static const int indexCough = 22;
   static const int indexBabyCrying = 42;
   static const int indexDog = 71;
@@ -73,7 +75,13 @@ class MLAudioClassifierService {
       }
 
       // Extract specific scores
-      double snoreScore = avgScores[indexSnoring];
+      double baseSnoreScore = avgScores[indexSnoring];
+      double snortScore = avgScores[indexSnort];
+      double breathingScore = avgScores[indexBreathing];
+      
+      // Combine related classes into a single effective snore confidence
+      double snoreScore = baseSnoreScore + (snortScore * 0.5) + (breathingScore * 0.3);
+
       double speechScore = avgScores[indexSpeech];
       double whistleScore = avgScores[indexWhistling];
       double coughScore = avgScores[indexCough];
@@ -91,7 +99,7 @@ class MLAudioClassifierService {
       // KEY RULE: If there is meaningful speech signal, ALWAYS classify as talking.
       // Talking and snoring can have overlapping acoustic features,
       // so we must never let a marginal snore score override clear speech evidence.
-      if (speechScore > 0.01) { // Highly sensitive speech/mumbling threshold
+      if (speechScore > 0.08) { // Raised from 0.01 to prevent faint vocal overtones in snoring from being labeled as speech
         return NoiseType.talking;
       } else if (whistleScore > 0.05) { // Highly sensitive whistling threshold
         return NoiseType.ambient; // Whistling maps to ambient noise
@@ -99,9 +107,10 @@ class MLAudioClassifierService {
         return NoiseType.babyCrying;
       } else if (coughScore > 0.15) {
         return NoiseType.coughing;
-      } else if (snoreScore > 0.20 && snoreScore > (speechScore * 3.0) && snoreScore > catScore && snoreScore > dogScore) {
+      } else if (snoreScore > 0.15 && snoreScore > (speechScore * 3.0) && snoreScore > catScore && snoreScore > dogScore) {
         // Only classify as snoring if snore confidence is strong AND
         // at least 3x stronger than any residual speech signal.
+        // Threshold lowered from 0.20 -> 0.15 to allow combined breathing/snort scores to push borderline snores through.
         return NoiseType.snoring;
       } else if (catScore > 0.15 || dogScore > 0.15) {
         return NoiseType.pets;

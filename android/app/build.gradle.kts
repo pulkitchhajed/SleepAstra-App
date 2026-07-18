@@ -58,6 +58,18 @@ android {
                 signingConfigs.getByName("debug")
             }
         }
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+
+    // Fix duplicate 'snore_clinics' string resource error.
+    // flutter_foreground_task and Flutter's Gradle plugin both emit this key.
+    // Telling the resource merger to silently pick the first occurrence resolves it.
+    packaging {
+        resources {
+            merges += "**"
+        }
     }
 }
 

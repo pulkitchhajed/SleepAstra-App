@@ -27,7 +27,6 @@ class _SnoreTrackingScreenState extends State<SnoreTrackingScreen> {
     final isLight = context.watch<ThemeProvider>().isDarkMode == false;
     
     final bg = isLight ? AppTheme.backgroundLight : const Color(0xFF0D0F1E);
-    final cardBg = isLight ? AppTheme.surfaceLight : const Color(0xFF1A1D33);
     final cardBorder = isLight ? AppTheme.cardBorderLight : Colors.white.withValues(alpha: 0.05);
     final textPrimary = isLight ? AppTheme.textPrimaryLight : Colors.white;
     final textSec = isLight ? AppTheme.textSecondaryLight : Colors.white.withValues(alpha: 0.5);
@@ -165,7 +164,7 @@ class _SnoreTrackingScreenState extends State<SnoreTrackingScreen> {
         orElse: () => null,
       );
       if (r != null) {
-        totalMins += r.snoringDuration.inMinutes;
+        totalMins += r.snoringDuration.inSeconds / 60.0;
       }
     }
 
@@ -213,6 +212,7 @@ class _SnoreTrackingScreenState extends State<SnoreTrackingScreen> {
     final dates = _getDatesToAnalyze();
     final bars = <BarChartGroupData>[];
     double maxTotal = 1.0;
+    bool hasData = false;
 
     for (int i = 0; i < dates.length; i++) {
       final d = dates[i];
@@ -223,7 +223,8 @@ class _SnoreTrackingScreenState extends State<SnoreTrackingScreen> {
 
       double snoreHrs = 0;
       if (r != null) {
-        snoreHrs = r.snoringDuration.inMinutes / 60.0;
+        hasData = true;
+        snoreHrs = r.snoringDuration.inSeconds / 3600.0;
         if (snoreHrs > maxTotal) maxTotal = snoreHrs;
       }
 
@@ -239,6 +240,21 @@ class _SnoreTrackingScreenState extends State<SnoreTrackingScreen> {
           )
         ]
       ));
+    }
+
+    if (!hasData) {
+      return Container(
+        height: 180,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.mic_off_rounded, size: 48, color: textSec.withValues(alpha: 0.5)),
+            const SizedBox(height: 16),
+            Text('No snore data for this period', style: TextStyle(color: textSec, fontSize: 16)),
+          ],
+        ),
+      );
     }
 
     return SizedBox(

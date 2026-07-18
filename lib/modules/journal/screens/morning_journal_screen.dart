@@ -24,12 +24,20 @@ class _MorningJournalScreenState extends State<MorningJournalScreen> {
 
   int _mood = 7;
   String _energy = 'Medium';
-  String _notes = '';
+  final TextEditingController _notesController = TextEditingController();
+  bool _isSaving = false;
+  bool _hasSaved = false;
 
   @override
   void initState() {
     super.initState();
     _loadDataForDay(_selectedDay);
+  }
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
   }
 
   void _loadDataForDay(DateTime day) {
@@ -38,18 +46,63 @@ class _MorningJournalScreenState extends State<MorningJournalScreen> {
       (e) => e != null && e.type == JournalType.morning && isSameDay(e.date, day),
       orElse: () => null,
     );
-    if (existing != null) {
-      setState(() {
+    setState(() {
+      _hasSaved = existing != null;
+      if (existing != null) {
         _mood = existing.moodScore;
         _energy = existing.energyLevel;
-        _notes = existing.notes.isNotEmpty ? existing.notes : 'No notes added.';
-      });
-    } else {
-      setState(() {
+        _notesController.text = existing.notes;
+      } else {
         _mood = 7;
         _energy = 'Medium';
-        _notes = 'No notes added.';
+        _notesController.text = '';
+      }
+    });
+  }
+
+  Future<void> _saveJournal() async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+
+    final jp = context.read<JournalProvider>();
+    // Remove existing entry for this day if present (update semantics)
+    final existingId = jp.entries.cast<JournalEntry?>().firstWhere(
+      (e) => e != null && e.type == JournalType.morning && isSameDay(e.date, _selectedDay),
+      orElse: () => null,
+    )?.id;
+
+    if (existingId != null) {
+      await jp.deleteEntry(existingId);
+    }
+
+    jp.updateMorningDraft(JournalEntry(
+      id: existingId ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      date: _selectedDay,
+      type: JournalType.morning,
+      moodScore: _mood,
+      energyLevel: _energy,
+      notes: _notesController.text.trim(),
+    ));
+    await jp.saveMorning();
+
+    if (mounted) {
+      setState(() {
+        _isSaving = false;
+        _hasSaved = true;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(children: [
+            Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+            SizedBox(width: 10),
+            Text('Journal saved!'),
+          ]),
+          backgroundColor: AppTheme.accentTeal,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -98,32 +151,87 @@ class _MorningJournalScreenState extends State<MorningJournalScreen> {
 
             // Duration Chart for the week
             _buildWeeklyDurationChart(history, cardBg, cardBorder, textPrimary, textSec, isLight),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
 
-            // Read-Only List items exactly as in image
-            _buildJournalItem(
-              Icons.bedtime_rounded,
-              AppTheme.primaryIndigo,
-              'How did you sleep?',
-              _getMoodText(_mood),
-              textPrimary,
-              textSec,
+            // Section header
+            Text(
+              'How did you feel?',
+              style: TextStyle(color: textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
             ),
-            _buildJournalItem(
-              Icons.bolt_rounded,
-              AppTheme.accentTeal,
-              'Energy Level',
-              _energy,
-              textPrimary,
-              textSec,
+            const SizedBox(height: 6),
+            Text(
+              'Log your mood and energy for ${DateFormat('EEEE, MMM d').format(_selectedDay)}',
+              style: TextStyle(color: textSec, fontSize: 13),
             ),
-            _buildJournalItem(
-              Icons.sticky_note_2_rounded,
-              AppTheme.primaryGold,
-              'Notes',
-              _notes,
-              textPrimary,
-              textSec,
+            const SizedBox(height: 20),
+
+            // Mood Slider
+            _buildMoodCard(cardBg, cardBorder, textPrimary, textSec, isLight),
+            const SizedBox(height: 16),
+
+            // Energy Level
+            _buildEnergyCard(cardBg, cardBorder, textPrimary, textSec, isLight),
+            const SizedBox(height: 16),
+
+            // Notes
+            _buildNotesCard(cardBg, cardBorder, textPrimary, textSec, isLight),
+            const SizedBox(height: 28),
+
+            // Save Button
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: ElevatedButton(
+                onPressed: _isSaving ? null : _saveJournal,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  padding: EdgeInsets.zero,
+                ),
+                child: Ink(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppTheme.primaryIndigo, Color(0xFF818CF8)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryIndigo.withValues(alpha: 0.4),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _hasSaved ? Icons.check_circle_rounded : Icons.save_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                _hasSaved ? 'Update Journal' : 'Save Journal',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 40),
           ],
@@ -132,35 +240,206 @@ class _MorningJournalScreenState extends State<MorningJournalScreen> {
     );
   }
 
-  String _getMoodText(int mood) {
-    if (mood >= 8) return 'Good';
-    if (mood >= 5) return 'Fair';
-    return 'Poor';
-  }
+  Widget _buildMoodCard(Color cardBg, Color cardBorder, Color textPrimary, Color textSec, bool isLight) {
+    final moodLabels = ['Terrible', 'Bad', 'Poor', 'Meh', 'Okay', 'Fine', 'Good', 'Great', 'Excellent', 'Amazing'];
+    final moodEmojis = ['😫', '😞', '😔', '😕', '😐', '🙂', '😊', '😄', '😁', '🤩'];
+    final moodIdx = (_mood - 1).clamp(0, 9);
 
-  Widget _buildJournalItem(IconData icon, Color color, String title, String value, Color textPrimary, Color textSec) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Row(
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: cardBorder),
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 20),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryIndigo.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.bedtime_rounded, color: AppTheme.primaryIndigo, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Sleep Quality', style: TextStyle(color: textSec, fontSize: 13)),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Text(moodEmojis[moodIdx], style: const TextStyle(fontSize: 18)),
+                      const SizedBox(width: 6),
+                      Text(
+                        moodLabels[moodIdx],
+                        style: TextStyle(color: textPrimary, fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: TextStyle(color: textSec, fontSize: 13)),
-                const SizedBox(height: 4),
-                Text(value, style: TextStyle(color: textPrimary, fontSize: 15, fontWeight: FontWeight.w500)),
-              ],
+          const SizedBox(height: 16),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: AppTheme.primaryIndigo,
+              inactiveTrackColor: AppTheme.primaryIndigo.withValues(alpha: 0.2),
+              thumbColor: AppTheme.primaryIndigo,
+              overlayColor: AppTheme.primaryIndigo.withValues(alpha: 0.15),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+              trackHeight: 5,
+            ),
+            child: Slider(
+              min: 1,
+              max: 10,
+              divisions: 9,
+              value: _mood.toDouble(),
+              onChanged: (v) => setState(() => _mood = v.round()),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('1 – Terrible', style: TextStyle(color: textSec, fontSize: 11)),
+              Text('10 – Amazing', style: TextStyle(color: textSec, fontSize: 11)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEnergyCard(Color cardBg, Color cardBorder, Color textPrimary, Color textSec, bool isLight) {
+    final levels = ['Low', 'Medium', 'High'];
+    final levelColors = {
+      'Low': AppTheme.error,
+      'Medium': AppTheme.primaryGold,
+      'High': AppTheme.accentTeal,
+    };
+    final levelIcons = {
+      'Low': Icons.battery_1_bar_rounded,
+      'Medium': Icons.battery_3_bar_rounded,
+      'High': Icons.battery_full_rounded,
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentTeal.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.bolt_rounded, color: AppTheme.accentTeal, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Text('Energy Level', style: TextStyle(color: textSec, fontSize: 13)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: levels.map((level) {
+              final isSelected = _energy == level;
+              final color = levelColors[level]!;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _energy = level),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: EdgeInsets.only(right: level != 'High' ? 10.0 : 0.0),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: isSelected ? color.withValues(alpha: 0.18) : (isLight ? Colors.grey.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.04)),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isSelected ? color : Colors.transparent,
+                        width: isSelected ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          levelIcons[level]!,
+                          color: isSelected ? color : textSec,
+                          size: 24,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          level,
+                          style: TextStyle(
+                            color: isSelected ? color : textSec,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotesCard(Color cardBg, Color cardBorder, Color textPrimary, Color textSec, bool isLight) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryGold.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.sticky_note_2_rounded, color: AppTheme.primaryGold, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Text('Notes', style: TextStyle(color: textSec, fontSize: 13)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _notesController,
+            maxLines: 4,
+            style: TextStyle(color: textPrimary, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'How was your night? Any dreams, disturbances...?',
+              hintStyle: TextStyle(color: textSec.withValues(alpha: 0.6), fontSize: 13),
+              filled: true,
+              fillColor: isLight ? Colors.grey.withValues(alpha: 0.07) : Colors.white.withValues(alpha: 0.04),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.all(14),
             ),
           ),
         ],

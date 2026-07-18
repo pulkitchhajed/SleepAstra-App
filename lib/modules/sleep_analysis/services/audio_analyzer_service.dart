@@ -67,9 +67,9 @@ class AudioAnalyzerService {
   // ── Detection thresholds ───────────────────────────────────────────
 
   /// Snoring Band Energy Ratio thresholds.
-  /// Snoring concentrates ≥50% of its FFT energy in the 50–500 Hz band.
-  static const double _sberStrongThreshold = 0.40; // +2 votes
-  static const double _sberWeakThreshold   = 0.25; // +1 vote
+  /// Snoring concentrates ≥50% of its FFT energy in the 50–800 Hz band.
+  static const double _sberStrongThreshold = 0.50; // +2 votes (raised from 0.40 to avoid fan false positives)
+  static const double _sberWeakThreshold   = 0.32; // +1 vote (raised from 0.25)
 
   /// Spectral entropy upper bound.
   /// Snoring has harmonic structure → low entropy (≤0.85).
@@ -77,7 +77,7 @@ class AudioAnalyzerService {
   static const double _maxEntropyForSnoring = 0.85;
 
   /// Minimum vote score to classify a window as snoring.
-  static const int _minSnoreVote = 2;
+  static const int _minSnoreVote = 3; // raised from 2 to require more evidence (stops fan hums)
 
   /// Minimum consecutive snoring windows before an event is confirmed (~6 s).
   /// Set to 2 so that a single-window burst (cough, bark, door slam) is
@@ -109,8 +109,7 @@ class AudioAnalyzerService {
   /// Spectral Rolloff threshold (Hz).
   /// The frequency below which 85% of spectral energy lies.
   /// Snoring rolloff is typically < 700 Hz. Speech / music rolloff > 900 Hz.
-  /// Raised from 700 → 850 Hz: louder / deeper snores can have rolloffs up to ~800 Hz.
-  static const double _spectralRolloffThreshold = 850.0;
+  static const double _spectralRolloffThreshold = 950.0; // raised from 850Hz to allow deep harmonic snores
 
   /// Temporal Pitch Instability threshold (Hz std-dev over last 5 windows).
   /// Stable snoring: low F0 variance. Speech/music: F0 jumps rapidly.
@@ -173,22 +172,42 @@ class AudioAnalyzerService {
         throw Exception('Invalid audio sample rate.');
       } else {
         final bytesPerSample = max(1, bitsPerSample ~/ 8);
-        final frameSize = bytesPerSample * numChannels;
+        final safeNumChannels = max(1, numChannels); // Guard: malformed WAV may report 0 channels
+        final frameSize = bytesPerSample * safeNumChannels;
         final pcmByteCount = max(0, length - dataStart);
         final totalFrames = pcmByteCount ~/ frameSize;
 
         // Recalculate real sample rate based on wall-clock actual duration
         if (actualDuration != null && actualDuration.inSeconds > 0) {
           final actualSec = actualDuration.inSeconds;
-          sampleRate = (totalFrames ~/ actualSec).clamp(1000, 192000);
-          RecordingLogger().info('Recalculated real sample rate from wall-clock: $sampleRate Hz');
+          final calculatedSampleRate = totalFrames ~/ actualSec;
+          // Guard against truncated files: if wall-clock claims 8 hours but file has 30 mins
+          // of PCM, calculatedSampleRate will be tiny (e.g. 1000 Hz). In this case, DO NOT
+          // use the wall-clock time. Trust the WAV header's sample rate (usually 16000 Hz).
+          if ((calculatedSampleRate - sampleRate).abs() < 2000) {
+            sampleRate = calculatedSampleRate;
+            RecordingLogger().info('Recalculated real sample rate from wall-clock: $sampleRate Hz');
+          } else {
+            RecordingLogger().warning(
+                'Wall-clock duration ($actualSec s) drastically mismatches file frames ($totalFrames). '
+                'File was likely truncated by a crash or storage issue. Using header sample rate ($sampleRate Hz).'
+            );
+            // We ignore actualDuration because it's untrustworthy for this file.
+            // The logic below will correctly use totalFrames ~/ sampleRate to find the *true* duration.
+          }
+        }
+
+        // Guard: re-check sampleRate is valid after potential recalculation
+        if (sampleRate <= 0) {
+          raf.closeSync();
+          throw Exception('Invalid audio sample rate after recalculation: $sampleRate');
         }
 
         final totalSec = totalFrames ~/ sampleRate;
         final windowSec = totalSec < _targetWindowSeconds ? max(1, totalSec) : _targetWindowSeconds;
-        final windowFrames = sampleRate * windowSec;
+        final windowFrames = max(1, sampleRate * windowSec); // guard windowFrames=0
         final windowCount = totalFrames ~/ windowFrames;
-        final chunkSize = windowFrames * frameSize;
+        final chunkSize = max(1, windowFrames * frameSize); // guard chunkSize=0
 
         final tracker = DynamicBaselineTracker();
         final buffer = Uint8List(chunkSize);
@@ -205,7 +224,7 @@ class AudioAnalyzerService {
             bytes: validBytes,
             dataStart: 0,
             startFrame: 0,
-            frameCount: bytesRead ~/ frameSize,
+            frameCount: frameSize > 0 ? bytesRead ~/ frameSize : 0,
             frameSize: frameSize,
             timeSeconds: w * windowSec.toDouble(),
             sampleRate: sampleRate,
@@ -221,6 +240,7 @@ class AudioAnalyzerService {
             ? actualDuration
             : wavDuration;
       }
+
     } catch (e) {
       debugPrint('[AudioAnalyzer] Stream analysis failed: $e');
       rethrow;
@@ -288,54 +308,107 @@ class AudioAnalyzerService {
     return SleepStage.light;
   }
 
-  /// Applies a gentle physiological bias to resolve Light/REM ambiguity.
-  /// Snoring, Awake, and Deep detections are always preserved verbatim.
   static List<AmplitudeSample> _applySleepCycleModel(
     List<AmplitudeSample> timeline,
     Duration totalDuration,
   ) {
     if (timeline.isEmpty) return timeline;
-    final totalSec = totalDuration.inSeconds.toDouble();
-    if (totalSec < 900) return timeline; // Only apply for ≥15 min recordings
+    final totalSec = max(1.0, totalDuration.inSeconds.toDouble());
 
-    const cycleSec = 5400.0; // 90-minute cycle
+    // ── Sleep Onset Latency (SOL) detection ─────────────────────────────────
+    // The user is ALWAYS awake at t=0 (they just pressed Start Recording).
+    // We guarantee at least 90 seconds of Awake, then watch audio amplitude
+    // to detect when they actually settle down and fall asleep.
+    //
+    // Detection rule: after the 90s minimum, if we see 3 consecutive quiet
+    // windows (stage != awake from raw audio), the user has fallen asleep.
+    const double minAwakeSec = 90.0;     // guaranteed Awake window
+    const double maxAwakeSec = 1800.0;   // give up after 30 mins (pathological case)
+    const int quietRunNeeded = 3;        // consecutive quiet windows to confirm sleep
+
+    double sleepOnsetSec = min(maxAwakeSec, totalSec * 0.20);
+
+    if (totalSec > minAwakeSec) {
+      int quietRun = 0;
+      for (final s in timeline) {
+        if (s.timeSeconds < minAwakeSec) continue; // skip guaranteed window
+        if (s.timeSeconds > maxAwakeSec) break;    // give up searching
+
+        if (s.stage != SleepStage.awake && !s.isSnoring) {
+          quietRun++;
+          if (quietRun >= quietRunNeeded) {
+            // Found the sleep onset point — go back to where the run started
+            sleepOnsetSec = max(minAwakeSec, s.timeSeconds - (quietRunNeeded * 2.0));
+            break;
+          }
+        } else {
+          quietRun = 0; // reset on any noise/movement
+        }
+      }
+    } else {
+      // Recording shorter than minAwakeSec — entire thing is Awake
+      sleepOnsetSec = totalSec;
+    }
+
+    // ── Scale physiological cycle for short recordings ───────────────────────
+    // Normal cycle is 90 mins (5400s). Compress for recordings under 3 hours.
+    final cycleSec = totalSec < 10800 ? max(60.0, totalSec / 3) : 5400.0;
+
+    // Light Sleep onset bridge after the Awake phase (15% of remaining time, max 15 min)
+    final remainingSec = max(0.0, totalSec - sleepOnsetSec);
+    final lightOnsetSec = sleepOnsetSec + min(900.0, remainingSec * 0.15);
 
     return timeline.map((s) {
-      // Trusted detections — preserve verbatim
+      // 1. Snoring always overrides (handled in _analyseWindow)
       if (s.isSnoring) return s;
-      if (s.stage == SleepStage.awake) return s;
-      if (s.stage == SleepStage.deep) return s;
 
-      // Ambiguous region (Light / REM)
-      final relPos = (s.timeSeconds / totalSec).clamp(0.0, 1.0);
+      // 2. Loud noise mid-sleep is always Awake
+      if (s.stage == SleepStage.awake && s.timeSeconds > lightOnsetSec) return s;
 
-      if (relPos < 0.05 || relPos > 0.97) {
-        return AmplitudeSample(
-          timeSeconds: s.timeSeconds,
-          amplitude: s.amplitude,
-          isSnoring: false,
-          noiseType: s.noiseType, // preserve classification
-          stage: SleepStage.light,
-          intensity: s.intensity,
-          dominantFrequencyHz: s.dominantFrequencyHz,
-          sber: s.sber,
-          fundamentalHz: s.fundamentalHz,
-        );
-      }
+      SleepStage finalStage;
 
-      final cyclePos = (s.timeSeconds % cycleSec) / cycleSec;
-      final isLateInCycle = cyclePos >= 0.65;
+      // ── Phase A: Guaranteed Awake (recording just started) ─────────────────
+      if (s.timeSeconds < sleepOnsetSec) {
+        finalStage = SleepStage.awake;
 
-      SleepStage finalStage = s.stage;
-      if (s.stage == SleepStage.light && isLateInCycle) {
-        finalStage = SleepStage.rem;
+      // ── Phase B: Light Sleep Onset Bridge ──────────────────────────────────
+      } else if (s.timeSeconds < lightOnsetSec) {
+        finalStage = SleepStage.light;
+
+      // ── Phase C: Physiological Sleep Cycle (dynamically scaled) ────────────
+      } else {
+        final cycleTime = s.timeSeconds - lightOnsetSec;
+        final cyclePos = (cycleTime % cycleSec) / cycleSec;
+        final relNightPos = (s.timeSeconds / totalSec).clamp(0.0, 1.0);
+        final cycleNumber = (cycleTime / cycleSec).floor();
+
+        // Only assign Deep/REM if audio is quiet enough
+        if (s.stage == SleepStage.deep || s.stage == SleepStage.rem) {
+          if (cyclePos < 0.20) {
+            finalStage = SleepStage.light;
+          } else if (cyclePos < 0.55) {
+            if (cycleNumber == 0 || relNightPos < 0.3) {
+              finalStage = SleepStage.deep;
+            } else if (relNightPos > 0.6) {
+              finalStage = SleepStage.rem;
+            } else {
+              finalStage = cyclePos < 0.35 ? SleepStage.deep : SleepStage.rem;
+            }
+          } else if (cyclePos < 0.75) {
+            finalStage = SleepStage.light;
+          } else {
+            finalStage = SleepStage.rem;
+          }
+        } else {
+          finalStage = s.stage;
+        }
       }
 
       return AmplitudeSample(
         timeSeconds: s.timeSeconds,
         amplitude: s.amplitude,
-        isSnoring: false,
-        noiseType: s.noiseType, // preserve classification
+        isSnoring: s.isSnoring,
+        noiseType: s.noiseType,
         stage: finalStage,
         intensity: s.intensity,
         dominantFrequencyHz: s.dominantFrequencyHz,
@@ -344,6 +417,7 @@ class AudioAnalyzerService {
       );
     }).toList();
   }
+
 
   // ─────────────────────────────────────────────────────────────────
   // WAV Parsing
@@ -770,11 +844,12 @@ class AudioAnalyzerService {
       ));
     }
 
-    final snoringWindowCount = timeline.where((s) => s.isSnoring).length;
-    final winSec = timeline.length > 1
-        ? max(1, (timeline[1].timeSeconds - timeline[0].timeSeconds).round())
-        : _targetWindowSeconds;
-    final snoringDuration = Duration(seconds: snoringWindowCount * winSec);
+    // Sum the exact durations of all confirmed snoring events.
+    // This is robust against uneven sampling rates or timeline downsampling,
+    // which caused the old `winSec * count` estimate to occasionally inflate duration.
+    final snoringDuration = Duration(
+      seconds: events.fold<int>(0, (sum, e) => sum + e.duration.inSeconds),
+    );
 
     final snoringPct = totalDuration.inSeconds > 0
         ? (snoringDuration.inSeconds / totalDuration.inSeconds).clamp(0.0, 1.0)
@@ -809,27 +884,34 @@ class AudioAnalyzerService {
 
     final cpapUsage = Duration(seconds: (totalDuration.inSeconds * 0.96).toInt());
 
-    // ── Sleep stage percentages ─────────────────────────────────────
-    // Use the already-computed stage field from _analyseWindow / smoothing / cycle model
-    // instead of re-classifying from raw amplitude (which throws away all that work).
-    final quietWindows = timeline.where((s) => !s.isSnoring).toList();
-    int deepCount = 0, remCount = 0, lightCount = 0, awakeCount = 0;
-    for (final s in quietWindows) {
+    // Use ALL windows (including snoring) for stage percentages so they
+    // match the hypnogram chart, which plots every sample.
+    // Previously only quietWindows were counted, but the chart showed every sample,
+    // causing the displayed percentages to not match the line chart.
+    final allTotal = max(1, timeline.length);
+    int deepCount = 0, remCount = 0, lightCount = 0;
+    for (final s in timeline) {
       switch (s.stage) {
         case SleepStage.deep:  deepCount++;  break;
         case SleepStage.rem:   remCount++;   break;
         case SleepStage.light: lightCount++; break;
-        case SleepStage.awake: awakeCount++; break;
+        case SleepStage.awake: break;
       }
     }
-    final nonSnoringTotal = max(1, quietWindows.length);
-    // Clamp each stage to physiologically realistic ranges.
-    // Awake is excluded from the sleep stage percentages (it's shown separately via sleepEfficiencyPercent).
-    double deep  = (deepCount  / nonSnoringTotal).clamp(0.10, 0.40);
-    double rem   = (remCount   / nonSnoringTotal).clamp(0.10, 0.35);
-    double light = (lightCount / nonSnoringTotal).clamp(0.15, 0.70);
+    final nonSnoringTotal = allTotal;
+    // Use raw measured percentages — do NOT clamp to "physiologically realistic" ranges.
+    // Clamping fabricates data the analyzer never detected (e.g. forcing 10% Deep on a
+    // 10-minute test recording that had zero deep sleep). The chart and stats must agree.
+    double deep  = deepCount  / nonSnoringTotal;
+    double rem   = remCount   / nonSnoringTotal;
+    double light = lightCount / nonSnoringTotal;
     final stageTotal = deep + rem + light;
-    deep /= stageTotal; rem /= stageTotal; light /= stageTotal;
+    // Guard: if every window was classified as Awake (stageTotal == 0), preserve
+    // that 100% Awake result and do NOT normalize — that would produce NaN or
+    // artificially inflate light/deep/rem percentages from 0/0.
+    if (stageTotal > 0) {
+      deep /= stageTotal; rem /= stageTotal; light /= stageTotal;
+    }
 
     final goalHours = goalMinutes / 60.0;
     final debtHours = max(0.0, goalHours - hours);
@@ -1009,11 +1091,12 @@ class AudioAnalyzerService {
   ) async {
     if (events.isEmpty) return [];
 
+    RandomAccessFile? raf;
     try {
       final sourceFile = File(sourcePath);
       if (!sourceFile.existsSync()) return [];
 
-      final raf = sourceFile.openSync(mode: FileMode.read);
+      raf = sourceFile.openSync(mode: FileMode.read);
       final headerBytes = Uint8List(44);
       raf.readIntoSync(headerBytes);
 
@@ -1035,13 +1118,16 @@ class AudioAnalyzerService {
         if (dataStart == -1) dataStart = 44;
       }
 
-      final bytesPerSample = (bitsPerSample ~/ 8) * numChannels;
+      final bytesPerSample = max(1, (bitsPerSample ~/ 8) * numChannels); // guard div/zero
       
-      int totalDataBytes = sourceFile.lengthSync() - dataStart;
+      int totalDataBytes = max(0, sourceFile.lengthSync() - dataStart);
+      if (totalDataBytes == 0) { raf.closeSync(); return []; }
       double durationMs = actualDuration != null && actualDuration.inMilliseconds > 0
           ? actualDuration.inMilliseconds.toDouble()
-          : (totalDataBytes / bytesPerSample / sampleRate * 1000);
+          : (totalDataBytes / bytesPerSample / max(1, sampleRate) * 1000);
+      if (durationMs <= 0) { raf.closeSync(); return []; }
       
+      if (events.isEmpty) { raf.closeSync(); return []; }
       // Group events into sessions if they are within 30 seconds of each other.
       final sessions = <List<SnoringEvent>>[];
       List<SnoringEvent> currentSession = [events.first];
@@ -1144,11 +1230,12 @@ class AudioAnalyzerService {
         ));
       }
 
-      raf.closeSync();
       return clips;
     } catch (e) {
       RecordingLogger().error('Failed to extract snore audio clips', e);
       return [];
+    } finally {
+      try { raf?.closeSync(); } catch (_) {}
     }
   }
 }

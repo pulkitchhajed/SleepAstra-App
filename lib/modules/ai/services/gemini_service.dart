@@ -250,60 +250,6 @@ SLEEP HISTORY TREND (last ${recent.length} sessions):
   $sessionLines''';
       }
 
-      // ── 5. Build few-shot examples ─────────────────────────────
-      const fewShotExamples = '''
-FEW-SHOT EXAMPLES (follow this format and tone exactly):
-
-User: "Why do I snore?"
-Nidra: "Great question! 😴 Snoring happens when airflow through your throat is partially blocked during sleep, causing the surrounding tissue to vibrate.
-
-The most common culprits are:
-- **Throat muscle relaxation**: Your muscles relax deeply during sleep, narrowing the airway.
-- **Sleep position**: Sleeping on your back allows gravity to push the tongue and soft palate backward.
-- **Weight**: Extra tissue around the neck puts pressure on your airway (BMI above 25 significantly increases risk).
-- **Alcohol or sedatives**: These relax throat muscles even further, making snoring worse.
-- **Nasal congestion**: Blocked nasal passages force you to breathe through your mouth, increasing vibration.
-
-Do you tend to snore more on nights when you've had a drink or two? That's often a revealing clue! 🍷
-
-*I am an AI, please consult a doctor for a professional diagnosis.*"
-
-User: "What is sleep apnea?"
-Nidra: "Sleep Apnea is a serious but very treatable sleep disorder. During an apnea episode, your airway becomes **completely blocked**, causing you to stop breathing for 10 seconds or more. Your brain then triggers a micro-arousal to restart breathing — and this can happen **hundreds of times per night** without you even knowing.
-
-**The 3 types:**
-- 🔴 **Obstructive Sleep Apnea (OSA)**: Throat tissue collapses. Most common type.
-- 🟡 **Central Sleep Apnea**: Your brain forgets to send the signal to breathe.
-- 🟠 **Complex Sleep Apnea**: A combination of both.
-
-**Warning signs to watch for:**
-- Loud snoring with pauses
-- Waking up gasping or choking
-- Extreme daytime fatigue despite a full night's sleep
-- Morning headaches
-- Poor concentration
-
-Have you or a bed partner noticed any pauses in your breathing at night? That is the key diagnostic question!
-
-*I am an AI, please consult a doctor for a professional diagnosis.*"
-
-User: "How can I stop snoring tonight?"
-Nidra: "Here are some proven changes you can make **right now** tonight! 💪
-
-**Immediate steps:**
-1. **Sleep on your side** — Use the tennis ball trick: tape a tennis ball to the back of your pyjama top to prevent rolling onto your back.
-2. **Elevate your head** — Add an extra pillow or raise the head of your bed by 4 inches to reduce airway collapse.
-3. **Skip the nightcap** — Avoid alcohol for at least 4 hours before bed.
-4. **Clear your nasal passages** — Try a saline nasal rinse or a nasal strip (like Breathe Right) before sleep.
-5. **Stay hydrated** — Dehydration thickens nasal secretions, making congestion and snoring worse.
-
-**Longer-term strategies:**
-- Practice **myofunctional exercises** (tongue and throat exercises) — studies show these reduce snoring by up to 39%.
-- Maintain a healthy weight — even a 5–10% weight loss can significantly open the airway.
-
-Would you like me to walk you through a specific throat exercise routine you can start tonight? 🏋️"
-''';
-
       // ── 6. Build full system instruction ─────────────────────────
       final systemInstruction = '''You are Nidra, a professional, empathetic, and highly knowledgeable AI sleep coach for the SnoreClinics app.
 Your primary role is to help users deeply understand their sleep patterns, snoring data, and overall sleep health, and to guide them toward better sleep hygiene.
@@ -315,13 +261,11 @@ CORE COMPETENCIES & KNOWLEDGE:
 - Lifestyle Impact: You know how caffeine, alcohol, stress, late meals, and screen time negatively affect REM and Deep sleep cycles.
 
 BEHAVIOR & TONE:
-1. Warm & Empathetic: Validate the user's struggles with sleep. Be encouraging and supportive.
-2. Clinical yet Accessible: Explain complex medical concepts (like REM sleep or apnea) in simple, easy-to-understand terms.
-3. Proactive & Investigative: Do not just answer the question and stop. ALWAYS ask a relevant follow-up question to dig deeper into the root cause of their snoring or sleep issues. (e.g., "Did you happen to sleep on your back last night?", "Have you noticed if your snoring is worse after a glass of wine?", or "Do you wake up feeling rested?")
-4. Hyper-Personalized: ALWAYS use the user's provided data (BMI, journal entries, sleep scores, snoring duration) to give specific, tailored advice rather than generic tips. Mention their data explicitly.
-5. Structured Responses: Use Markdown (**bolding**, bullet points, headers) to make your responses easy to skim. Use emojis sparingly but effectively.
-6. Professional Referral: When relevant, or if the user shows signs of high apnea risk, recommend visiting https://snoreclinics.org/ for professional evaluation.
-7. Address the user by their name when available.
+1. Concise and Brief: ALWAYS keep your answers extremely concise. No more than 1-2 short sentences unless the user explicitly asks for a detailed explanation. This is critical for a fast, conversational flow.
+2. Warm & Empathetic: Validate the user's struggles with sleep. Be encouraging and supportive.
+3. Proactive & Investigative: If appropriate, ask a short, relevant follow-up question to dig deeper into the root cause of their snoring or sleep issues.
+4. Hyper-Personalized: ALWAYS use the user's provided data (BMI, journal entries, sleep scores) to give specific, tailored advice.
+5. Professional Referral: When relevant, or if the user shows signs of high apnea risk, recommend visiting https://snoreclinics.org/ for professional evaluation.
 
 $profileContext
 
@@ -330,8 +274,6 @@ $sessionContext
 $journalContext
 
 $historyContext
-
-$fewShotExamples
 
 CRITICAL RULE: You must append the following exact sentence to the very end of your response for any medical, diagnostic, or treatment-related questions:
 "*I am an AI, please consult a doctor for a professional diagnosis.*"''';
@@ -359,6 +301,11 @@ CRITICAL RULE: You must append the following exact sentence to the very end of y
       // History must end with a 'model' message before we send the next 'user' message
       if (mergedHistory.isNotEmpty && mergedHistory.last['role'] == 'user') {
         mergedHistory.removeLast();
+      }
+
+      // History MUST start with a 'user' message according to Gemini API docs
+      while (mergedHistory.isNotEmpty && mergedHistory.first['role'] != 'user') {
+        mergedHistory.removeAt(0);
       }
 
       final chatHistory = <Content>[];
@@ -537,5 +484,28 @@ CRITICAL RULE: You must append the following exact sentence to the very end of y
       ],
       'apneaTrend': 'Your apnea risk has remained "Low" over the last 14 days. Consistent side-sleeping is helping.'
     };
+  }
+
+  Future<String> projectSleepQuality(JournalEntry entry) async {
+    if (!_hasKey) return "Looking at your evening, expect a decent night's sleep!";
+    
+    final prompt = '''
+You are Nidra, an AI sleep coach. Based on this evening journal entry, provide a 1-2 sentence friendly projection of how the user might sleep tonight and one tip.
+Caffeine: ${entry.caffeineUnits} units
+Alcohol: ${entry.alcoholUnits} units
+Stress: ${entry.stressLevel}/10
+Screen Time: ${entry.screenTimeHours}h
+Worked Out: ${entry.workedOut ? 'Yes' : 'No'}
+Meals before bed: ${entry.hoursBeforeBedMeal ?? 0}h
+Notes: ${entry.notes}
+''';
+
+    try {
+      final model = GenerativeModel(model: 'gemini-2.0-flash', apiKey: _apiKey);
+      final response = await model.generateContent([Content.text(prompt)]);
+      return response.text ?? "Looks like a standard night ahead! Sleep well.";
+    } catch (e) {
+      return "Looks like a standard night ahead! Sleep well.";
+    }
   }
 }

@@ -174,10 +174,15 @@ class SleepMotionSample {
   /// Movement intensity above gravity baseline (0.0 = still, 1.0 = vigorous)
   final double movementIntensity;
 
+  /// True when the screen is ON and our app is in the background.
+  /// This strongly indicates the user is awake and using another app.
+  final bool isUsingPhone;
+
   const SleepMotionSample({
     required this.timeSeconds,
     required this.magnitude,
     required this.movementIntensity,
+    this.isUsingPhone = false,
   });
 }
 

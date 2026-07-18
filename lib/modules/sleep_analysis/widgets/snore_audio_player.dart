@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:share_plus/share_plus.dart';
 
 class SnoreAudioPlayer extends StatefulWidget {
   final String? audioUrl;
@@ -36,17 +37,20 @@ class _SnoreAudioPlayerState extends State<SnoreAudioPlayer> {
     try {
       if (widget.localPath != null && File(widget.localPath!).existsSync()) {
         final duration = await _player.setFilePath(widget.localPath!);
+        if (!mounted) return;
         setState(() {
           _duration = duration ?? Duration.zero;
           _isLoaded = true;
         });
       } else if (widget.audioUrl != null) {
         final duration = await _player.setUrl(widget.audioUrl!);
+        if (!mounted) return;
         setState(() {
           _duration = duration ?? Duration.zero;
           _isLoaded = true;
         });
       } else {
+        if (!mounted) return;
         setState(() {
           _hasError = true;
         });
@@ -97,6 +101,21 @@ class _SnoreAudioPlayerState extends State<SnoreAudioPlayer> {
     }
   }
 
+  Future<void> _shareAudio() async {
+    if (widget.localPath != null && File(widget.localPath!).existsSync()) {
+      await Share.shareXFiles(
+        [XFile(widget.localPath!)],
+        text: 'Listen to my snore recording from Snore Clinics!',
+      );
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Audio file not found locally.')),
+        );
+      }
+    }
+  }
+
   String _formatDuration(Duration d) {
     String minutes = (d.inMinutes % 60).toString().padLeft(2, '0');
     String seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
@@ -138,6 +157,12 @@ class _SnoreAudioPlayerState extends State<SnoreAudioPlayer> {
                           fontWeight: FontWeight.w600,
                         ),
                   ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.share, size: 20, color: Colors.indigoAccent),
+                  onPressed: _shareAudio,
+                  tooltip: 'Share on WhatsApp',
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -159,12 +184,12 @@ class _SnoreAudioPlayerState extends State<SnoreAudioPlayer> {
                     child: Column(
                       children: [
                         Slider(
-                          value: _position.inMilliseconds.toDouble().clamp(0.0, _duration.inMilliseconds.toDouble()),
+                          value: _position.inMilliseconds.toDouble().clamp(0.0, _duration.inMilliseconds > 0 ? _duration.inMilliseconds.toDouble() : 1.0),
                           min: 0.0,
-                          max: _duration.inMilliseconds.toDouble(),
-                          onChanged: (value) {
+                          max: _duration.inMilliseconds > 0 ? _duration.inMilliseconds.toDouble() : 1.0,
+                          onChanged: _duration.inMilliseconds > 0 ? (value) {
                             _player.seek(Duration(milliseconds: value.toInt()));
-                          },
+                          } : null,
                           activeColor: Colors.indigoAccent,
                         ),
                         Row(

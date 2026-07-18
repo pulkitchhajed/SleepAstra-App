@@ -9,6 +9,8 @@ import '../screens/rewards_screen.dart';
 import '../screens/wellness_screen.dart';
 import '../core/widgets/animated_sleep_background.dart';
 import '../core/router/app_router.dart';
+import '../modules/sleep_analysis/screens/sleep_history_screen.dart';
+import '../modules/sleep_analysis/providers/sleep_analysis_provider.dart';
 
 class MainNavScreen extends StatefulWidget {
   final int initialIndex;
@@ -35,6 +37,21 @@ class _MainNavScreenState extends State<MainNavScreen>
     _fabScale = Tween<double>(begin: 1.0, end: 1.08).animate(
       CurvedAnimation(parent: _fabPulse, curve: Curves.easeInOut),
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final sleepProv = context.read<SleepAnalysisProvider>();
+      if (sleepProv.isRecording) {
+        Navigator.pushNamed(
+          context,
+          AppRouter.sleepAnalysis,
+          arguments: {
+            'autoStart': false,
+            'isRestoringSession': true, // indicates we are just opening the UI, not starting a new recording
+          },
+        );
+      }
+    });
   }
 
   @override
@@ -57,14 +74,10 @@ class _MainNavScreenState extends State<MainNavScreen>
     _NavItem(Icons.emoji_events_rounded, Icons.emoji_events_outlined, 'Rewards'),
   ];
 
-  void _openRecording() {
-    Navigator.pushNamed(
+  void _openReports() {
+    Navigator.push(
       context,
-      AppRouter.sleepAnalysis,
-      arguments: {
-        'autoStart': false,
-        'alarmTime': null,
-      },
+      MaterialPageRoute(builder: (_) => const SleepHistoryScreen()),
     );
   }
 
@@ -135,59 +148,40 @@ class _MainNavScreenState extends State<MainNavScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // Left 2 tabs: Home, Rewards
+              // Left 2 tabs: Home, Wellness
               _buildNavItem(0, isLight),
               _buildNavItem(1, isLight),
 
-              // ── Central Record Button ──
+              // ── Central Reports Button (Flat) ──
               GestureDetector(
-                onTap: _openRecording,
-                child: AnimatedBuilder(
-                  animation: _fabScale,
-                  builder: (_, child) => Transform.scale(
-                    scale: _fabScale.value,
-                    child: child,
-                  ),
-                  child: Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF818CF8), Color(0xFF4F46E5)],
+                onTap: _openReports,
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  color: Colors.transparent,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.calendar_month_outlined,
+                        size: 22,
+                        color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.primaryIndigo.withValues(alpha: 0.55),
-                          blurRadius: 16,
-                          spreadRadius: 1,
-                          offset: const Offset(0, 4),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Reports',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
                         ),
-                      ],
-                    ),
-                    child: const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.mic_rounded, color: Colors.white, size: 24),
-                        SizedBox(height: 1),
-                        Text(
-                          'Record',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 8,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
 
-              // Right 2 tabs: Wellness, Nidra
+              // Right 2 tabs: Nidra, Rewards
               _buildNavItem(2, isLight),
               _buildNavItem(3, isLight),
             ],

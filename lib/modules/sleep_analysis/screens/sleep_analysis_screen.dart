@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -61,7 +62,18 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
 
   DateTime? _recordingStartTime;
   StreamSubscription<Amplitude>? _amplitudeSubscription;
+  StreamSubscription<RecordState>? _recordStateSubscription;
   final ValueNotifier<double> _liveAmplitude = ValueNotifier(0.0);
+
+  // ── Audio-interruption tracking ───────────────────────────────────
+  // When a phone call or another app takes the microphone, the OS stops our
+  // AudioRecorder. We track how long the interruption lasted so we can subtract
+  // it from the wall-clock duration and feed the analyser the *actual* recorded
+  // time rather than an inflated value that causes "recording time 1s" results.
+  bool _isInterrupted = false;
+  DateTime? _interruptionStartTime;
+  Duration _totalInterruptedDuration = Duration.zero;
+  OverlayEntry? _interruptionBannerEntry;
   
   // Sleep sounds are sourced from the shared audio_tracks.dart constant.
   // This avoids duplicating the URL list that wellness_screen.dart also uses.
@@ -351,6 +363,9 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     _holdProgressTimer?.cancel();
     _vibrateTimer?.cancel();
     _amplitudeSubscription?.cancel();
+    _recordStateSubscription?.cancel();
+    _interruptionBannerEntry?.remove();
+    _interruptionBannerEntry = null;
     _recorder.dispose();
     _soundsPlayer.dispose();
     _alarmPlayer.dispose();
@@ -493,8 +508,14 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
 
     RecordingLogger().info('AudioRecorder started successfully');
     provider.setRecordingActive(true);
+    provider.setInterrupted(false);
     _recordingStartTime = DateTime.now();
+    // Reset interruption state for this new session
+    _isInterrupted = false;
+    _interruptionStartTime = null;
+    _totalInterruptedDuration = Duration.zero;
     _listenToAmplitude(provider);
+    _listenToRecordState(provider);
     _rippleController.repeat(reverse: false);
 
     // Start actigraphy alongside audio recording (best-effort — optional)
@@ -516,6 +537,8 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     }
 
     // Update the displayed timer every second for a smooth clock display.
+    // NOTE: When interrupted, the timer keeps running (wall-clock) but we track
+    // _totalInterruptedDuration separately so the analyser gets the real audio time.
     _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_recordingStartTime != null) {
         provider.updateRecordingDuration(
@@ -536,7 +559,119 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       // Normalize from approx -60dB..0dB to 0.0..1.0
       final normalized = (amp.current + 60).clamp(0, 60) / 60.0;
       _liveAmplitude.value = normalized;
+    }, onError: (e) {
+      RecordingLogger().warning('Amplitude stream error: $e');
     });
+  }
+
+  /// Listens to [RecordState] changes emitted by the platform recorder.
+  ///
+  /// On iOS a phone call triggers [RecordState.pause]; on Android it triggers
+  /// [RecordState.stop]. Either way we treat it as an interruption: we stop
+  /// the live-amplitude indicator, record when the interruption started, show
+  /// a persistent banner, and mark the provider as interrupted.
+  ///
+  /// When the state returns to [RecordState.record] (call ended), we hide the
+  /// banner and accumulate the interruption duration so [_stopAndAnalyse] can
+  /// compute the real recorded time correctly.
+  void _listenToRecordState(SleepAnalysisProvider provider) {
+    _recordStateSubscription?.cancel();
+    _recordStateSubscription = _recorder.onStateChanged().listen((state) {
+      if (!mounted) return;
+
+      if (state == RecordState.pause || state == RecordState.stop) {
+        // Only react if we're supposed to be recording (not a user-initiated stop)
+        if (!_isInterrupted && provider.isRecording) {
+          _isInterrupted = true;
+          _interruptionStartTime = DateTime.now();
+          provider.setInterrupted(true);
+          _liveAmplitude.value = 0.0; // freeze the waveform indicator
+          RecordingLogger().warning(
+            'Recording interrupted by external audio event (phone call / other app). '
+            'State: ${state.name}',
+          );
+          _showInterruptionBanner();
+        }
+      } else if (state == RecordState.record) {
+        if (_isInterrupted) {
+          // Interruption is over — accumulate lost time
+          if (_interruptionStartTime != null) {
+            _totalInterruptedDuration += DateTime.now().difference(_interruptionStartTime!);
+          }
+          _isInterrupted = false;
+          _interruptionStartTime = null;
+          RecordingLogger().info(
+            'Recording resumed after interruption. '
+            'Total interrupted so far: ${_totalInterruptedDuration.inSeconds}s',
+          );
+          _hideInterruptionBanner();
+        }
+      }
+    }, onError: (e) {
+      RecordingLogger().warning('Record state stream error: $e');
+    });
+  }
+
+  /// Shows a persistent amber banner at the top of the screen informing the
+  /// user that their recording was interrupted (e.g. by a phone call).
+  void _showInterruptionBanner() {
+    if (!mounted) return;
+    // Remove any stale banner first
+    _interruptionBannerEntry?.remove();
+    _interruptionBannerEntry = OverlayEntry(
+      builder: (_) => Positioned(
+        top: MediaQuery.of(context).padding.top + 8,
+        left: 16,
+        right: 16,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF59E0B), // amber-500
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: const [
+                BoxShadow(color: Colors.black38, blurRadius: 12, offset: Offset(0, 4)),
+              ],
+            ),
+            child: Row(
+              children: [
+                const Text('📵', style: TextStyle(fontSize: 22)),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Recording Paused',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Microphone in use by another app. The recording was paused and will be analyzed when you tap Stop.',
+                        style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.3),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    Overlay.of(context).insert(_interruptionBannerEntry!);
+  }
+
+  /// Removes the interruption banner from the overlay.
+  void _hideInterruptionBanner() {
+    _interruptionBannerEntry?.remove();
+    _interruptionBannerEntry = null;
   }
 
   Future<void> _stopAndAnalyse(SleepAnalysisProvider provider) async {
@@ -610,6 +745,66 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     }
 
     provider.setRecordingActive(false);
+
+    // ── Hide any active interruption banner ──────────────────────────────
+    _hideInterruptionBanner();
+
+    // ── Finalize any in-progress interruption ────────────────────────────
+    // If the call was still active when the user tapped stop, close out the
+    // accumulated interrupted duration.
+    if (_isInterrupted && _interruptionStartTime != null) {
+      _totalInterruptedDuration += DateTime.now().difference(_interruptionStartTime!);
+      _isInterrupted = false;
+      _interruptionStartTime = null;
+    }
+
+    // ── Compute effective (real audio) recording duration ────────────────
+    // Wall-clock duration (from timer) may include time when the mic was taken
+    // by a phone call or other app. Subtract that dead time so the analyser
+    // receives the duration of audio that was actually written to the file.
+    final wallClockDuration = provider.recordingDuration;
+    Duration effectiveDuration = wallClockDuration - _totalInterruptedDuration;
+    if (effectiveDuration.isNegative || effectiveDuration == Duration.zero) {
+      effectiveDuration = wallClockDuration; // fallback — never send zero
+    }
+
+    // ── File-size safety net ─────────────────────────────────────────────
+    // A WAV file records 16-bit mono PCM at 16000 Hz = 32000 bytes/second.
+    // If the file is much smaller than the claimed effective duration, the
+    // recording was cut short (interrupted). Recompute duration from file size
+    // so the analyser doesn't see "8 hours" worth of header and 30 seconds of
+    // audio — which caused the "recording time 1s" bug.
+    if (stoppedPath != null && !kIsWeb) {
+      try {
+        final fileSize = File(stoppedPath).lengthSync();
+        const int wavHeaderBytes = 44;
+        const int bytesPerSecond = 32000; // 16-bit mono 16kHz
+        final pcmBytes = fileSize - wavHeaderBytes;
+        if (pcmBytes > 0) {
+          final fileDuration = Duration(seconds: (pcmBytes / bytesPerSecond).floor());
+          // If the file duration is significantly shorter than effective duration
+          // (>30 s difference), trust the file — the recording was interrupted
+          if (fileDuration < effectiveDuration - const Duration(seconds: 30)) {
+            RecordingLogger().warning(
+              'File-size safety net triggered: file suggests ${fileDuration.inSeconds}s '
+              'but effective duration was ${effectiveDuration.inSeconds}s. '
+              'Using file-based duration. (Interrupted: ${_totalInterruptedDuration.inSeconds}s)',
+            );
+            effectiveDuration = fileDuration;
+          }
+        }
+      } catch (e) {
+        RecordingLogger().warning('File-size safety net check failed (non-fatal): $e');
+      }
+    }
+
+    // Update the provider duration to the corrected value for the analyser
+    provider.updateRecordingDuration(effectiveDuration);
+    RecordingLogger().info(
+      'Stop: wall-clock=${wallClockDuration.inSeconds}s, '
+      'interrupted=${_totalInterruptedDuration.inSeconds}s, '
+      'effective=${effectiveDuration.inSeconds}s',
+    );
 
     if (stoppedPath == null) {
       RecordingLogger().error('Recording stopped but no file was saved.');
@@ -838,8 +1033,70 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       final startTime = DateTime.fromMillisecondsSinceEpoch(startMs);
       final elapsed = DateTime.now().difference(startTime);
 
-      // Only offer recovery for recordings ≥ 1 minute
-      if (elapsed.inSeconds < 60) {
+      // ── File-size safety net for orphans ─────────────────────────────────
+      // If the app was killed at 2 AM, but the user opens it at 7 AM, `elapsed`
+      // will be 5 hours longer than the actual audio file. We MUST use the file size
+      // to determine the real duration so the analyzer doesn't corrupt the sample rate.
+      //
+      // IMPORTANT: Raw PCM files (.pcm) have NO header — they grow continuously while
+      // recording, so they are never "truncated" relative to wall-clock time. For PCM
+      // files, always trust elapsed as the actual duration.
+      Duration actualFileDuration = elapsed;
+      try {
+        final isPcm = orphanPath.toLowerCase().endsWith('.pcm');
+
+        if (isPcm) {
+          // PCM: no header, file size IS the audio data. Compute from file size
+          // using the known recording format: 16-bit (2 bytes) mono 16kHz = 32000 B/s.
+          // But prefer elapsed when elapsed < file-computed time (race condition).
+          // For PCM, the file grows with the recording so elapsed ≈ file duration.
+          // Simply use elapsed — no truncation can occur with a live-growing PCM file.
+          actualFileDuration = elapsed;
+          RecordingLogger().info('PCM orphan: trusting wall-clock elapsed (${elapsed.inSeconds}s).');
+        } else {
+          // WAV: read the actual byte-rate from the header (bytes 28-31, little-endian).
+          // This avoids the previously hardcoded 32000 B/s which was wrong for any
+          // recording format other than exactly 16kHz / 16-bit / mono.
+          final fileSize = file.lengthSync();
+          int bytesPerSecond = 32000; // safe fallback
+          try {
+            final headerRaf = file.openSync(mode: FileMode.read);
+            final headerBuf = Uint8List(44);
+            headerRaf.readIntoSync(headerBuf);
+            headerRaf.closeSync();
+            // WAV byte rate is at offset 28 (4 bytes, little-endian)
+            if (headerBuf[0] == 0x52 && headerBuf[1] == 0x49 && // 'RI'
+                headerBuf[2] == 0x46 && headerBuf[3] == 0x46) { // 'FF'
+              final byteData = ByteData.sublistView(headerBuf);
+              final headerByteRate = byteData.getUint32(28, Endian.little);
+              if (headerByteRate > 0) {
+                bytesPerSecond = headerByteRate;
+                RecordingLogger().info('WAV orphan: read byte rate from header = $bytesPerSecond B/s');
+              }
+            }
+          } catch (_) {}
+
+          const int wavHeaderBytes = 44;
+          final pcmBytes = fileSize - wavHeaderBytes;
+          if (pcmBytes > 0) {
+            final computedDuration = Duration(seconds: (pcmBytes / bytesPerSecond).floor());
+            // Trust the file size if it's significantly shorter than the wall clock
+            if (computedDuration < elapsed - const Duration(seconds: 30)) {
+              actualFileDuration = computedDuration;
+              RecordingLogger().warning(
+                'Orphan file-size check: file contains ${actualFileDuration.inSeconds}s of audio '
+                '(${bytesPerSecond}B/s), but wall-clock elapsed is ${elapsed.inSeconds}s. Using file-based duration.',
+              );
+            }
+          }
+        }
+      } catch (e) {
+        RecordingLogger().warning('Orphan file-size check failed (non-fatal): $e');
+      }
+
+      // Only offer recovery for recordings ≥ 1 minute of ACTUAL audio
+      if (actualFileDuration.inSeconds < 60) {
+        RecordingLogger().info('Orphaned file too short (${actualFileDuration.inSeconds}s), discarding silently.');
         await prefs.remove('active_recording_path');
         await prefs.remove('active_recording_start_ms');
         await file.delete();
@@ -847,7 +1104,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       }
 
       RecordingLogger().warning(
-        'Orphaned recording detected: $orphanPath (duration: ~${elapsed.inMinutes}m). App was likely killed overnight.',
+        'Orphaned recording detected: $orphanPath (actual duration: ~${actualFileDuration.inMinutes}m, wall-clock: ${elapsed.inHours}h). App was likely killed overnight.',
       );
 
       if (!mounted) {
@@ -880,7 +1137,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
               ),
               const SizedBox(height: 12),
               Text(
-                'It looks like recording was interrupted last night (~${elapsed.inHours}h ${elapsed.inMinutes % 60}m captured). '
+                'It looks like recording was interrupted last night (~${actualFileDuration.inHours}h ${actualFileDuration.inMinutes % 60}m captured). '
                 'Would you like to analyze this recording?',
                 style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary), fontSize: 15, height: 1.5),
                 textAlign: TextAlign.center,
@@ -917,8 +1174,8 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
                         provider.setRecordedFile(orphanPath, name);
                         provider.setExplicitStartTime(startTime);
                         // Set the actual elapsed duration so analysis uses correct time
-                        provider.updateRecordingDuration(elapsed);
-                        RecordingLogger().info('Analyzing orphaned recording: $orphanPath (start time: $startTime, duration: $elapsed)');
+                        provider.updateRecordingDuration(actualFileDuration);
+                        RecordingLogger().info('Analyzing orphaned recording: $orphanPath (start time: $startTime, duration: $actualFileDuration)');
                         final report = await provider.analyzeCurrentFile(
                           goalMinutes: onboarding.profile.goalDurationMinutes,
                           healthIntegrationEnabled: onboarding.profile.healthIntegrationEnabled,

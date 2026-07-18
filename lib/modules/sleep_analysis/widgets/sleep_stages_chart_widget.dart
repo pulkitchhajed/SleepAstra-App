@@ -76,12 +76,31 @@ class SleepStagesChartWidget extends StatelessWidget {
                     getTitlesWidget: (value, meta) {
                       final idx = value.toInt();
                       if (idx < 0 || idx >= displaySamples.length) return const SizedBox.shrink();
-                      
-                      final absoluteTime = recordedAt.add(Duration(seconds: displaySamples[idx].timeSeconds.toInt()));
+
+                      // Manually enforce interval to prevent label overlapping
+                      final int step = max(1, (displaySamples.length / 4).floor());
+                      if (idx % step != 0 && idx != displaySamples.length - 1) {
+                        return const SizedBox.shrink();
+                      }
+
+                      final sampleSec = displaySamples[idx].timeSeconds.toInt();
+                      // Adaptive label: elapsed mm:ss for very short recordings,
+                      // h:mm a for < 2 h, h a for full-night sessions
+                      String label;
+                      if (totalDuration.inMinutes < 10) {
+                        // Show elapsed time as m:ss
+                        final mins = sampleSec ~/ 60;
+                        final secs = sampleSec % 60;
+                        label = '$mins:${secs.toString().padLeft(2, '0')}';
+                      } else if (totalDuration.inHours < 2) {
+                        label = DateFormat('h:mm a').format(recordedAt.add(Duration(seconds: sampleSec)));
+                      } else {
+                        label = DateFormat('h a').format(recordedAt.add(Duration(seconds: sampleSec)));
+                      }
                       return SideTitleWidget(
                         meta: meta,
                         child: Text(
-                          DateFormat('h a').format(absoluteTime),
+                          label,
                           style: ChartTheme.getAxisTextStyle(isLight),
                         ),
                       );

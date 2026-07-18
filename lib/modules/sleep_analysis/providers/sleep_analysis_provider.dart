@@ -27,6 +27,7 @@ class SleepAnalysisProvider extends ChangeNotifier {
   bool _isRecording = false;
   Duration _recordingDuration = Duration.zero;
   DateTime? _explicitStartTime;
+  bool _wasInterrupted = false;
 
   void setExplicitStartTime(DateTime time) {
     _explicitStartTime = time;
@@ -46,6 +47,9 @@ class SleepAnalysisProvider extends ChangeNotifier {
   bool get hasFile => _pendingFilePath != null;
   List<SleepReport> get history => _history;
   double get currentAmplitude => _currentAmplitude;
+  /// True if the last recording session was interrupted by a phone call or
+  /// another app that took over the microphone.
+  bool get wasInterrupted => _wasInterrupted;
 
   // ── Public API ───────────────────────────────────────────
 
@@ -74,6 +78,13 @@ class SleepAnalysisProvider extends ChangeNotifier {
 
   void updateAmplitude(double amp) {
     _currentAmplitude = amp;
+    notifyListeners();
+  }
+
+  /// Mark whether the current recording session has been interrupted by an
+  /// external audio event (phone call, other app taking the microphone).
+  void setInterrupted(bool interrupted) {
+    _wasInterrupted = interrupted;
     notifyListeners();
   }
 
@@ -326,6 +337,7 @@ class SleepAnalysisProvider extends ChangeNotifier {
     _pendingFilePath = null;
     _isRecording = false;
     _recordingDuration = Duration.zero;
+    _wasInterrupted = false;
     notifyListeners();
   }
 }

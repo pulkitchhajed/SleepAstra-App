@@ -6,6 +6,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
 
 import '../modules/journal/screens/morning_journal_screen.dart';
+import '../modules/journal/screens/journal_list_screen.dart';
 import '../modules/sleep_analysis/screens/sleep_stages_screen.dart';
 import '../modules/sleep_analysis/screens/snore_tracking_screen.dart';
 
@@ -95,25 +96,27 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: _buildHeader(profile.name, isLight, textPrimary, textSec, themeProvider),
                 ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.08, end: 0, curve: Curves.easeOut),
                 const SizedBox(height: 24),
+                // ── Combined Sleep Score + Analyser Card ─────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildCombinedSleepCard(isLight, textPrimary, textSec, cardBg, cardBorder),
+                ).animate().fadeIn(delay: 80.ms, duration: 400.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
+                const SizedBox(height: 16),
+                // ── Daily Sleep Goal ──────────────────────────────────────────
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildDailyGoalCard(isLight, textPrimary, textSec, cardBg, cardBorder),
-                ).animate().fadeIn(delay: 80.ms, duration: 350.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
-                const SizedBox(height: 24),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _buildHeroCard(isLight, textPrimary, textSec, cardBg, cardBorder),
-                ).animate().fadeIn(delay: 150.ms, duration: 400.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
+                ).animate().fadeIn(delay: 130.ms, duration: 350.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
                 const SizedBox(height: 16),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildMetricsRow(profile, isLight, textPrimary, textSec, cardBg, cardBorder),
-                ).animate().fadeIn(delay: 220.ms, duration: 350.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
+                ).animate().fadeIn(delay: 240.ms, duration: 350.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
                 const SizedBox(height: 24),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildWeeklyTrendChart(isLight, textPrimary, textSec, cardBg, cardBorder),
-                ).animate().fadeIn(delay: 290.ms, duration: 350.ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOut),
+                ).animate().fadeIn(delay: 300.ms, duration: 350.ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOut),
                 const SizedBox(height: 24),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -218,13 +221,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 
-  // ── Hero Sleep Score Card (Modern Design) ──────────────────────────────────
-  Widget _buildHeroCard(bool isLight, Color textPrimary, Color textSec, Color cardBg, Color cardBorder) {
+  // ── Sleep Score Card (restored from original design) ──────────────────────
+  // ── Combined Sleep Score + Sleep Sound Analyser Card ──────────────────────
+  Widget _buildCombinedSleepCard(bool isLight, Color textPrimary, Color textSec, Color cardBg, Color cardBorder) {
     final hasData = _recent.isNotEmpty;
     final report = hasData ? _recent.first : null;
     final score = report?.qualityScore.toInt() ?? 0;
-    
-    // The design uses a vivid teal/green for good scores, cyan/blue for fair.
+
     final scoreColor = score >= 80
         ? const Color(0xFF2DDA93)
         : score >= 60
@@ -232,225 +235,378 @@ class _HomeScreenState extends State<HomeScreen> {
             : AppTheme.error;
     final scoreLabel = score >= 80 ? 'Good Sleep' : score >= 60 ? 'Fair Sleep' : 'Poor Sleep';
 
-    // Base colors matching the uploaded design precisely
-    final bgLight = const Color(0xFFFAFBFE);
-    final bgDark = const Color(0xFF0F1225);
-    final cardBgColor = isLight ? bgLight : bgDark;
+    final titleColor = isLight ? const Color(0xFF1A1D36) : Colors.white;
+    final subtitleColor = isLight ? const Color(0xFF5C638A) : Colors.white.withValues(alpha: 0.65);
+    final badgeBg = isLight ? Colors.black.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.1);
+    final badgeBorder = isLight ? Colors.black.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.2);
+    final badgeText = isLight ? const Color(0xFF5C638A) : Colors.white;
+    final badgeIcon = isLight ? const Color(0xFF8B5CF6) : Colors.white;
+    final dividerColor = isLight ? const Color(0xFFE2E8F0) : Colors.white.withValues(alpha: 0.08);
 
-    return GestureDetector(
-      onTap: () {
-        if (hasData) {
-          Navigator.pushNamed(context, AppRouter.sleepReport, arguments: report);
-        } else {
-          _openSleepFlow();
-        }
-      },
-      child: Container(
-        width: double.infinity,
-        height: 190,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          color: cardBgColor,
-          border: Border.all(color: isLight ? Colors.white : const Color(0xFF1C1F3A), width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.primaryIndigo.withValues(alpha: isLight ? 0.06 : 0.15),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
-            ),
-          ],
+    final bgGradient = isLight
+        ? const LinearGradient(colors: [Color(0xFFFAFBFE), Color(0xFFEFF2F9)], begin: Alignment.topLeft, end: Alignment.bottomRight)
+        : const LinearGradient(colors: [Color(0xFF1A1035), Color(0xFF0F1225)], begin: Alignment.topLeft, end: Alignment.bottomRight);
+
+    final isDaytime = isLight; // align celestial body with app theme, not clock
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: bgGradient,
+        border: Border.all(
+          color: isLight ? const Color(0xFFDDE3F0) : const Color(0xFF2A2D5E),
+          width: 1.5,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: Stack(
-            children: [
-              // 1. Background Waves
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _HeroCardBackgroundPainter(isLight: isLight),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryIndigo.withValues(alpha: isLight ? 0.10 : 0.30),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: Stack(
+          children: [
+            // ── Subtle decorative backdrop only – small, top-right corner ──
+            Positioned(
+              top: -20,
+              right: -20,
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: isDaytime
+                        ? [const Color(0xFFFFE082).withValues(alpha: 0.35), Colors.transparent]
+                        : [const Color(0xFF8B8BF8).withValues(alpha: 0.20), Colors.transparent],
+                  ),
                 ),
               ),
-              
-              // 2. Stars & Moon
-              Positioned(
-                top: 24,
-                right: 28,
-                child: Icon(
-                  Icons.nightlight_round,
-                  color: isLight ? const Color(0xFFB0BAE3) : const Color(0xFF4A55A2),
-                  size: 28,
-                ),
+            ),
+            // Small celestial icon (decorative only, never overlaps content)
+            Positioned(
+              top: 18,
+              right: 22,
+              child: isDaytime
+                  ? Icon(Icons.wb_sunny_rounded,
+                      color: const Color(0xFFFFCA28).withValues(alpha: 0.85), size: 28)
+                  : Icon(Icons.nightlight_round,
+                      color: const Color(0xFF9B9EF8).withValues(alpha: 0.80), size: 26),
+            ),
+            // Tiny accent stars
+            Positioned(
+              top: 48,
+              right: 26,
+              child: Icon(Icons.star_rounded,
+                  color: isDaytime
+                      ? const Color(0xFFFFB300).withValues(alpha: 0.50)
+                      : Colors.white.withValues(alpha: 0.25),
+                  size: 7),
+            ),
+            Positioned(
+              top: 60,
+              right: 52,
+              child: Icon(Icons.star_rounded,
+                  color: isDaytime
+                      ? const Color(0xFF818CF8).withValues(alpha: 0.40)
+                      : Colors.white.withValues(alpha: 0.20),
+                  size: 5),
+            ),
+
+            // Subtle wave decoration at the bottom of the card
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: CustomPaint(
+                size: const Size(double.infinity, 50),
+                painter: _CardWavePainter(isLight: isLight),
               ),
-              Positioned(
-                top: 36,
-                right: 90,
-                child: Icon(Icons.star_rounded, color: isLight ? const Color(0xFFFFD54F) : Colors.white24, size: 10),
-              ),
-              Positioned(
-                top: 60,
-                right: 140,
-                child: Icon(Icons.star_rounded, color: isLight ? const Color(0xFF818CF8) : Colors.white24, size: 8),
-              ),
-              
-              // 3. Glowing Orb (Premium 3D feel)
-              if (hasData)
-                Positioned(
-                  right: 35,
-                  bottom: 45,
-                  child: Container(
-                    width: 90,
-                    height: 90,
+            ),
+
+            // ── All content – guaranteed to always be above decorations ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 22, 22, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+
+                  // ── SECTION 1: Sleep Score ────────────────────────────
+                  GestureDetector(
+                    onTap: () {
+                      if (hasData) {
+                        Navigator.pushNamed(context, AppRouter.sleepReport, arguments: report);
+                      }
+                    },
+                    behavior: HitTestBehavior.opaque,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Left: score block
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Sleep Score',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isLight ? const Color(0xFF6B7280) : Colors.white54,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.baseline,
+                                textBaseline: TextBaseline.alphabetic,
+                                children: [
+                                  Text(
+                                    hasData ? '$score' : '--',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 52,
+                                      fontWeight: FontWeight.w800,
+                                      color: hasData ? scoreColor : textSec,
+                                      height: 1.0,
+                                      letterSpacing: -2,
+                                    ),
+                                  ),
+                                  if (hasData)
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 3, bottom: 6),
+                                      child: Text(
+                                        '/100',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: isLight ? const Color(0xFF9CA3AF) : const Color(0xFF5C638A),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              if (hasData)
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(3),
+                                      decoration: BoxDecoration(
+                                        color: scoreColor.withValues(alpha: 0.15),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(Icons.check, color: scoreColor, size: 11),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      scoreLabel,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: scoreColor,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              else
+                                Text(
+                                  'No recording yet',
+                                  style: TextStyle(fontSize: 12, color: textSec),
+                                ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(width: 60), // Reserve space for the decorative icon top-right
+
+                        // Full Report chip – aligned top so it never overlaps the score
+                        if (hasData)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: GestureDetector(
+                              onTap: () => Navigator.pushNamed(context, AppRouter.sleepReport, arguments: report),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: scoreColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: scoreColor.withValues(alpha: 0.35)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Full Report',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: scoreColor,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(Icons.arrow_forward_ios_rounded, size: 10, color: scoreColor),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // ── Divider ──────────────────────────────────────────────
+                  Container(
+                    height: 1,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        center: const Alignment(-0.3, -0.4),
-                        radius: 0.8,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.9),
-                          scoreColor.withValues(alpha: 0.8),
-                          scoreColor.withValues(alpha: 0.4),
-                          scoreColor.withValues(alpha: 0.0),
-                        ],
-                        stops: const [0.0, 0.4, 0.8, 1.0],
+                      gradient: LinearGradient(
+                        colors: [Colors.transparent, dividerColor, Colors.transparent],
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: scoreColor.withValues(alpha: 0.6),
-                          blurRadius: 28,
-                          spreadRadius: 6,
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ── SECTION 2: Sleep Sound Analyser ──────────────────────
+                  // Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: isLight
+                          ? const Color(0xFF8B5CF6).withValues(alpha: 0.08)
+                          : Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isLight
+                            ? const Color(0xFF8B5CF6).withValues(alpha: 0.20)
+                            : Colors.white.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.auto_awesome,
+                            color: isLight ? const Color(0xFF8B5CF6) : const Color(0xFFB483F6), size: 12),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Understand. Improve. Sleep better.',
+                          style: GoogleFonts.inter(
+                            color: isLight ? const Color(0xFF6D28D9) : const Color(0xFFCBB4FC),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ),
+                  const SizedBox(height: 12),
 
-              // 4. Left Content
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Row(
-                  children: [
-                    // Left Text Column
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Sleep Score',
-                            style: GoogleFonts.outfit(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.5,
-                              color: isLight ? const Color(0xFF1A1D36) : Colors.white,
-                            ),
+                  // Title row
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Sleep Sound ',
+                          style: GoogleFonts.outfit(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: isLight ? const Color(0xFF1A1D36) : Colors.white,
+                            height: 1.2,
                           ),
-                          const SizedBox(height: 4),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
+                        ),
+                        TextSpan(
+                          text: 'Analyser',
+                          style: GoogleFonts.outfit(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            foreground: Paint()
+                              ..shader = const LinearGradient(
+                                colors: [Color(0xFFB483F6), Color(0xFF6D28D9)],
+                              ).createShader(const Rect.fromLTWH(0, 0, 130, 30)),
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Description
+                  Text(
+                    "Start recording before you sleep. Stop when you wake up — we'll generate a full sleep quality report.",
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: isLight ? const Color(0xFF5C638A) : Colors.white.withValues(alpha: 0.60),
+                      height: 1.55,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Button
+                  Container(
+                    width: double.infinity,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF8B5CF6), Color(0xFF4F46E5)],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF4F46E5).withValues(alpha: isLight ? 0.25 : 0.40),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: _openSleepFlow,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Row(
                             children: [
-                              ShaderMask(
-                                shaderCallback: (bounds) => LinearGradient(
-                                  colors: [scoreColor, scoreColor.withValues(alpha: 0.7)],
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                ).createShader(bounds),
-                                child: Text(
-                                  hasData ? '$score' : '--',
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 64,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                    height: 1.0,
-                                    letterSpacing: -2,
-                                  ),
+                              Container(
+                                padding: const EdgeInsets.all(7),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.20),
+                                  shape: BoxShape.circle,
                                 ),
+                                child: const Icon(Icons.mic_none_rounded, color: Colors.white, size: 18),
                               ),
-                              if (hasData)
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 2),
+                              const Expanded(
+                                child: Center(
                                   child: Text(
-                                    '/100',
+                                    'Start Recording',
                                     style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: isLight ? const Color(0xFF8B94B2) : const Color(0xFF5C638A),
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.4,
                                     ),
                                   ),
                                 ),
+                              ),
+                              const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          if (hasData) ...[
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(3),
-                                  decoration: BoxDecoration(
-                                    color: scoreColor.withValues(alpha: 0.15),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(Icons.check, color: scoreColor, size: 12),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  scoreLabel,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: scoreColor,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: isLight ? Colors.black.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.05),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'View full report',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: isLight ? const Color(0xFF7A84A6) : const Color(0xFF8B94B2),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Icon(Icons.arrow_forward_rounded, size: 14, color: isLight ? const Color(0xFF7A84A6) : const Color(0xFF8B94B2)),
-                                ],
-                              ),
-                            ),
-                          ] else ...[
-                            const Spacer(),
-                            GestureDetector(
-                              onTap: _openSleepFlow,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.primaryIndigo,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Text(
-                                  '🌙 Start Recording',
-                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
+                        ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1013,8 +1169,12 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             children: [
               _quickItem(Icons.book_rounded, 'Sleep Diary', AppTheme.primaryIndigo, textSec, cardBg, cardBorder,
-                  () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MorningJournalScreen()))),
-              _quickItem(Icons.self_improvement_rounded, 'Yoga', AppTheme.accentTeal, textSec, cardBg, cardBorder, null),
+                  () => Navigator.pushNamed(context, AppRouter.sleepHistory)),
+              _quickItem(Icons.self_improvement_rounded, 'Yoga', AppTheme.accentTeal, textSec, cardBg, cardBorder,
+                  () {
+                    // Navigate to MainNavScreen and switch to Wellness tab (index 1)
+                    Navigator.pushNamedAndRemoveUntil(context, AppRouter.mainNav, (r) => false, arguments: 1);
+                  }),
               _quickItem(Icons.spa_rounded, 'Meditation', AppTheme.primaryGold, textSec, cardBg, cardBorder,
                   () => Navigator.pushNamed(context, AppRouter.relaxation)),
               _quickItem(Icons.mic_rounded, 'Snore Track', AppTheme.error, textSec, cardBg, cardBorder, 
@@ -1344,9 +1504,10 @@ class _SleepFlowSheetState extends State<_SleepFlowSheet> {
   }
 }
 
-class _HeroCardBackgroundPainter extends CustomPainter {
+// Custom painter for the Sleep Score card — soft wave/landscape background
+class _SleepScoreCardPainter extends CustomPainter {
   final bool isLight;
-  _HeroCardBackgroundPainter({required this.isLight});
+  _SleepScoreCardPainter({required this.isLight});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1393,4 +1554,38 @@ class _HeroCardBackgroundPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+/// Paints a subtle wave at the bottom of the hero card.
+class _CardWavePainter extends CustomPainter {
+  final bool isLight;
+  _CardWavePainter({required this.isLight});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = isLight
+          ? const Color(0xFF8B5CF6).withValues(alpha: 0.05)
+          : const Color(0xFF6366F1).withValues(alpha: 0.10)
+      ..style = PaintingStyle.fill;
+
+    final path = Path();
+    path.moveTo(0, size.height * 0.5);
+    path.quadraticBezierTo(
+      size.width * 0.25, size.height * 0.1,
+      size.width * 0.5, size.height * 0.5,
+    );
+    path.quadraticBezierTo(
+      size.width * 0.75, size.height * 0.9,
+      size.width, size.height * 0.4,
+    );
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CardWavePainter oldDelegate) =>
+      oldDelegate.isLight != isLight;
 }

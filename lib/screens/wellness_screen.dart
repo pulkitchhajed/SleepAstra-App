@@ -14,6 +14,8 @@ import '../modules/videos/screens/video_player_screen.dart';
 import '../modules/blogs/widgets/blog_hub_widget.dart';
 import '../modules/paywall/providers/subscription_provider.dart';
 import '../core/router/app_router.dart';
+import '../modules/audio/models/audio_track_model.dart';
+import '../modules/audio/services/audio_track_service.dart';
 
 class WellnessScreen extends StatefulWidget {
   const WellnessScreen({super.key});
@@ -28,14 +30,36 @@ class _WellnessScreenState extends State<WellnessScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   int _selectedCategoryIndex = 0;
-  final List<String> _categories = ['For You', 'Meditation', 'Sleep Sounds', 'Breathwork', 'Music'];
+  final List<String> _categories = ['For You', 'Meditation', 'Sleep Sounds', 'Breathwork', 'Music', 'Yoga'];
 
-  // Tracks are sourced from the shared kSleepTracks constant (core/utils/audio_tracks.dart)
-  // to avoid duplicating URLs with the Sleep Analysis screen.
-  static final List<SleepTrack> _tracks = kSleepTracks;
+  // Tracks are a combination of local tracks and Firebase tracks
+  List<SleepTrack> _tracks = List.from(kSleepTracks);
+  StreamSubscription? _audioSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _audioSub = AudioTrackService().getAudioTracks().listen((cloudTracks) {
+      if (mounted) {
+        setState(() {
+          // Combine local kSleepTracks with cloud tracks
+          _tracks = List.from(kSleepTracks)..addAll(cloudTracks.map((t) => SleepTrack(
+            name: t.title,
+            category: t.category,
+            duration: t.duration,
+            icon: Icons.audiotrack_rounded,
+            color: AppTheme.primaryIndigo,
+            url: t.audioUrl,
+            type: t.category,
+          )));
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
+    _audioSub?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -73,7 +97,8 @@ class _WellnessScreenState extends State<WellnessScreen> {
       final snackbarMessenger = ScaffoldMessenger.of(context);
       try {
         // Set URL without awaiting — this returns as soon as buffering starts
-        final audioSource = AudioSource.uri(Uri.parse(_tracks[index].url));
+        // Set URL with caching to prevent high buffer times on subsequent plays
+        final audioSource = LockCachingAudioSource(Uri.parse(_tracks[index].url));
         await _audioPlayer.setAudioSource(audioSource);
         _audioPlayer.setLoopMode(LoopMode.one);
 
@@ -123,6 +148,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     final isLight = themeProvider.isDarkMode == false;
+    final isPremium = context.watch<SubscriptionProvider>().isPremium;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -255,8 +281,15 @@ class _WellnessScreenState extends State<WellnessScreen> {
                           const SizedBox(height: 32),
                         ],
 
+                        if (_selectedCategoryIndex == 0 || _selectedCategoryIndex == 5) ...[
+                          _buildSectionTitle('Yoga', isLight).animate().fadeIn(delay: 100.ms, duration: 300.ms),
+                          _buildYogaSection(isLight).animate().fadeIn(delay: 150.ms, duration: 350.ms).slideX(begin: 0.05, end: 0, curve: Curves.easeOut),
+                          const SizedBox(height: 32),
+                        ],
+
                         // Premium Banner
-                        Padding(
+                        if (!isPremium)
+                          Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: Container(
                             width: double.infinity,
@@ -688,6 +721,158 @@ class _WellnessScreenState extends State<WellnessScreen> {
 
 
 
+  // ── Mock Yoga Sessions ────────────────────────────────────────────────────
+  static const _yogaSessions = [
+    _YogaSession('Morning Flow', 'Energising', '20 Min', 'Beginner', Color(0xFF2DD4BF), Icons.wb_sunny_rounded),
+    _YogaSession('Bedtime Stretch', 'Wind Down', '15 Min', 'All Levels', Color(0xFF818CF8), Icons.bedtime_rounded),
+    _YogaSession('Stress Relief', 'Restorative', '30 Min', 'Intermediate', Color(0xFF8B5CF6), Icons.favorite_rounded),
+    _YogaSession('Breathwork Yoga', 'Pranayama', '25 Min', 'Advanced', Color(0xFFF97316), Icons.air_rounded),
+    _YogaSession('Yoga Nidra', 'Deep Sleep', '40 Min', 'All Levels', Color(0xFF6366F1), Icons.hotel_rounded),
+  ];
+
+  Widget _buildYogaSection(bool isLight) {
+    final textPrimary = isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary;
+    final textSec = isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary;
+
+    return SizedBox(
+      height: 200,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: _yogaSessions.length,
+        itemBuilder: (context, index) {
+          final session = _yogaSessions[index];
+          final isLocked = index >= 2 && !(context.watch<SubscriptionProvider>().isPremium);
+
+          return GestureDetector(
+            onTap: () {
+              if (isLocked) {
+                Navigator.pushNamed(context, AppRouter.paywall);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Starting: ${session.title}'),
+                    backgroundColor: session.color,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            child: Container(
+              width: 155,
+              margin: const EdgeInsets.only(right: 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: LinearGradient(
+                  colors: [
+                    session.color.withValues(alpha: isLight ? 0.15 : 0.25),
+                    session.color.withValues(alpha: isLight ? 0.05 : 0.10),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(color: session.color.withValues(alpha: 0.35), width: 1.2),
+                boxShadow: [
+                  BoxShadow(
+                    color: session.color.withValues(alpha: isLight ? 0.15 : 0.20),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  // Content
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Icon in circle
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: session.color.withValues(alpha: isLight ? 0.2 : 0.3),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(session.icon, color: session.color, size: 24),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          session.title,
+                          maxLines: 2,
+                          style: GoogleFonts.outfit(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: textPrimary,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          session.subtitle,
+                          style: TextStyle(fontSize: 11, color: textSec),
+                        ),
+                        const Spacer(),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: session.color.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                session.level,
+                                style: TextStyle(fontSize: 9, color: session.color, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Duration badge top-right
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: session.color.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        session.duration,
+                        style: TextStyle(fontSize: 9, color: session.color, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                  // Lock overlay
+                  if (isLocked)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.lock_rounded, color: AppTheme.primaryGold, size: 28),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+
   Widget _buildHorizontalList({
     required List<SleepTrack> tracks,
     required List<int> indices,
@@ -1073,4 +1258,14 @@ class BreathExercise {
   final String duration;
   final String pattern;
   const BreathExercise(this.name, this.subtitle, this.icon, this.color, this.duration, this.pattern);
+}
+
+class _YogaSession {
+  final String title;
+  final String subtitle;
+  final String duration;
+  final String level;
+  final Color color;
+  final IconData icon;
+  const _YogaSession(this.title, this.subtitle, this.duration, this.level, this.color, this.icon);
 }
