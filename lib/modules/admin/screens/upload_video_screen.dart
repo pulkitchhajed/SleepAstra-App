@@ -7,7 +7,8 @@ import '../../videos/services/video_service.dart';
 
 class UploadVideoScreen extends StatefulWidget {
   final VideoModel? existingVideo;
-  const UploadVideoScreen({super.key, this.existingVideo});
+  final String? defaultCategory;
+  const UploadVideoScreen({super.key, this.existingVideo, this.defaultCategory});
 
   @override
   State<UploadVideoScreen> createState() => _UploadVideoScreenState();
@@ -16,6 +17,7 @@ class UploadVideoScreen extends StatefulWidget {
 class _UploadVideoScreenState extends State<UploadVideoScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _categoryController = TextEditingController();
   final _tagsController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
@@ -41,6 +43,9 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
       _isLinkMode = true; // For editing, we usually treat existing media as a link so we don't re-upload by default
       _linkUrlController.text = v.videoUrl;
       _thumbnailUrlController.text = v.thumbnailUrl;
+      _categoryController.text = v.category;
+    } else if (widget.defaultCategory != null) {
+      _categoryController.text = widget.defaultCategory!;
     }
   }
 
@@ -48,6 +53,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _categoryController.dispose();
     _tagsController.dispose();
     _linkUrlController.dispose();
     _thumbnailUrlController.dispose();
@@ -120,6 +126,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
           description: _descriptionController.text.trim(),
           videoUrl: finalVideoUrl,
           thumbnailUrl: finalThumbUrl,
+          category: _categoryController.text.trim(),
           tags: tags,
         );
       } else {
@@ -128,6 +135,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
           description: _descriptionController.text.trim(),
           videoUrl: finalVideoUrl,
           thumbnailUrl: finalThumbUrl,
+          category: _categoryController.text.trim(),
           tags: tags,
         );
       }
@@ -330,6 +338,27 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
                 maxLines: 5,
                 validator: (v) =>
                     v == null || v.trim().isEmpty ? 'Description is required' : null,
+              ),
+              const SizedBox(height: 20),
+
+              // ── Category ─────────────────────────────────────────────────
+              _SectionLabel(label: 'Category / Zone'),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _categoryController,
+                readOnly: widget.defaultCategory != null,
+                style: TextStyle(
+                  color: widget.defaultCategory != null ? AppTheme.textSecondary : AppTheme.textPrimary,
+                  fontSize: 15,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'e.g. Wellness Videos',
+                  hintStyle: const TextStyle(color: AppTheme.textSecondary, fontSize: 15),
+                  filled: true,
+                  fillColor: AppTheme.surfaceElevated,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+                validator: (v) => v == null || v.trim().isEmpty ? 'Category is required' : null,
               ),
               const SizedBox(height: 20),
 

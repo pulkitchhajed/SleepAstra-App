@@ -5,8 +5,6 @@ import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
 
-import '../modules/journal/screens/morning_journal_screen.dart';
-import '../modules/journal/screens/journal_list_screen.dart';
 import '../modules/sleep_analysis/screens/sleep_stages_screen.dart';
 import '../modules/sleep_analysis/screens/snore_tracking_screen.dart';
 
@@ -42,6 +40,15 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _lastUid;
 
   void _openSleepFlow() {
+    if (context.read<SleepAnalysisProvider>().isRecording) {
+      Navigator.pushNamed(
+        context,
+        AppRouter.sleepAnalysis,
+        arguments: {'autoStart': false, 'isRestoringSession': true},
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -78,69 +85,144 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async {
-            final uid = auth.uid ?? await FirestoreService.deviceUid;
-            if (!context.mounted) return;
-            await context.read<SleepAnalysisProvider>().loadHistory(uid);
-          },
-          color: AppTheme.primaryIndigo,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(top: 16, bottom: 100),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _buildHeader(profile.name, isLight, textPrimary, textSec, themeProvider),
-                ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.08, end: 0, curve: Curves.easeOut),
-                const SizedBox(height: 24),
-                // ── Combined Sleep Score + Analyser Card ─────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _buildCombinedSleepCard(isLight, textPrimary, textSec, cardBg, cardBorder),
-                ).animate().fadeIn(delay: 80.ms, duration: 400.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
-                const SizedBox(height: 16),
-                // ── Daily Sleep Goal ──────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _buildDailyGoalCard(isLight, textPrimary, textSec, cardBg, cardBorder),
-                ).animate().fadeIn(delay: 130.ms, duration: 350.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _buildMetricsRow(profile, isLight, textPrimary, textSec, cardBg, cardBorder),
-                ).animate().fadeIn(delay: 240.ms, duration: 350.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
-                const SizedBox(height: 24),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _buildWeeklyTrendChart(isLight, textPrimary, textSec, cardBg, cardBorder),
-                ).animate().fadeIn(delay: 300.ms, duration: 350.ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOut),
-                const SizedBox(height: 24),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _buildCalendarSection(textPrimary),
-                ).animate().fadeIn(delay: 350.ms, duration: 350.ms),
-                const SizedBox(height: 24),
-                // BlogHubWidget handles its own horizontal padding to bleed to edges
-                BlogHubWidget(isLight: isLight).animate().fadeIn(delay: 400.ms, duration: 350.ms),
-                const SizedBox(height: 24),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _buildAskNidraBanner(),
-                ).animate().fadeIn(delay: 450.ms, duration: 350.ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOut),
-                const SizedBox(height: 24),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _buildQuickAccess(isLight, textPrimary, textSec, cardBg, cardBorder),
-                ).animate().fadeIn(delay: 500.ms, duration: 350.ms),
-              ],
+        child: Stack(
+          children: [
+            RefreshIndicator(
+              onRefresh: () async {
+                final uid = auth.uid ?? await FirestoreService.deviceUid;
+                if (!context.mounted) return;
+                await context.read<SleepAnalysisProvider>().loadHistory(uid);
+              },
+              color: AppTheme.primaryIndigo,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(top: 16, bottom: 100),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _buildHeader(profile.name, isLight, textPrimary, textSec, themeProvider),
+                    ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.08, end: 0, curve: Curves.easeOut),
+                    const SizedBox(height: 24),
+                    // ── Combined Sleep Score + Analyser Card ─────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _buildCombinedSleepCard(isLight, textPrimary, textSec, cardBg, cardBorder),
+                    ).animate().fadeIn(delay: 80.ms, duration: 400.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
+                    const SizedBox(height: 16),
+                    // ── Daily Sleep Goal ──────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _buildDailyGoalCard(isLight, textPrimary, textSec, cardBg, cardBorder),
+                    ).animate().fadeIn(delay: 130.ms, duration: 350.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _buildMetricsRow(profile, isLight, textPrimary, textSec, cardBg, cardBorder),
+                    ).animate().fadeIn(delay: 240.ms, duration: 350.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
+                    const SizedBox(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _buildAskNidraBanner(),
+                    ).animate().fadeIn(delay: 300.ms, duration: 350.ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOut),
+                    const SizedBox(height: 24),
+                    // BlogHubWidget handles its own horizontal padding to bleed to edges
+                    BlogHubWidget(isLight: isLight).animate().fadeIn(delay: 350.ms, duration: 350.ms),
+                    const SizedBox(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _buildQuickAccess(isLight, textPrimary, textSec, cardBg, cardBorder),
+                    ).animate().fadeIn(delay: 450.ms, duration: 350.ms),
+                    const SizedBox(height: 100),
+                  ],
+                ),
+              ),
             ),
-          ),
+            if (sleepProvider.isRecording)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 86, // Above bottom nav
+                child: _buildActiveRecordingBanner(sleepProvider),
+              ),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildActiveRecordingBanner(SleepAnalysisProvider provider) {
+    return GestureDetector(
+      onTap: _openSleepFlow, // This will now directly navigate to SleepAnalysisScreen
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceElevated,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.primaryIndigo.withValues(alpha: 0.5), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primaryIndigo.withValues(alpha: 0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Animate(
+              onPlay: (controller) => controller.repeat(reverse: true),
+              effects: const [
+                FadeEffect(begin: 0.4, end: 1.0, duration: Duration(milliseconds: 1000)),
+                ScaleEffect(begin: Offset(0.9, 0.9), end: Offset(1.1, 1.1), duration: Duration(milliseconds: 1000)),
+              ],
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: const BoxDecoration(
+                  color: AppTheme.error,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Recording in Progress',
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Tap to view analysis • ${_formatDuration(provider.recordingDuration)}',
+                    style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: AppTheme.textSecondary),
+          ],
+        ),
+      ).animate().slideY(begin: 1.0, end: 0, duration: 400.ms, curve: Curves.easeOutBack).fadeIn(),
+    );
+  }
+
+  String _formatDuration(Duration d) {
+    final h = d.inHours.toString().padLeft(2, '0');
+    final m = (d.inMinutes % 60).toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$h:$m:$s';
   }
 
   // ── Header (Greeting + Theme Toggle + Profile) ──────────────────────
@@ -875,14 +957,18 @@ class _HomeScreenState extends State<HomeScreen> {
     const goalHours = 8.0;
     final progress = (hoursRecordedDouble / goalHours).clamp(0.0, 1.0);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: AppTheme.glassDecoration(
-        borderRadius: BorderRadius.circular(20),
-        isLightMode: isLight,
-      ),
-      child: Row(
-        children: [
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushNamed(context, '/daily_sleep_goal');
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: AppTheme.glassDecoration(
+          borderRadius: BorderRadius.circular(20),
+          isLightMode: isLight,
+        ),
+        child: Row(
+          children: [
           SizedBox(
             width: 68,
             height: 68,
@@ -949,7 +1035,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
 
@@ -1166,6 +1253,8 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 16),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          clipBehavior: Clip.none, // Allow shadows to draw outside bounds
           child: Row(
             children: [
               _quickItem(Icons.book_rounded, 'Sleep Diary', AppTheme.primaryIndigo, textSec, cardBg, cardBorder,

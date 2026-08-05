@@ -10,6 +10,7 @@ import '../screens/wellness_screen.dart';
 import '../core/widgets/animated_sleep_background.dart';
 import '../core/router/app_router.dart';
 import '../modules/sleep_analysis/screens/sleep_history_screen.dart';
+import '../modules/sleep_analysis/screens/sleep_analysis_screen.dart';
 import '../modules/sleep_analysis/providers/sleep_analysis_provider.dart';
 
 class MainNavScreen extends StatefulWidget {
@@ -21,7 +22,7 @@ class MainNavScreen extends StatefulWidget {
 }
 
 class _MainNavScreenState extends State<MainNavScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late int _currentIndex;
   late AnimationController _fabPulse;
   late Animation<double> _fabScale;
@@ -29,6 +30,7 @@ class _MainNavScreenState extends State<MainNavScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _currentIndex = widget.initialIndex;
     _fabPulse = AnimationController(
       vsync: this,
@@ -39,23 +41,37 @@ class _MainNavScreenState extends State<MainNavScreen>
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final sleepProv = context.read<SleepAnalysisProvider>();
-      if (sleepProv.isRecording) {
-        Navigator.pushNamed(
-          context,
-          AppRouter.sleepAnalysis,
-          arguments: {
-            'autoStart': false,
-            'isRestoringSession': true, // indicates we are just opening the UI, not starting a new recording
-          },
-        );
-      }
+      _checkAndRedirectIfRecording();
     });
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkAndRedirectIfRecording();
+    }
+  }
+
+  Future<void> _checkAndRedirectIfRecording() async {
+    if (!mounted) return;
+    final sleepProv = context.read<SleepAnalysisProvider>();
+    final isRecordingActive = await sleepProv.checkAndRestoreActiveRecordingState();
+
+    if (isRecordingActive && !SleepAnalysisScreen.isScreenVisible && mounted) {
+      Navigator.pushNamed(
+        context,
+        AppRouter.sleepAnalysis,
+        arguments: {
+          'autoStart': false,
+          'isRestoringSession': true,
+        },
+      );
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _fabPulse.dispose();
     super.dispose();
   }
@@ -63,6 +79,7 @@ class _MainNavScreenState extends State<MainNavScreen>
   final List<Widget> _screens = const [
     HomeScreen(),
     WellnessScreen(),
+    SleepHistoryScreen(),
     NidraChatScreen(),
     RewardsScreen(),
   ];
@@ -75,10 +92,15 @@ class _MainNavScreenState extends State<MainNavScreen>
   ];
 
   void _openReports() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const SleepHistoryScreen()),
-    );
+    if (context.read<SleepAnalysisProvider>().isRecording) {
+      Navigator.pushNamed(
+        context,
+        AppRouter.sleepAnalysis,
+        arguments: {'autoStart': false, 'isRestoringSession': true},
+      );
+      return;
+    }
+    setState(() => _currentIndex = 2);
   }
 
   @override
@@ -93,19 +115,24 @@ class _MainNavScreenState extends State<MainNavScreen>
           setState(() => _currentIndex = 0);
         }
       },
-      child: Scaffold(
-        backgroundColor: bg,
-        extendBody: true,
-        body: AnimatedSleepBackground(
-          isLightMode: isLight,
-          child: IndexedStack(
-            index: _currentIndex,
-            children: _screens,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Scaffold(
+            backgroundColor: bg,
+            extendBody: true,
+            body: AnimatedSleepBackground(
+              isLightMode: isLight,
+              child: IndexedStack(
+                index: _currentIndex,
+                children: _screens,
+              ),
+            ),
+            bottomNavigationBar: Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+              child: _buildNav(isLight),
+            ),
           ),
-        ),
-        bottomNavigationBar: Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
-          child: _buildNav(isLight),
         ),
       ),
     );
@@ -149,10 +176,10 @@ class _MainNavScreenState extends State<MainNavScreen>
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               // Left 2 tabs: Home, Wellness
-              _buildNavItem(0, isLight),
-              _buildNavItem(1, isLight),
+              _buildNavItem(0, 0, isLight),
+              _buildNavItem(1, 1, isLight),
 
-              // ── Central Reports Button (Flat) ──
+              // ── Central My Sleep Button (Always Highlighted) ──
               GestureDetector(
                 onTap: _openReports,
                 behavior: HitTestBehavior.opaque,
@@ -162,18 +189,39 @@ class _MainNavScreenState extends State<MainNavScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.calendar_month_outlined,
-                        size: 22,
-                        color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF6366F1), Color(0xFF818CF8)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.primaryIndigo.withValues(alpha: 0.45),
+                              blurRadius: 14,
+                              spreadRadius: 1,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.bedtime_rounded,
+                          size: 20,
+                          color: Colors.white,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Reports',
+                        'My Sleep',
                         style: TextStyle(
                           fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.primaryIndigo,
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ],
@@ -182,8 +230,8 @@ class _MainNavScreenState extends State<MainNavScreen>
               ),
 
               // Right 2 tabs: Nidra, Rewards
-              _buildNavItem(2, isLight),
-              _buildNavItem(3, isLight),
+              _buildNavItem(3, 2, isLight),
+              _buildNavItem(4, 3, isLight),
             ],
           ),
         ),
@@ -191,13 +239,13 @@ class _MainNavScreenState extends State<MainNavScreen>
     );
   }
 
-  Widget _buildNavItem(int i, bool isLight) {
-    final item = _items[i];
-    final selected = _currentIndex == i;
+  Widget _buildNavItem(int screenIndex, int itemIndex, bool isLight) {
+    final item = _items[itemIndex];
+    final selected = _currentIndex == screenIndex;
     final unselectedColor = isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary;
     
     return GestureDetector(
-      onTap: () => setState(() => _currentIndex = i),
+      onTap: () => setState(() => _currentIndex = screenIndex),
       behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

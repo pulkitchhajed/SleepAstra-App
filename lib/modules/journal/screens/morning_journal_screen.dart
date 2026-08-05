@@ -108,9 +108,8 @@ class _MorningJournalScreenState extends State<MorningJournalScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final sp = context.watch<SleepAnalysisProvider>();
-    final history = sp.history;
-    final isLight = context.watch<ThemeProvider>().isDarkMode == false;
+    final history = context.select<SleepAnalysisProvider, List<SleepReport>>((p) => p.history);
+    final isLight = context.select<ThemeProvider, bool>((p) => !p.isDarkMode);
     final bg = isLight ? AppTheme.backgroundLight : const Color(0xFF0D0F1E);
     final cardBg = isLight ? AppTheme.surfaceLight : const Color(0xFF1A1D33);
     final cardBorder = isLight ? AppTheme.cardBorderLight : Colors.white.withValues(alpha: 0.05);

@@ -24,8 +24,8 @@ class _SleepStagesScreenState extends State<SleepStagesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final history = context.watch<SleepAnalysisProvider>().history;
-    final isLight = context.watch<ThemeProvider>().isDarkMode == false;
+    final history = context.select<SleepAnalysisProvider, List<SleepReport>>((p) => p.history);
+    final isLight = context.select<ThemeProvider, bool>((p) => !p.isDarkMode);
     
     final bg = isLight ? AppTheme.backgroundLight : const Color(0xFF0D0F1E);
     final cardBg = isLight ? AppTheme.surfaceLight : const Color(0xFF1A1D33);

@@ -26,6 +26,14 @@ class AudioStorageService {
       final uploadTask = await ref.putFile(file, metadata);
       final downloadUrl = await uploadTask.ref.getDownloadURL();
       return downloadUrl;
+    } on FirebaseException catch (e) {
+      if (e.code == 'quota-exceeded' || e.code == 'unauthorized' || e.code == 'unknown') {
+        // This handles Spark plan billing closures (402) and permission denials (403) silently
+        RecordingLogger().info('Skipping audio upload (Firebase Storage requires billing/permissions). Audio will remain local.');
+        return null;
+      }
+      RecordingLogger().error('Firebase error uploading snore audio: ${e.code}', e);
+      return null;
     } catch (e) {
       RecordingLogger().error('Failed to upload snore audio', e);
       return null;

@@ -23,6 +23,7 @@ class _SleepHistoryScreenState extends State<SleepHistoryScreen>
   String? _lastUid;
   bool _showAll = false;
   late TabController _tabController;
+  DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
 
   @override
   void initState() {
@@ -61,63 +62,53 @@ class _SleepHistoryScreenState extends State<SleepHistoryScreen>
             colors: [Color(0xFF0D0F1E), Color(0xFF080A13)],
           ),
         ),
-        child: Consumer<SleepAnalysisProvider>(
-          builder: (context, provider, _) {
-            if (provider.history.isEmpty) {
-              return _buildEmptyState(textPrimary, textSec, cardBorder, cardBg);
-            }
+        child: SafeArea(
+          child: Consumer<SleepAnalysisProvider>(
+            builder: (context, provider, _) {
+              if (provider.history.isEmpty) {
+                return _buildEmptyState(textPrimary, textSec, cardBorder, cardBg);
+              }
 
-            return NestedScrollView(
-              headerSliverBuilder: (context, innerBoxIsScrolled) => [
-                _buildSliverAppBar(innerBoxIsScrolled, provider.history, textPrimary, textSec, cardBorder, cardBg),
-              ],
-              body: TabBarView(
-                controller: _tabController,
+              return Column(
                 children: [
-                  _buildCalendarTab(provider.history, textPrimary, textSec),
-                  _buildListTab(provider, textPrimary, textSec, cardBg, cardBorder),
+                  _buildAppBar(provider.history, textPrimary, textSec, cardBorder, cardBg),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildCalendarTab(provider.history, textPrimary, textSec),
+                        _buildListTab(provider, textPrimary, textSec, cardBg, cardBorder),
+                      ],
+                    ),
+                  ),
                 ],
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
   }
 
-  // ─── Sliver AppBar with tabs ───────────────────────────────────
-  Widget _buildSliverAppBar(bool innerBoxIsScrolled, List<SleepReport> history, Color textPrimary, Color textSec, Color cardBorder, Color cardBg) {
-    return SliverAppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      pinned: true,
-      expandedHeight: 0,
-      leading: GestureDetector(
-        onTap: () => Navigator.pop(context),
-        child: Container(
-          margin: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: cardBorder),
+  // ─── Custom AppBar with tabs ───────────────────────────────────
+  Widget _buildAppBar(List<SleepReport> history, Color textPrimary, Color textSec, Color cardBorder, Color cardBg) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Center(
+            child: Text(
+              'My Sleep',
+              style: TextStyle(
+                color: textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 17,
+              ),
+            ),
           ),
-          child: Icon(Icons.arrow_back_ios_rounded,
-              color: textPrimary, size: 16),
         ),
-      ),
-      title: Text(
-        'Sleep History',
-        style: TextStyle(
-          color: textPrimary,
-          fontWeight: FontWeight.w700,
-          fontSize: 17,
-        ),
-      ),
-      centerTitle: true,
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(50),
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 8, 20, 8),
           height: 42,
           decoration: BoxDecoration(
             color: cardBg,
@@ -171,19 +162,27 @@ class _SleepHistoryScreenState extends State<SleepHistoryScreen>
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 
   // ─── Calendar Tab ──────────────────────────────────────────────
   Widget _buildCalendarTab(List<SleepReport> history, Color textPrimary, Color textSec) {
+    // Filter to selected month for trend/stats
+    final monthHistory = history.where((r) =>
+        r.recordedAt.year == _selectedMonth.year &&
+        r.recordedAt.month == _selectedMonth.month).toList();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Calendar
-          SleepCalendarWidget(reports: history),
+          SleepCalendarWidget(
+            reports: history,
+            onMonthChanged: (month) => setState(() => _selectedMonth = month),
+          ),
           const SizedBox(height: 16),
           // Legend
           Row(
@@ -197,13 +196,13 @@ class _SleepHistoryScreenState extends State<SleepHistoryScreen>
             ],
           ),
           const SizedBox(height: 28),
-          // Trend chart below calendar
+          // Trend chart filtered to selected month
           _buildSectionHeader('Score Trend', Icons.trending_up_rounded, textPrimary),
           const SizedBox(height: 12),
-          HistoricalTrendChart(history: history),
+          HistoricalTrendChart(history: monthHistory.isNotEmpty ? monthHistory : history),
           const SizedBox(height: 24),
-          // Stats summary
-          _buildStatsSummary(history, textPrimary),
+          // Stats summary filtered to selected month
+          _buildStatsSummary(monthHistory.isNotEmpty ? monthHistory : history, textPrimary),
         ],
       ),
     );
@@ -281,7 +280,7 @@ class _SleepHistoryScreenState extends State<SleepHistoryScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader('Overview', Icons.insights_rounded, textPrimary),
+        _buildSectionHeader('Monthly Overview', Icons.insights_rounded, textPrimary),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -355,7 +354,7 @@ class _SleepHistoryScreenState extends State<SleepHistoryScreen>
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         if (index == displayList.length) {
-          return _buildShowOlderButton(olderHistory.length, cardBg, cardBorder);
+          return _buildShowOlderButton(olderHistory.length, cardBg, cardBorder, textSec);
         }
         final report = displayList[index];
         return _HistoryCard(
@@ -375,7 +374,7 @@ class _SleepHistoryScreenState extends State<SleepHistoryScreen>
     );
   }
 
-  Widget _buildShowOlderButton(int count, Color cardBg, Color cardBorder) {
+  Widget _buildShowOlderButton(int count, Color cardBg, Color cardBorder, Color textSec) {
     return Center(
       child: GestureDetector(
         onTap: () => setState(() => _showAll = true),
@@ -389,13 +388,13 @@ class _SleepHistoryScreenState extends State<SleepHistoryScreen>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.history_toggle_off_rounded,
-                  color: AppTheme.textSecondary, size: 16),
+              Icon(Icons.history_toggle_off_rounded,
+                  color: textSec, size: 16),
               const SizedBox(width: 8),
               Text(
                 'Show $count older sessions',
-                style: const TextStyle(
-                    color: AppTheme.textSecondary, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                    color: textSec, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -410,20 +409,8 @@ class _SleepHistoryScreenState extends State<SleepHistoryScreen>
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        leading: GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child: Container(
-            margin: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: cardBorder),
-            ),
-            child: Icon(Icons.arrow_back_ios_rounded,
-                color: textPrimary, size: 16),
-          ),
-        ),
-        title: Text('Sleep History',
+        automaticallyImplyLeading: false,
+        title: Text('My Sleep',
             style: TextStyle(color: textPrimary, fontWeight: FontWeight.w700)),
         centerTitle: true,
       ),

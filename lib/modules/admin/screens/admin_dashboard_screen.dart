@@ -9,6 +9,9 @@ import '../../audio/services/audio_track_service.dart';
 import 'upload_video_screen.dart';
 import 'upload_blog_screen.dart';
 import 'upload_audio_screen.dart';
+import '../models/wellness_zone_model.dart';
+import '../services/wellness_zone_service.dart';
+import 'zone_details_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
@@ -16,7 +19,7 @@ class AdminDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         backgroundColor: AppTheme.background,
         appBar: AppBar(
@@ -30,6 +33,7 @@ class AdminDashboardScreen extends StatelessWidget {
             labelColor: AppTheme.primaryIndigo,
             unselectedLabelColor: AppTheme.textSecondary,
             tabs: [
+              Tab(text: 'Zones'),
               Tab(text: 'Videos'),
               Tab(text: 'Blogs'),
               Tab(text: 'Audio'),
@@ -38,6 +42,7 @@ class AdminDashboardScreen extends StatelessWidget {
         ),
         body: const TabBarView(
           children: [
+            _AdminZonesTab(),
             _AdminVideosTab(),
             _AdminBlogsTab(),
             _AdminAudioTab(),
@@ -47,6 +52,17 @@ class AdminDashboardScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            FloatingActionButton.extended(
+              heroTag: 'create_zone',
+              onPressed: () => _showCreateZoneDialog(context),
+              backgroundColor: AppTheme.success,
+              icon: const Icon(Icons.add_rounded, color: Colors.white),
+              label: const Text(
+                'Create Zone',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 12),
             FloatingActionButton.extended(
               heroTag: 'upload_video',
               onPressed: () => Navigator.push(
@@ -90,6 +106,191 @@ class AdminDashboardScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showCreateZoneDialog(BuildContext context) {
+    final nameCtrl = TextEditingController();
+    final typeAudio = ValueNotifier(false);
+    final typeVideo = ValueNotifier(false);
+    final typeBlog = ValueNotifier(false);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceElevated,
+        title: const Text('Create New Zone', style: TextStyle(color: AppTheme.textPrimary)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                style: const TextStyle(color: AppTheme.textPrimary),
+                decoration: const InputDecoration(
+                  labelText: 'Zone Name (e.g. Meditation)',
+                  labelStyle: TextStyle(color: AppTheme.textSecondary),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Content Types Supported:', style: TextStyle(color: AppTheme.textSecondary)),
+              ValueListenableBuilder<bool>(
+                valueListenable: typeAudio,
+                builder: (ctx, val, _) => CheckboxListTile(
+                  title: const Text('Audio', style: TextStyle(color: AppTheme.textPrimary)),
+                  value: val,
+                  onChanged: (v) => typeAudio.value = v ?? false,
+                ),
+              ),
+              ValueListenableBuilder<bool>(
+                valueListenable: typeVideo,
+                builder: (ctx, val, _) => CheckboxListTile(
+                  title: const Text('Video', style: TextStyle(color: AppTheme.textPrimary)),
+                  value: val,
+                  onChanged: (v) => typeVideo.value = v ?? false,
+                ),
+              ),
+              ValueListenableBuilder<bool>(
+                valueListenable: typeBlog,
+                builder: (ctx, val, _) => CheckboxListTile(
+                  title: const Text('Blog', style: TextStyle(color: AppTheme.textPrimary)),
+                  value: val,
+                  onChanged: (v) => typeBlog.value = v ?? false,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (nameCtrl.text.trim().isEmpty) return;
+              final types = <String>[];
+              if (typeAudio.value) types.add('audio');
+              if (typeVideo.value) types.add('video');
+              if (typeBlog.value) types.add('blog');
+              await WellnessZoneService.createZone(
+                name: nameCtrl.text.trim(),
+                contentTypes: types,
+              );
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Create', style: TextStyle(color: AppTheme.primaryIndigo)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _AdminZonesTab extends StatelessWidget {
+  const _AdminZonesTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<WellnessZoneModel>>(
+      stream: WellnessZoneService.watchZones(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: AppTheme.error)));
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator(color: AppTheme.primaryIndigo));
+        }
+
+        final zones = snapshot.data!;
+        if (zones.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('No Zones found. Create one to get started.', style: TextStyle(color: AppTheme.textSecondary)),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () async {
+                    await WellnessZoneService.backfillDefaultZones();
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryIndigo),
+                  child: const Text('Backfill Default Zones', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ReorderableListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: zones.length,
+          onReorder: (oldIndex, newIndex) {
+            if (newIndex > oldIndex) newIndex -= 1;
+            final item = zones.removeAt(oldIndex);
+            zones.insert(newIndex, item);
+            for (int i = 0; i < zones.length; i++) {
+              WellnessZoneService.updateZoneOrder(zones[i].id, i);
+            }
+          },
+          itemBuilder: (context, index) {
+            final zone = zones[index];
+            return Card(
+              key: ValueKey(zone.id),
+              color: AppTheme.surfaceElevated,
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ListTile(
+                title: Text(zone.name, style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600)),
+                subtitle: Text('Types: ${zone.contentTypes.join(", ")}', style: const TextStyle(color: AppTheme.textSecondary)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.drag_handle, color: AppTheme.textSecondary),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: AppTheme.error),
+                      onPressed: () => _confirmDelete(context, zone),
+                    ),
+                  ],
+                ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ZoneDetailsScreen(zone: zone),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmDelete(BuildContext context, WellnessZoneModel zone) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceElevated,
+        title: const Text('Delete Zone?', style: TextStyle(color: AppTheme.textPrimary)),
+        content: Text('Are you sure you want to delete ${zone.name}? Content within will NOT be deleted.',
+            style: const TextStyle(color: AppTheme.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              await WellnessZoneService.deleteZone(zone.id);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Delete', style: TextStyle(color: AppTheme.error)),
+          ),
+        ],
       ),
     );
   }

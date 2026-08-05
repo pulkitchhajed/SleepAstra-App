@@ -13,8 +13,9 @@ import '../router/app_router.dart';
 /// pick from multiple recordings on that day).
 class SleepCalendarWidget extends StatefulWidget {
   final List<SleepReport> reports;
+  final void Function(DateTime month)? onMonthChanged;
 
-  const SleepCalendarWidget({super.key, required this.reports});
+  const SleepCalendarWidget({super.key, required this.reports, this.onMonthChanged});
 
   @override
   State<SleepCalendarWidget> createState() => _SleepCalendarWidgetState();
@@ -348,7 +349,10 @@ class _SleepCalendarWidgetState extends State<SleepCalendarWidget> {
             setState(() => _focusedDay = focused);
             _onDayTapped(selected);
           },
-          onPageChanged: (focused) => setState(() => _focusedDay = focused),
+          onPageChanged: (focused) {
+            setState(() => _focusedDay = focused);
+            widget.onMonthChanged?.call(DateTime(focused.year, focused.month, 1));
+          },
           // Calendar style
           calendarStyle: CalendarStyle(
             // Today

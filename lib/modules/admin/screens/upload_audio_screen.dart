@@ -6,7 +6,8 @@ import '../../audio/services/audio_track_service.dart';
 
 class UploadAudioScreen extends StatefulWidget {
   final AudioTrackModel? existingAudio;
-  const UploadAudioScreen({super.key, this.existingAudio});
+  final String? defaultCategory;
+  const UploadAudioScreen({super.key, this.existingAudio, this.defaultCategory});
 
   @override
   State<UploadAudioScreen> createState() => _UploadAudioScreenState();
@@ -37,6 +38,8 @@ class _UploadAudioScreenState extends State<UploadAudioScreen> {
       _audioUrlController.text = a.audioUrl;
       _thumbnailUrlController.text = a.thumbnailUrl;
       _durationController.text = a.duration;
+    } else if (widget.defaultCategory != null) {
+      _categoryController.text = widget.defaultCategory!;
     }
   }
 
@@ -148,7 +151,8 @@ class _UploadAudioScreenState extends State<UploadAudioScreen> {
               const SizedBox(height: 8),
               TextFormField(
                 controller: _categoryController,
-                style: const TextStyle(color: Colors.white),
+                readOnly: widget.defaultCategory != null,
+                style: TextStyle(color: widget.defaultCategory != null ? AppTheme.textSecondary : Colors.white),
                 decoration: _inputDeco('e.g. Sleep Sounds, Meditation'),
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),

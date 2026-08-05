@@ -72,6 +72,7 @@ class VideoService {
     required String description,
     required String videoUrl,
     required String thumbnailUrl,
+    required String category,
     List<String> tags = const [],
   }) async {
     try {
@@ -82,6 +83,7 @@ class VideoService {
         'description': description,
         'videoUrl': videoUrl,
         'thumbnailUrl': thumbnailUrl,
+        'category': category,
         'tags': tags,
         'uploadedBy': uid,
         'createdAt': FieldValue.serverTimestamp(),
@@ -99,6 +101,7 @@ class VideoService {
     required String description,
     required String videoUrl,
     required String thumbnailUrl,
+    required String category,
     List<String> tags = const [],
   }) async {
     try {
@@ -107,6 +110,7 @@ class VideoService {
         'description': description,
         'videoUrl': videoUrl,
         'thumbnailUrl': thumbnailUrl,
+        'category': category,
         'tags': tags,
       });
     } catch (e) {

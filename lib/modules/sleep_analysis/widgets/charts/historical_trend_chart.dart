@@ -17,6 +17,10 @@ class HistoricalTrendChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLight = context.watch<ThemeProvider>().isDarkMode == false;
+    final cardBg = isLight ? AppTheme.surfaceLight : AppTheme.surfaceElevated;
+    final textPrimary = isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary;
+    final cardBorder = isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder;
+
     if (history.length < 2) return const SizedBox.shrink();
 
     // Sort ascending for chart (oldest to newest)
@@ -41,17 +45,17 @@ class HistoricalTrendChart extends StatelessWidget {
       height: 300,
       padding: const EdgeInsets.fromLTRB(16, 24, 24, 16),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceElevated,
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.cardBorder),
+        border: Border.all(color: cardBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Recent Trends',
             style: TextStyle(
-              color: AppTheme.textPrimary,
+              color: textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -72,7 +76,7 @@ class HistoricalTrendChart extends StatelessWidget {
                 maxY: max(100, maxEvents * 1.2), // fit both lines on same graph nicely
                 lineTouchData: LineTouchData(
                   touchTooltipData: LineTouchTooltipData(
-                    getTooltipColor: (_) => AppTheme.surfaceElevated,
+                    getTooltipColor: (_) => cardBg,
                     getTooltipItems: (touchedSpots) {
                       return touchedSpots.map((spot) {
                         final idx = spot.x.toInt();
@@ -130,7 +134,7 @@ class HistoricalTrendChart extends StatelessWidget {
                       show: true,
                       getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
                         radius: 4,
-                        color: AppTheme.surfaceElevated,
+                        color: cardBg,
                         strokeWidth: 2,
                         strokeColor: AppTheme.accentTeal,
                       ),
@@ -146,7 +150,7 @@ class HistoricalTrendChart extends StatelessWidget {
                       show: true,
                       getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
                         radius: 4,
-                        color: AppTheme.surfaceElevated,
+                        color: cardBg,
                         strokeWidth: 2,
                         strokeColor: AppTheme.error,
                       ),
@@ -170,6 +174,8 @@ class _Legend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = context.watch<ThemeProvider>().isDarkMode == false;
+    final textSec = isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -184,7 +190,7 @@ class _Legend extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+          style: TextStyle(color: textSec, fontSize: 12),
         ),
       ],
     );

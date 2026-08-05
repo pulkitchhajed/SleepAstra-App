@@ -6,6 +6,7 @@ class VideoModel {
   final String description;
   final String videoUrl;
   final String thumbnailUrl;
+  final String category;
   final List<String> tags;
   final DateTime createdAt;
   final String uploadedBy;
@@ -18,6 +19,7 @@ class VideoModel {
     required this.description,
     required this.videoUrl,
     required this.thumbnailUrl,
+    required this.category,
     required this.tags,
     required this.createdAt,
     required this.uploadedBy,
@@ -32,6 +34,7 @@ class VideoModel {
       description: data['description'] as String? ?? '',
       videoUrl: data['videoUrl'] as String? ?? '',
       thumbnailUrl: data['thumbnailUrl'] as String? ?? '',
+      category: data['category'] as String? ?? '',
       tags: List<String>.from(data['tags'] as List? ?? []),
       createdAt: data['createdAt'] is Timestamp
           ? (data['createdAt'] as Timestamp).toDate()
@@ -47,6 +50,7 @@ class VideoModel {
         'description': description,
         'videoUrl': videoUrl,
         'thumbnailUrl': thumbnailUrl,
+        'category': category,
         'tags': tags,
         'createdAt': FieldValue.serverTimestamp(),
         'uploadedBy': uploadedBy,

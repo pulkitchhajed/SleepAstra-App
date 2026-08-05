@@ -18,6 +18,8 @@ import '../../modules/paywall/screens/paywall_screen.dart';
 import '../../modules/paywall/screens/subscription_success_screen.dart';
 import '../../modules/videos/screens/video_list_screen.dart';
 import '../../modules/admin/screens/admin_dashboard_screen.dart';
+import '../../screens/daily_sleep_goal_screen.dart';
+
 class AppRouter {
   static const String home          = '/';
   static const String mainNav       = '/main';
@@ -38,6 +40,7 @@ class AppRouter {
   static const String videoLibrary  = '/videos';
   static const String adminDashboard = '/admin';
   static const String welcome       = '/welcome';
+  static const String dailySleepGoal = '/daily_sleep_goal';
   // Legacy routes kept for backward compatibility
   static const String paywall       = '/paywall';
   static const String subscriptionSuccess = '/subscription-success';
@@ -94,6 +97,8 @@ class AppRouter {
         return _slideRoute(const VideoListScreen(), s);
       case adminDashboard:
         return _slideRoute(const AdminDashboardScreen(), s);
+      case dailySleepGoal:
+        return _slideRoute(const DailySleepGoalScreen(), s);
       case paywall:
         return _slideRoute(const PaywallScreen(), s);
       case subscriptionSuccess:

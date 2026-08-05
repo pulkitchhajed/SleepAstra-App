@@ -30,6 +30,16 @@ class _SleepReportScreenState extends State<SleepReportScreen>
   late Animation<double> _fadeAnim;
   late AnimationController _scoreController;
   late Animation<double> _scoreAnim;
+  // Staggered section controllers
+  late AnimationController _section1Ctrl;
+  late AnimationController _section2Ctrl;
+  late AnimationController _section3Ctrl;
+  late Animation<double> _section1Fade;
+  late Animation<double> _section2Fade;
+  late Animation<double> _section3Fade;
+  late Animation<Offset> _section1Slide;
+  late Animation<Offset> _section2Slide;
+  late Animation<Offset> _section3Slide;
 
   @override
   void initState() {
@@ -41,12 +51,29 @@ class _SleepReportScreenState extends State<SleepReportScreen>
     _fadeAnim = CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
     _scoreController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..forward();
     _scoreAnim = Tween<double>(begin: 0, end: widget.report.qualityScore).animate(CurvedAnimation(parent: _scoreController, curve: Curves.easeOutCubic));
+
+    // Staggered sections
+    _section1Ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+    _section2Ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+    _section3Ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+    _section1Fade = CurvedAnimation(parent: _section1Ctrl, curve: Curves.easeOut);
+    _section2Fade = CurvedAnimation(parent: _section2Ctrl, curve: Curves.easeOut);
+    _section3Fade = CurvedAnimation(parent: _section3Ctrl, curve: Curves.easeOut);
+    _section1Slide = Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero).animate(CurvedAnimation(parent: _section1Ctrl, curve: Curves.easeOut));
+    _section2Slide = Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero).animate(CurvedAnimation(parent: _section2Ctrl, curve: Curves.easeOut));
+    _section3Slide = Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero).animate(CurvedAnimation(parent: _section3Ctrl, curve: Curves.easeOut));
+    Future.delayed(const Duration(milliseconds: 300), () { if (mounted) _section1Ctrl.forward(); });
+    Future.delayed(const Duration(milliseconds: 500), () { if (mounted) _section2Ctrl.forward(); });
+    Future.delayed(const Duration(milliseconds: 700), () { if (mounted) _section3Ctrl.forward(); });
   }
 
   @override
   void dispose() {
     _fadeController.dispose();
     _scoreController.dispose();
+    _section1Ctrl.dispose();
+    _section2Ctrl.dispose();
+    _section3Ctrl.dispose();
     super.dispose();
   }
 
@@ -70,182 +97,199 @@ class _SleepReportScreenState extends State<SleepReportScreen>
             colors: [Color(0xFF0D0F1E), Color(0xFF080A13)],
           ),
         ),
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: CustomScrollView(
-            slivers: [
-              _buildSliverAppBar(context, textPrimary, cardBorder, cardBg),
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 8),
-                    _buildRecordingTimes(textSec, textPrimary),
-                    const SizedBox(height: 8),
+        child: SafeArea(
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: Column(
+              children: [
+                _buildAppBar(context, textPrimary, cardBorder, cardBg),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 8),
+                        _buildRecordingTimes(textSec, textPrimary),
+                        const SizedBox(height: 8),
                     _buildHeroCard(context, cardBg, cardBorder, textPrimary, textSec, isLight),
                     const SizedBox(height: 16),
                     _buildEfficiencyPillRow(cardBg, cardBorder, textPrimary, textSec),
                     const SizedBox(height: 16),
                     if (widget.report.snoreAudioClips.isNotEmpty) ...[
-                      _buildSectionHeader('Snore Recordings', Icons.mic_rounded, textPrimary),
-                      const SizedBox(height: 12),
-                      ...widget.report.snoreAudioClips.take(5).map((clip) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12.0),
-                          child: SnoreAudioPlayer(
-                            localPath: clip.localPath,
-                            audioUrl: clip.remoteUrl,
-                            recordedTime: widget.report.recordedAt.add(clip.timestamp),
-                          ),
-                        );
-                      }),
-                      if (widget.report.snoreAudioClips.length > 5)
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => SnoreClipsScreen(
-                                  clips: widget.report.snoreAudioClips,
-                                  recordedAt: widget.report.recordedAt,
-                                ),
-                              ),
-                            );
-                          },
-                          child: Text('See all ${widget.report.snoreAudioClips.length} recordings'),
-                        ),
-                      const SizedBox(height: 16),
-                    ],
-                    const SizedBox(height: 12),
-                    _buildSectionHeader('Insights', Icons.lightbulb_rounded, textPrimary),
-                    const SizedBox(height: 12),
-                    _buildInsightsSection(cardBg, cardBorder, textPrimary, textSec),
-                    const SizedBox(height: 28),
-                    _buildSectionHeader('Sleep Graphs', Icons.bar_chart_rounded, textPrimary),
-                    const SizedBox(height: 8),
-                    // Charts
-                    
-                    // Sleep Stages
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: cardBg,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: cardBorder),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                      // ── Section 1: Snore Recordings + Insights ──
+                      FadeTransition(
+                        opacity: _section1Fade,
+                        child: SlideTransition(
+                          position: _section1Slide,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.waves_rounded, color: AppTheme.accentTeal, size: 24),
-                              const SizedBox(width: 12),
-                              Text('Sleep Stages', style: TextStyle(color: textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
+                              _buildSectionHeader('Snore Recordings', Icons.mic_rounded, textPrimary),
+                              const SizedBox(height: 12),
+                              ...widget.report.snoreAudioClips.take(5).map((clip) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12.0),
+                                  child: SnoreAudioPlayer(
+                                    localPath: clip.localPath,
+                                    audioUrl: clip.remoteUrl,
+                                    recordedTime: widget.report.recordedAt.add(clip.timestamp),
+                                  ),
+                                );
+                              }),
+                              if (widget.report.snoreAudioClips.length > 5)
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => SnoreClipsScreen(
+                                          clips: widget.report.snoreAudioClips,
+                                          recordedAt: widget.report.recordedAt,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Text('See all ${widget.report.snoreAudioClips.length} recordings'),
+                                ),
+                              const SizedBox(height: 16),
                             ],
                           ),
-                          const SizedBox(height: 6),
-                          Text('Your progression through sleep phases.', style: TextStyle(color: textSec, fontSize: 12)),
-                          const SizedBox(height: 24),
-                          SleepStagesChartWidget(
-                            samples: widget.report.amplitudeTimeline,
-                            totalDuration: widget.report.totalDuration,
-                            recordedAt: widget.report.recordedAt,
-                          ),
-                        ],
+                        ),
+                      ),
+                    ],
+                    FadeTransition(
+                      opacity: _section1Fade,
+                      child: SlideTransition(
+                        position: _section1Slide,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 12),
+                            _buildSectionHeader('Insights', Icons.lightbulb_rounded, textPrimary),
+                            const SizedBox(height: 12),
+                            _buildInsightsSection(cardBg, cardBorder, textPrimary, textSec),
+                            const SizedBox(height: 28),
+                          ],
+                        ),
                       ),
                     ),
-
-                    // Snore Detection Timeline
-                    SnoreIntensityTimelineChart(report: widget.report),
-
-                    // Audio Clips Access Button
-                    if (widget.report.snoreAudioClips.isNotEmpty)
-                      _buildAudioClipsCard(cardBg, cardBorder, textPrimary, textSec),
-
-
-                    // Sound Activity Per Hour (Stacked by noise type)
-                    NoiseEventsPerHourChart(report: widget.report),
-
-                    // Noise Classification Breakdown (pie)
-                    NoiseClassificationChart(report: widget.report),
-
-                    // Snore Episode Burst Pattern
-                    SnoreCadenceChart(report: widget.report),
-
-                    // Sound Frequency Profile (SBER)
-                    SnoreFrequencyProfileChart(report: widget.report),
-
-                    // Suspect Apnea Events
-                    ApneaTimelineChart(report: widget.report),
-
-                    // AHI Clinical Summary (only when CSG detector has data)
-                    if (widget.report.apneaHypopneaIndex > 0 || widget.report.detectedApneaEvents.isNotEmpty)
-                      _buildAhiCard(cardBg, cardBorder, textPrimary, textSec),
-
-                    const SizedBox(height: 32),
-                    _buildActionButtons(context),
-                    const SizedBox(height: 48),
+                    // ── Section 2: Sleep Stages Graph ──
+                    FadeTransition(
+                      opacity: _section2Fade,
+                      child: SlideTransition(
+                        position: _section2Slide,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSectionHeader('Sleep Graphs', Icons.bar_chart_rounded, textPrimary),
+                            const SizedBox(height: 8),
+                            Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: cardBg,
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(color: cardBorder),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.waves_rounded, color: AppTheme.accentTeal, size: 24),
+                                      const SizedBox(width: 12),
+                                      Text('Sleep Stages', style: TextStyle(color: textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text('Your progression through sleep phases.', style: TextStyle(color: textSec, fontSize: 12)),
+                                  const SizedBox(height: 24),
+                                  SleepStagesChartWidget(
+                                    samples: widget.report.amplitudeTimeline,
+                                    totalDuration: widget.report.totalDuration,
+                                    recordedAt: widget.report.recordedAt,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // ── Section 3: Snore Intensity + Actions ──
+                    FadeTransition(
+                      opacity: _section3Fade,
+                      child: SlideTransition(
+                        position: _section3Slide,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SnoreIntensityTimelineChart(report: widget.report),
+                            if (widget.report.snoreAudioClips.isNotEmpty)
+                              _buildAudioClipsCard(cardBg, cardBorder, textPrimary, textSec),
+                            if (widget.report.apneaHypopneaIndex > 0 || widget.report.detectedApneaEvents.isNotEmpty)
+                              _buildAhiCard(cardBg, cardBorder, textPrimary, textSec),
+                            const SizedBox(height: 32),
+                            _buildActionButtons(context),
+                            const SizedBox(height: 48),
+                          ],
+                        ),
+                      ),
+                    ),
 
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+    ),
+  );
+}
 
-  // ─── Sliver AppBar ─────────────────────────────────────────────
-  Widget _buildSliverAppBar(BuildContext context, Color textPrimary, Color cardBorder, Color cardBg) {
+  // ─── Custom AppBar ─────────────────────────────────────────────
+  Widget _buildAppBar(BuildContext context, Color textPrimary, Color cardBorder, Color cardBg) {
     final dateStr = DateFormat('EEEE, d MMM').format(widget.report.recordedAt);
-    return SliverAppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      pinned: true,
-      expandedHeight: 0,
-      flexibleSpace: Container(
-        color: Colors.transparent,
-      ),
-      leading: GestureDetector(
-        onTap: () => Navigator.pop(context),
-        child: Container(
-          margin: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: cardBorder),
+    return Container(
+      color: Colors.transparent,
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: cardBorder),
+              ),
+              child: Icon(Icons.arrow_back_ios_rounded,
+                  color: textPrimary, size: 16),
+            ),
           ),
-          child: Icon(Icons.arrow_back_ios_rounded,
-              color: textPrimary, size: 16),
-        ),
-      ),
-      title: Text(
-        dateStr,
-        style: TextStyle(
-          fontSize: 17,
-          fontWeight: FontWeight.w700,
-          color: textPrimary,
-          letterSpacing: 0.2,
-        ),
-      ),
-      centerTitle: true,
-      actions: [
-        GestureDetector(
-          onTap: () => Navigator.pushNamed(context, AppRouter.settings),
-          child: Container(
-            margin: const EdgeInsets.all(10),
+          Text(
+            dateStr,
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: textPrimary,
+              letterSpacing: 0.2,
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: cardBg,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: cardBorder),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(6),
-              child: Icon(Icons.settings_outlined, color: textPrimary, size: 18),
-            ),
+            child: Icon(Icons.share_rounded,
+                color: textPrimary, size: 16),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

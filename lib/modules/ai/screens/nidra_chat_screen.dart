@@ -14,7 +14,11 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show compute;
 import '../../../core/services/firestore_service.dart';
+
+/// Top-level helper needed by compute() — must have exactly one parameter.
+List<dynamic> _decodeJsonList(String source) => jsonDecode(source) as List<dynamic>;
 
 class _Message {
   final String text;
@@ -92,20 +96,27 @@ class _NidraChatScreenState extends State<NidraChatScreen>
             );
 
       _userProfile = profile.name.isNotEmpty ? profile : null;
+    });
 
-      final historyStr = prefs.getString('chat_history_$uid');
-      if (historyStr != null) {
-        try {
-          final List<dynamic> decoded = jsonDecode(historyStr);
-          _messages.addAll(decoded.map((e) {
-            final m = _Message.fromJson(e);
-            return _Message(m.text, isUser: m.isUser, isLoading: false);
-          }).toList());
-          _messages.removeWhere((m) => !m.isUser && m.text.isEmpty);
-        } catch (_) {}
-      }
+    final historyStr = prefs.getString('chat_history_$uid');
+    if (historyStr != null) {
+      try {
+        // Offload JSON parsing to background isolate to avoid UI jank on large histories
+        final List<dynamic> decoded = await compute(_decodeJsonList, historyStr);
+        final loadedMessages = decoded.map((e) {
+          final m = _Message.fromJson(e);
+          return _Message(m.text, isUser: m.isUser, isLoading: false);
+        }).toList()
+          ..removeWhere((m) => !m.isUser && m.text.isEmpty);
+        if (!mounted) return;
+        setState(() {
+          _messages.addAll(loadedMessages);
+        });
+      } catch (_) {}
+    }
 
-      if (_messages.isEmpty) {
+    if (!mounted) return;
+    if (_messages.isEmpty) {
         final name = _userProfile?.name.isNotEmpty == true
             ? ', ${_userProfile!.name.split(' ').first}'
             : '';
@@ -114,9 +125,9 @@ class _NidraChatScreenState extends State<NidraChatScreen>
               ? 'Hi$name! I\'m **Nidra**, your AI sleep assistant 🌙\nRecord your first sleep session and I\'ll give you personalised insights. Or ask me anything about sleep!\n\nFor more information - go to [SnoreClinics.org](https://snoreclinics.org/)'
               : 'Hi$name! I\'m **Nidra** 🌙\nYour last session scored **${_latestReport!.qualityScore.toInt()}/100**. Ask me anything about your sleep!\n\nFor more information - go to [SnoreClinics.org](https://snoreclinics.org/)',
         ));
+        setState(() {});
         _saveHistory();
-      }
-    });
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollDown());
   }

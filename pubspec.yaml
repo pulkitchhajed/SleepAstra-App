@@ -105,6 +105,7 @@ dependencies:
   xml: ^6.6.1
   tflite_flutter: ^0.12.1
   screen_state: ^5.0.0
+  wakelock_plus: ^1.5.2
 
 dependency_overrides:
   # Override device_info_plus to 11.x to avoid iOS ARC compile error with isiOSAppOnVision

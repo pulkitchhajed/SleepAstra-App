@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -16,6 +17,10 @@ import '../modules/paywall/providers/subscription_provider.dart';
 import '../core/router/app_router.dart';
 import '../modules/audio/models/audio_track_model.dart';
 import '../modules/audio/services/audio_track_service.dart';
+import '../modules/blogs/models/blog_model.dart';
+import '../modules/blogs/services/blog_service.dart';
+import '../modules/admin/models/wellness_zone_model.dart';
+import '../modules/admin/services/wellness_zone_service.dart';
 
 class WellnessScreen extends StatefulWidget {
   const WellnessScreen({super.key});
@@ -35,6 +40,8 @@ class _WellnessScreenState extends State<WellnessScreen> {
   // Tracks are a combination of local tracks and Firebase tracks
   List<SleepTrack> _tracks = List.from(kSleepTracks);
   StreamSubscription? _audioSub;
+  List<WellnessZoneModel> _zones = [];
+  StreamSubscription? _zonesSub;
 
   @override
   void initState() {
@@ -55,11 +62,15 @@ class _WellnessScreenState extends State<WellnessScreen> {
         });
       }
     });
+    _zonesSub = WellnessZoneService.watchZones().listen((zones) {
+      if (mounted) setState(() => _zones = zones);
+    });
   }
 
   @override
   void dispose() {
     _audioSub?.cancel();
+    _zonesSub?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -86,49 +97,24 @@ class _WellnessScreenState extends State<WellnessScreen> {
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to play/pause audio.')));
       }
-    } else {
-      // Show loading immediately — don't await the network fetch
       setState(() {
         _activeTrackIndex = index;
-        _isLoading = true;
-        _isPlaying = false;
+        _isPlaying = true;
+        _isLoading = false; // We let just_audio handle buffering natively without blocking the UI
       });
 
       final snackbarMessenger = ScaffoldMessenger.of(context);
       try {
-        // Set URL without awaiting — this returns as soon as buffering starts
-        // Set URL with caching to prevent high buffer times on subsequent plays
-        final audioSource = LockCachingAudioSource(Uri.parse(_tracks[index].url));
-        await _audioPlayer.setAudioSource(audioSource);
+        final audioSource = AudioSource.uri(Uri.parse(_tracks[index].url));
+        // We do NOT await here. The native player will start buffering immediately.
+        _audioPlayer.setAudioSource(audioSource);
         _audioPlayer.setLoopMode(LoopMode.one);
-
-        // Listen for when buffering is ready, then play, with timeout
-        _audioPlayer.processingStateStream.firstWhere(
-          (s) => s == ProcessingState.ready || s == ProcessingState.completed,
-        ).timeout(const Duration(seconds: 15)).then((_) {
-          if (mounted && _activeTrackIndex == index) {
-            _audioPlayer.play();
-            setState(() {
-              _isPlaying = true;
-              _isLoading = false;
-            });
-          }
-        }).catchError((e) {
-          if (mounted && _activeTrackIndex == index) {
-            setState(() {
-              _isLoading = false;
-              _activeTrackIndex = null;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to load audio. Check your connection.')));
-          }
-        });
-
-        // Safety: also clear loading if there's an error
+        _audioPlayer.play();
       } catch (e) {
         if (!context.mounted) return;
         setState(() {
-          _isLoading = false;
           _activeTrackIndex = null;
+          _isPlaying = false;
         });
         snackbarMessenger.showSnackBar(const SnackBar(content: Text('Failed to load audio. Check your connection.')));
       }
@@ -159,19 +145,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
-                  Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Wellness Hub',
-                          style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.w800, color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary)).animate().fadeIn(duration: 300.ms).slideY(begin: -0.08, end: 0, curve: Curves.easeOut),
-                      const SizedBox(height: 4),
-                      Text('Find your calm before bed',
-                          style: TextStyle(color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary, fontSize: 14)).animate().fadeIn(delay: 80.ms, duration: 300.ms),
-                    ],
-                  ),
-                ),
+                _buildHeader(isLight).animate().fadeIn(duration: 300.ms).slideY(begin: -0.08, end: 0, curve: Curves.easeOut),
                 const SizedBox(height: 20),
 
                 // Category Chips
@@ -224,7 +198,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
                 // Content
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.only(bottom: 150),
+                    padding: const EdgeInsets.only(bottom: 200),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -286,6 +260,10 @@ class _WellnessScreenState extends State<WellnessScreen> {
                           _buildYogaSection(isLight).animate().fadeIn(delay: 150.ms, duration: 350.ms).slideX(begin: 0.05, end: 0, curve: Curves.easeOut),
                           const SizedBox(height: 32),
                         ],
+
+                        // ── Dynamic Zones from Admin ─────────────────────
+                        if (_selectedCategoryIndex == 0)
+                          ..._zones.map((zone) => _buildDynamicZoneSection(zone, isLight)).toList(),
 
                         // Premium Banner
                         if (!isPremium)
@@ -361,6 +339,66 @@ class _WellnessScreenState extends State<WellnessScreen> {
     );
   }
 
+  
+  // ── Header Widget ────────────────────────────────────────────────────────
+  Widget _buildHeader(bool isLight) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF6366F1).withValues(alpha: isLight ? 0.15 : 0.25),
+            const Color(0xFF2DD4BF).withValues(alpha: isLight ? 0.15 : 0.25),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: isLight ? 0.6 : 0.1),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Wellness Hub',
+                    style: GoogleFonts.outfit(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary)),
+                const SizedBox(height: 6),
+                Text('Find your calm before bed',
+                    style: TextStyle(
+                        color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500)),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: isLight ? 0.5 : 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.self_improvement_rounded, color: AppTheme.primaryIndigo, size: 36),
+          ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(begin: const Offset(1, 1), end: const Offset(1.05, 1.05), duration: 2.seconds),
+        ],
+      ),
+    );
+  }
   
   // Breathwork exercises data
   static const _breathworkExercises = [
@@ -629,7 +667,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
                                 fit: StackFit.expand,
                                 children: [
                                   v.thumbnailUrl.isNotEmpty
-                                      ? Image.network(v.thumbnailUrl, fit: BoxFit.cover)
+                                      ? Image.network(v.thumbnailUrl, fit: BoxFit.cover, cacheWidth: 400)
                                       : Container(
                                           decoration: const BoxDecoration(
                                             gradient: LinearGradient(
@@ -729,6 +767,161 @@ class _WellnessScreenState extends State<WellnessScreen> {
     _YogaSession('Breathwork Yoga', 'Pranayama', '25 Min', 'Advanced', Color(0xFFF97316), Icons.air_rounded),
     _YogaSession('Yoga Nidra', 'Deep Sleep', '40 Min', 'All Levels', Color(0xFF6366F1), Icons.hotel_rounded),
   ];
+
+  // ── Dynamic Zone Section (Admin-created) ─────────────────────────────────
+  Widget _buildDynamicZoneSection(WellnessZoneModel zone, bool isLight) {
+    final textPrimary = isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary;
+    final textSec = isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(zone.name, isLight).animate().fadeIn(delay: 100.ms, duration: 300.ms),
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: _fetchZoneItems(zone),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox(
+                height: 160,
+                child: Center(child: CircularProgressIndicator(color: AppTheme.primaryIndigo)),
+              );
+            }
+            final items = snapshot.data ?? [];
+            if (items.isEmpty) return const SizedBox.shrink();
+
+            return SizedBox(
+              height: 180,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  final type = item['type'] as String;
+                  final title = item['title'] as String;
+                  final thumbnailUrl = item['thumbnailUrl'] as String? ?? '';
+                  final Color accentColor = type == 'video'
+                      ? const Color(0xFF6366F1)
+                      : type == 'blog'
+                          ? const Color(0xFF2DD4BF)
+                          : const Color(0xFF8B5CF6);
+                  final IconData typeIcon = type == 'video'
+                      ? Icons.play_circle_rounded
+                      : type == 'blog'
+                          ? Icons.article_rounded
+                          : Icons.audiotrack_rounded;
+
+                  return GestureDetector(
+                    onTap: () {
+                      if (type == 'video' && item['data'] is VideoModel) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => VideoPlayerScreen(video: item['data'] as VideoModel)),
+                        );
+                      }
+                      // Blog and audio tap can be expanded later
+                    },
+                    child: Container(
+                      width: 150,
+                      margin: const EdgeInsets.only(right: 14),
+                      decoration: BoxDecoration(
+                        color: isLight ? AppTheme.surfaceLight : AppTheme.surfaceElevated,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: accentColor.withValues(alpha: 0.25)),
+                        boxShadow: [
+                          BoxShadow(color: accentColor.withValues(alpha: 0.15), blurRadius: 10, offset: const Offset(0, 4)),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Thumbnail / placeholder
+                          ClipRRect(
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(16),
+                              topRight: Radius.circular(16),
+                            ),
+                            child: thumbnailUrl.isNotEmpty
+                                ? Image.network(thumbnailUrl, height: 90, width: double.infinity, fit: BoxFit.cover)
+                                : Container(
+                                    height: 90,
+                                    width: double.infinity,
+                                    color: accentColor.withValues(alpha: 0.15),
+                                    child: Icon(typeIcon, color: accentColor, size: 36),
+                                  ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(typeIcon, color: accentColor, size: 12),
+                                    const SizedBox(width: 4),
+                                    Text(type.toUpperCase(), style: TextStyle(color: accentColor, fontSize: 10, fontWeight: FontWeight.w700)),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(color: textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ).animate().fadeIn(delay: 150.ms, duration: 350.ms).slideX(begin: 0.05, end: 0, curve: Curves.easeOut);
+          },
+        ),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchZoneItems(WellnessZoneModel zone) async {
+    final List<Map<String, dynamic>> results = [];
+    final db = FirebaseFirestore.instance;
+
+    if (zone.contentTypes.contains('video')) {
+      try {
+        final snap = await db.collection('videos').where('category', isEqualTo: zone.name).limit(10).get();
+        for (final doc in snap.docs) {
+          final model = VideoModel.fromJson(doc.id, doc.data());
+          results.add({'type': 'video', 'title': model.title, 'thumbnailUrl': model.thumbnailUrl, 'data': model});
+        }
+      } catch (_) {}
+    }
+
+    if (zone.contentTypes.contains('audio')) {
+      try {
+        final snap = await db.collection('audio_tracks').where('category', isEqualTo: zone.name).limit(10).get();
+        for (final doc in snap.docs) {
+          final model = AudioTrackModel.fromJson(doc.id, doc.data());
+          results.add({'type': 'audio', 'title': model.title, 'thumbnailUrl': model.thumbnailUrl, 'data': model});
+        }
+      } catch (_) {}
+    }
+
+    if (zone.contentTypes.contains('blog')) {
+      try {
+        final snap = await db.collection('blogs').where('category', isEqualTo: zone.name).limit(10).get();
+        for (final doc in snap.docs) {
+          final model = BlogModel.fromJson(doc.id, doc.data());
+          results.add({'type': 'blog', 'title': model.title, 'thumbnailUrl': model.coverImageUrl, 'data': model});
+        }
+      } catch (_) {}
+    }
+
+    return results;
+  }
 
   Widget _buildYogaSection(bool isLight) {
     final textPrimary = isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary;
@@ -894,7 +1087,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
           final track = tracks[index];
           final globalIndex = indices[index];
           final isActive = _activeTrackIndex == globalIndex;
-          final isPremium = context.watch<SubscriptionProvider>().isPremium;
+          final isPremium = context.read<SubscriptionProvider>().isPremium;
           final isLocked = !isPremium && globalIndex >= 5;
 
           return GestureDetector(
@@ -1019,10 +1212,24 @@ class _WellnessScreenState extends State<WellnessScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: AppTheme.primaryIndigo,
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.primaryIndigo,
+            _isPlaying ? const Color(0xFF4F46E5) : AppTheme.primaryIndigo,
+          ],
+        ),
         border: Border(
           top: BorderSide(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.cardBorderLight : AppTheme.cardBorder).withValues(alpha: 0.5)),
         ),
+        boxShadow: _isPlaying
+            ? [
+                BoxShadow(
+                  color: AppTheme.primaryIndigo.withValues(alpha: 0.4),
+                  blurRadius: 16,
+                  offset: const Offset(0, -4),
+                )
+              ]
+            : null,
       ),
       child: Row(
         children: [

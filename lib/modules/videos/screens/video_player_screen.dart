@@ -133,16 +133,24 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                       ),
                     )
                   else
-                    const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(color: AppTheme.primaryIndigo),
-                          SizedBox(height: 12),
-                          Text('Loading video…',
-                              style: TextStyle(color: Colors.white54, fontSize: 13)),
-                        ],
-                      ),
+                    Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (widget.video.thumbnailUrl.isNotEmpty)
+                          Image.network(widget.video.thumbnailUrl, fit: BoxFit.cover),
+                        Container(color: Colors.black45),
+                        const Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(color: AppTheme.primaryIndigo),
+                              SizedBox(height: 12),
+                              Text('Loading video…',
+                                  style: TextStyle(color: Colors.white54, fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
 
                   // Buffering spinner overlay (after init, while seeking/buffering)

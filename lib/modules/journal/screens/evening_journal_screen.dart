@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/providers/theme_provider.dart';
 import '../providers/journal_provider.dart';
 import '../models/journal_entry.dart';
 import '../../rewards/providers/rewards_provider.dart';
@@ -33,12 +34,21 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = context.watch<ThemeProvider>().isDarkMode == false;
+    final bg = isLight ? AppTheme.backgroundLight : AppTheme.background;
+    final cardBg = isLight ? AppTheme.surfaceLight : AppTheme.surface;
+    final cardBorder = isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder;
+    final textPrimary = isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary;
+    final textSec = isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary;
+
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: bg,
       appBar: AppBar(
-        title: const Text('Evening Journal'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text('Evening Journal', style: TextStyle(color: textPrimary, fontWeight: FontWeight.w700)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded),
+          icon: Icon(Icons.arrow_back_ios_rounded, color: textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -46,30 +56,29 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(DateFormat('EEEE, MMMM d').format(DateTime.now()),
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: AppTheme.accentTeal)),
+              style: TextStyle(color: AppTheme.accentTeal, fontSize: 13, fontWeight: FontWeight.w500)),
           const SizedBox(height: 6),
-          Text('Before you sleep', style: Theme.of(context).textTheme.displayMedium),
+          Text('Before you sleep',
+              style: TextStyle(color: textPrimary, fontSize: 24, fontWeight: FontWeight.w700)),
           const SizedBox(height: 28),
 
-          _sectionHeader('☕ Caffeine Drinks Today'),
+          _sectionHeader('☕ Caffeine Drinks Today', textPrimary),
           _counterRow(_caffeine, 5, (v) => setState(() => _caffeine = v),
-              ['0', '1', '2', '3', '4', '5+']),
+              ['0', '1', '2', '3', '4', '5+'], cardBg, cardBorder, textSec),
           const SizedBox(height: 24),
 
-          _sectionHeader('🍷 Alcohol Units Today'),
+          _sectionHeader('🍷 Alcohol Units Today', textPrimary),
           _counterRow(_alcohol, 5, (v) => setState(() => _alcohol = v),
-              ['0', '1', '2', '3', '4', '5+']),
+              ['0', '1', '2', '3', '4', '5+'], cardBg, cardBorder, textSec),
           const SizedBox(height: 24),
 
-          _sectionHeader('📱 Screen Time (hours)'),
+          _sectionHeader('📱 Screen Time (hours)', textPrimary),
           Slider(
             value: _screenTimeHours.toDouble(),
             min: 0, max: 10, divisions: 10,
             label: '$_screenTimeHours h',
             activeColor: AppTheme.primaryIndigo,
+            inactiveColor: AppTheme.primaryIndigo.withValues(alpha: 0.2),
             onChanged: (v) => setState(() => _screenTimeHours = v.round()),
           ),
           Center(
@@ -78,7 +87,7 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
                       color: AppTheme.primaryIndigo, fontWeight: FontWeight.w600))),
           const SizedBox(height: 24),
 
-          _sectionHeader('💪 Did you workout today?'),
+          _sectionHeader('💪 Did you workout today?', textPrimary),
           Row(
             children: [
               Expanded(
@@ -87,11 +96,11 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     decoration: BoxDecoration(
-                      color: _workedOut ? AppTheme.success.withValues(alpha: 0.2) : AppTheme.surface,
+                      color: _workedOut ? AppTheme.success.withValues(alpha: 0.15) : cardBg,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _workedOut ? AppTheme.success : AppTheme.cardBorder),
+                      border: Border.all(color: _workedOut ? AppTheme.success : cardBorder),
                     ),
-                    child: Center(child: Text('Yes', style: TextStyle(color: _workedOut ? AppTheme.success : AppTheme.textSecondary, fontWeight: FontWeight.w700))),
+                    child: Center(child: Text('Yes', style: TextStyle(color: _workedOut ? AppTheme.success : textSec, fontWeight: FontWeight.w700))),
                   ),
                 ),
               ),
@@ -102,11 +111,11 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     decoration: BoxDecoration(
-                      color: !_workedOut ? AppTheme.error.withValues(alpha: 0.2) : AppTheme.surface,
+                      color: !_workedOut ? AppTheme.error.withValues(alpha: 0.15) : cardBg,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: !_workedOut ? AppTheme.error : AppTheme.cardBorder),
+                      border: Border.all(color: !_workedOut ? AppTheme.error : cardBorder),
                     ),
-                    child: Center(child: Text('No', style: TextStyle(color: !_workedOut ? AppTheme.error : AppTheme.textSecondary, fontWeight: FontWeight.w700))),
+                    child: Center(child: Text('No', style: TextStyle(color: !_workedOut ? AppTheme.error : textSec, fontWeight: FontWeight.w700))),
                   ),
                 ),
               ),
@@ -114,7 +123,7 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
           ),
           const SizedBox(height: 24),
 
-          _sectionHeader('😰 Stress Level'),
+          _sectionHeader('😰 Stress Level', textPrimary),
           Row(children: [
             const Text('😌', style: TextStyle(fontSize: 20)),
             Expanded(
@@ -122,6 +131,7 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
                 value: _stress.toDouble(),
                 min: 1, max: 10, divisions: 9,
                 activeColor: _stressColor(_stress),
+                inactiveColor: _stressColor(_stress).withValues(alpha: 0.2),
                 onChanged: (v) => setState(() => _stress = v.round()),
               ),
             ),
@@ -135,12 +145,13 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
                       fontSize: 18))),
           const SizedBox(height: 24),
 
-          _sectionHeader('🍽️ Last Meal (hours before bed)'),
+          _sectionHeader('🍽️ Last Meal (hours before bed)', textPrimary),
           Slider(
             value: _hoursBeforeMeal.toDouble(),
             min: 0, max: 6, divisions: 6,
             label: '$_hoursBeforeMeal h',
             activeColor: AppTheme.primaryGold,
+            inactiveColor: AppTheme.primaryGold.withValues(alpha: 0.2),
             onChanged: (v) => setState(() => _hoursBeforeMeal = v.round()),
           ),
           Center(
@@ -149,22 +160,25 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
                       color: AppTheme.primaryGold, fontWeight: FontWeight.w600))),
           const SizedBox(height: 24),
 
-          _sectionHeader('📝 Notes (optional)'),
+          _sectionHeader('📝 Notes (optional)', textPrimary),
           TextField(
             controller: _notesCtrl,
             maxLines: 3,
-            style: const TextStyle(color: AppTheme.textPrimary),
+            style: TextStyle(color: textPrimary),
             decoration: InputDecoration(
               hintText: 'Anything notable today?',
-              hintStyle: const TextStyle(color: AppTheme.textSecondary),
+              hintStyle: TextStyle(color: textSec),
               filled: true,
-              fillColor: AppTheme.surface,
+              fillColor: cardBg,
               border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppTheme.cardBorder)),
+                  borderSide: BorderSide(color: cardBorder)),
               enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppTheme.cardBorder)),
+                  borderSide: BorderSide(color: cardBorder)),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppTheme.primaryIndigo, width: 1.5)),
             ),
           ),
           const SizedBox(height: 36),
@@ -180,15 +194,16 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.auto_awesome, color: AppTheme.primaryIndigo, size: 20),
-                      SizedBox(width: 8),
-                      Text('Nidra\'s Projection for Tonight', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                      const Icon(Icons.auto_awesome, color: AppTheme.primaryIndigo, size: 20),
+                      const SizedBox(width: 8),
+                      Text('Nidra\'s Projection for Tonight',
+                          style: TextStyle(color: textPrimary, fontWeight: FontWeight.w700)),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(_aiProjection!, style: const TextStyle(color: AppTheme.textSecondary, height: 1.4)),
+                  Text(_aiProjection!, style: TextStyle(color: textSec, height: 1.4)),
                 ],
               ),
             ),
@@ -211,6 +226,7 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
                   : const Text('Save & Get Projection', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
             ),
           ),
+          const SizedBox(height: 32),
         ]),
       ),
     );
@@ -264,17 +280,17 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
     }
   }
 
-  Widget _sectionHeader(String text) => Padding(
+  Widget _sectionHeader(String text, Color textPrimary) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Text(text,
-            style: const TextStyle(
-                color: AppTheme.textPrimary,
+            style: TextStyle(
+                color: textPrimary,
                 fontWeight: FontWeight.w600,
                 fontSize: 15)),
       );
 
   Widget _counterRow(int selected, int max, ValueChanged<int> onSelect,
-      List<String> labels) {
+      List<String> labels, Color cardBg, Color cardBorder, Color textSec) {
     return Row(
       children: List.generate(labels.length, (i) {
         final active = selected == i;
@@ -286,18 +302,18 @@ class _EveningJournalScreenState extends State<EveningJournalScreen> {
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
                 color: active
-                    ? AppTheme.primaryIndigo.withValues(alpha: 0.2)
-                    : AppTheme.surface,
+                    ? AppTheme.primaryIndigo.withValues(alpha: 0.15)
+                    : cardBg,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                    color: active ? AppTheme.primaryIndigo : AppTheme.cardBorder),
+                    color: active ? AppTheme.primaryIndigo : cardBorder),
               ),
               child: Text(labels[i],
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       color: active
                           ? AppTheme.primaryIndigo
-                          : AppTheme.textSecondary,
+                          : textSec,
                       fontWeight: FontWeight.w700,
                       fontSize: 13)),
             ),

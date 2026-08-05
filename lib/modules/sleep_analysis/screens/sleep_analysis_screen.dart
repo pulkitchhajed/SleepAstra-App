@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -25,6 +27,7 @@ import '../services/actigraphy_service.dart';
 import '../models/sleep_report.dart';
 
 class SleepAnalysisScreen extends StatefulWidget {
+  static bool isScreenVisible = false;
   final bool autoStart;
   final TimeOfDay? initialAlarmTime;
   const SleepAnalysisScreen({super.key, this.autoStart = false, this.initialAlarmTime});
@@ -34,7 +37,7 @@ class SleepAnalysisScreen extends StatefulWidget {
 }
 
 class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final AudioRecorder _recorder = AudioRecorder();
   final ActigraphyService _actigraphy = ActigraphyService();
   Timer? _recordingTimer;
@@ -74,6 +77,21 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
   DateTime? _interruptionStartTime;
   Duration _totalInterruptedDuration = Duration.zero;
   OverlayEntry? _interruptionBannerEntry;
+
+  // ── Multi-segment recording ────────────────────────────────────────
+  // On Android, when another app takes the mic the OS issues a hard stop.
+  // We restart recording to a NEW file and keep a list of all segment paths.
+  // At analysis time we derive the total recorded duration by summing the
+  // file sizes of every segment — so the analyser always sees the real audio
+  // length rather than an inflated wall-clock value.
+  final List<String> _recordingSegmentPaths = [];
+  Timer? _restartSegmentTimer;
+  
+  // ── Analysis stuck-state detection ─────────────────────────────────
+  // Tracks how long analysis has been running so we can show the user
+  // an escape option if it seems stuck (> 3 minutes).
+  final ValueNotifier<int> _analysisElapsedSeconds = ValueNotifier(0);
+  Timer? _analysisStuckTimer;
   
   // Sleep sounds are sourced from the shared audio_tracks.dart constant.
   // This avoids duplicating the URL list that wellness_screen.dart also uses.
@@ -81,6 +99,8 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
   @override
   void initState() {
     super.initState();
+    SleepAnalysisScreen.isScreenVisible = true;
+    WidgetsBinding.instance.addObserver(this);
     _alarmTime = widget.initialAlarmTime;
 
     _pulseController = AnimationController(
@@ -106,10 +126,15 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
         _startRecording(context.read<SleepAnalysisProvider>());
       });
     } else {
-      _checkAndShowPopups();
-      // Check whether a previous recording was interrupted by a crash
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _checkOrphanedRecording();
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final provider = context.read<SleepAnalysisProvider>();
+        final isRunning = await FlutterForegroundTask.isRunningService;
+        if (provider.isRecording || isRunning) {
+          await _restoreLiveRecordingIfNeeded(provider);
+        } else {
+          _checkAndShowPopups();
+          _checkOrphanedRecording();
+        }
       });
     }
     
@@ -124,6 +149,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       });
     }
   }
+
 
   Future<void> _checkAndShowPopups() async {
     final prefs = await SharedPreferences.getInstance();
@@ -355,7 +381,23 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     }
   }
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _isInterrupted && mounted) {
+      final provider = context.read<SleepAnalysisProvider>();
+      if (provider.isRecording) {
+        // App came back to foreground and we were interrupted. Try to resume.
+        RecordingLogger().info('App resumed. Attempting to recover microphone...');
+        _recorder.resume().catchError((e) {
+          RecordingLogger().warning('Failed to resume recording automatically: $e');
+        });
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    SleepAnalysisScreen.isScreenVisible = false;
+    WidgetsBinding.instance.removeObserver(this);
     _pulseController.dispose();
     _rippleController.dispose();
     _recordingTimer?.cancel();
@@ -364,12 +406,42 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     _vibrateTimer?.cancel();
     _amplitudeSubscription?.cancel();
     _recordStateSubscription?.cancel();
+    _restartSegmentTimer?.cancel();
+    _analysisStuckTimer?.cancel();
+    _analysisElapsedSeconds.dispose();
     _interruptionBannerEntry?.remove();
     _interruptionBannerEntry = null;
     _recorder.dispose();
     _soundsPlayer.dispose();
     _alarmPlayer.dispose();
+    WakelockPlus.disable();
     super.dispose();
+  }
+
+  Future<void> _restoreLiveRecordingIfNeeded(SleepAnalysisProvider provider) async {
+    if (kIsWeb || !mounted) return;
+    final isRunning = await FlutterForegroundTask.isRunningService;
+    if (isRunning || provider.isRecording) {
+      final prefs = await SharedPreferences.getInstance();
+      final startMs = prefs.getInt('active_recording_start_ms');
+      if (startMs != null && mounted) {
+        final startTime = DateTime.fromMillisecondsSinceEpoch(startMs);
+        provider.setExplicitStartTime(startTime);
+        provider.updateRecordingDuration(DateTime.now().difference(startTime));
+        provider.setRecordingActive(true);
+        _recordingStartTime = startTime;
+        
+        _recordingTimer?.cancel();
+        _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (_recordingStartTime != null && mounted) {
+            provider.updateRecordingDuration(
+              DateTime.now().difference(_recordingStartTime!),
+            );
+          }
+        });
+        _listenToAmplitude(provider);
+      }
+    }
   }
 
   // ── Recording ─────────────────────────────────────────────────────
@@ -393,40 +465,56 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     if (!kIsWeb) {
       final isIgnoring = await FlutterForegroundTask.isIgnoringBatteryOptimizations;
       if (!isIgnoring && mounted) {
-        // Ask the user to grant battery optimization exemption via the system
-        // Settings page. This is the ONLY reliable way to prevent Android from
-        // killing the foreground service overnight on most OEMs (Samsung, Xiaomi,
-        // OnePlus, etc.). A soft tip dialog does NOT actually grant the exemption.
+        // WARNING: This is a critical battery optimization check.
+        // On many modern Android devices, failure to grant this means the OS
+        // WILL kill the background service within minutes or hours.
         final bool? shouldRequest = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            backgroundColor: Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surfaceElevated),
-            title: Text('🔋 Allow Overnight Recording',
-                style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textPrimaryLight : AppTheme.textPrimary))),
+            backgroundColor: Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surfaceElevated,
+            title: Text('🔋 CRITICAL: Allow Overnight Recording',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
             content: Text(
-              'To prevent Android from stopping your recording overnight, '
-              'please tap "Allow" on the next screen to disable battery optimization for SnoreClinics AI.\n\n'
-              'Without this, your phone may kill the app while you sleep.',
+              'Your phone has aggressive battery saving enabled. If you do not "Allow" battery optimization to be ignored on the next screen, the OS WILL kill this recording automatically.\n\n'
+              'Please select "Allow" or "Unrestricted" to ensure your sleep analysis completes.',
               style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary), height: 1.5),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: Text('Skip',
-                    style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary))),
+                child: const Text('Cancel'),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Open Settings',
-                    style: TextStyle(color: AppTheme.accentTeal, fontWeight: FontWeight.bold)),
+                child: const Text('Open Settings', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           ),
         );
         if (shouldRequest == true) {
-          // Opens the system battery optimization exemption page for this app.
           await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+          
+          final stillIgnoring = await FlutterForegroundTask.isIgnoringBatteryOptimizations;
+          if (!stillIgnoring && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('⚠️ Battery Optimization is still active. Your recording may be killed by Android overnight!'),
+                backgroundColor: Colors.redAccent,
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('⚠️ Recording started, but Android may kill the app without battery exemption.'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
         }
       }
     }
@@ -440,6 +528,9 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       path = '${dir.path}/sleep_${DateTime.now().millisecondsSinceEpoch}.pcm';
     }
 
+    // Reset segment tracking for this brand-new session
+    _recordingSegmentPaths.clear();
+
     // ── Start foreground service to keep recording alive overnight ──
     if (!kIsWeb) {
       FlutterForegroundTask.init(
@@ -447,10 +538,10 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
           channelId: 'sleep_recording',
           channelName: 'Sleep Recording',
           channelDescription: 'Keeps the app running while recording your sleep.',
-          // Use DEFAULT importance — LOW allows Android to deprioritize and
-          // eventually kill the service on aggressive OEMs like Samsung/Xiaomi.
-          channelImportance: NotificationChannelImportance.DEFAULT,
-          priority: NotificationPriority.DEFAULT,
+          // Use MAX importance & HIGH priority so Android OS does NOT demote
+          // or suspend the microphone background process during deep sleep (Doze mode).
+          channelImportance: NotificationChannelImportance.MAX,
+          priority: NotificationPriority.HIGH,
         ),
         iosNotificationOptions: const IOSNotificationOptions(
           showNotification: true,
@@ -461,9 +552,9 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
           autoRunOnMyPackageReplaced: false,
           allowWakeLock: true,
           allowWifiLock: false,
-          // Repeat every 15 minutes to keep the process alive and refresh
-          // the wake lock on devices that aggressively manage background tasks.
-          eventAction: ForegroundTaskEventAction.repeat(900000),
+          // Repeat every 1 minute (60,000 ms) to keep the CPU awake, refresh
+          // the wake lock, and prevent Android OS Doze mode from freezing the recording.
+          eventAction: ForegroundTaskEventAction.repeat(60000),
         ),
       );
       await FlutterForegroundTask.startService(
@@ -506,17 +597,27 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       await prefs.setInt('active_recording_start_ms', DateTime.now().millisecondsSinceEpoch);
     }
 
+    await WakelockPlus.enable();
+    RecordingLogger().info('WakelockPlus enabled');
+
     RecordingLogger().info('AudioRecorder started successfully');
-    provider.setRecordingActive(true);
-    provider.setInterrupted(false);
     _recordingStartTime = DateTime.now();
     // Reset interruption state for this new session
     _isInterrupted = false;
     _interruptionStartTime = null;
     _totalInterruptedDuration = Duration.zero;
+    // Use resetRecordingState() for brand-new sessions so _recordingDuration
+    // is cleanly zeroed and the start time is locked in immediately.
+    provider.resetRecordingState();
+    provider.setInterrupted(false);
+    provider.setExplicitStartTime(_recordingStartTime!);
+    // Track first segment
+    _recordingSegmentPaths.add(path);
+    RecordingLogger().info('Recording segment 1 started: $path');
     _listenToAmplitude(provider);
     _listenToRecordState(provider);
     _rippleController.repeat(reverse: false);
+
 
     // Start actigraphy alongside audio recording (best-effort — optional)
     if (!kIsWeb) {
@@ -571,9 +672,11 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
   /// the live-amplitude indicator, record when the interruption started, show
   /// a persistent banner, and mark the provider as interrupted.
   ///
-  /// When the state returns to [RecordState.record] (call ended), we hide the
-  /// banner and accumulate the interruption duration so [_stopAndAnalyse] can
-  /// compute the real recorded time correctly.
+  /// On Android (stop): after a short delay we restart recording to a NEW
+  /// segment file so audio after the interruption is captured.
+  ///
+  /// When the state returns to [RecordState.record] (iOS resume after pause),
+  /// we hide the banner and accumulate the interruption duration.
   void _listenToRecordState(SleepAnalysisProvider provider) {
     _recordStateSubscription?.cancel();
     _recordStateSubscription = _recorder.onStateChanged().listen((state) {
@@ -591,10 +694,21 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
             'State: ${state.name}',
           );
           _showInterruptionBanner();
+
+          // On Android a hard stop means the recorder is closed.
+          // Schedule a restart to capture audio after the mic is returned.
+          if (state == RecordState.stop) {
+            _restartSegmentTimer?.cancel();
+            _restartSegmentTimer = Timer(const Duration(seconds: 5), () {
+              if (mounted && provider.isRecording) {
+                _startNewRecordingSegment(provider);
+              }
+            });
+          }
         }
       } else if (state == RecordState.record) {
         if (_isInterrupted) {
-          // Interruption is over — accumulate lost time
+          // Interruption is over (iOS resume path) — accumulate lost time
           if (_interruptionStartTime != null) {
             _totalInterruptedDuration += DateTime.now().difference(_interruptionStartTime!);
           }
@@ -610,6 +724,64 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     }, onError: (e) {
       RecordingLogger().warning('Record state stream error: $e');
     });
+  }
+
+  /// Starts a new recording segment after the OS stopped the recorder
+  /// (Android interruption). The new segment is added to [_recordingSegmentPaths]
+  /// so its audio time is counted during analysis.
+  Future<void> _startNewRecordingSegment(SleepAnalysisProvider provider) async {
+    if (kIsWeb || !mounted) return;
+    _restartSegmentTimer?.cancel();
+
+    // Check if mic is back (permission still granted)
+    final hasPerm = await _recorder.hasPermission();
+    if (!hasPerm) {
+      RecordingLogger().warning('Mic not yet available — will retry in 5s');
+      _restartSegmentTimer = Timer(const Duration(seconds: 5), () {
+        if (mounted && provider.isRecording) _startNewRecordingSegment(provider);
+      });
+      return;
+    }
+
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final segPath = '${dir.path}/sleep_${DateTime.now().millisecondsSinceEpoch}.pcm';
+
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.wav,
+          sampleRate: 16000,
+          numChannels: 1,
+          autoGain: false,
+          echoCancel: false,
+          noiseSuppress: false,
+        ),
+        path: segPath,
+      );
+
+      _recordingSegmentPaths.add(segPath);
+      RecordingLogger().info(
+        'New recording segment ${_recordingSegmentPaths.length} started after interruption: $segPath',
+      );
+
+      // Accumulate interrupted time and clear interruption flag
+      if (_interruptionStartTime != null) {
+        _totalInterruptedDuration += DateTime.now().difference(_interruptionStartTime!);
+        _interruptionStartTime = null;
+      }
+      _isInterrupted = false;
+      provider.setInterrupted(false);
+      _hideInterruptionBanner();
+
+      // Re-subscribe to record state for the new recorder instance
+      _listenToAmplitude(provider);
+      _listenToRecordState(provider);
+    } catch (e) {
+      RecordingLogger().warning('Segment restart failed — will retry in 10s: $e');
+      _restartSegmentTimer = Timer(const Duration(seconds: 10), () {
+        if (mounted && provider.isRecording) _startNewRecordingSegment(provider);
+      });
+    }
   }
 
   /// Shows a persistent amber banner at the top of the screen informing the
@@ -733,6 +905,11 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       RecordingLogger().info('Foreground service stopped');
     }
 
+    try {
+      await WakelockPlus.disable();
+      RecordingLogger().info('WakelockPlus disabled');
+    } catch (_) {}
+
     // Stop actigraphy and collect motion samples
     List<SleepMotionSample> motionSamples = [];
     if (!kIsWeb && _actigraphy.isRecording) {
@@ -768,33 +945,46 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       effectiveDuration = wallClockDuration; // fallback — never send zero
     }
 
-    // ── File-size safety net ─────────────────────────────────────────────
-    // A WAV file records 16-bit mono PCM at 16000 Hz = 32000 bytes/second.
-    // If the file is much smaller than the claimed effective duration, the
-    // recording was cut short (interrupted). Recompute duration from file size
-    // so the analyser doesn't see "8 hours" worth of header and 30 seconds of
-    // audio — which caused the "recording time 1s" bug.
+    // ── Multi-segment duration calculation ───────────────────────────────
+    // If the recording had interruptions that required new segments to be
+    // started, compute the total audio duration by summing the file sizes of
+    // ALL segments (not just the first/last file). This ensures that audio
+    // recorded after the interruption is properly counted.
     if (stoppedPath != null && !kIsWeb) {
       try {
-        final fileSize = File(stoppedPath).lengthSync();
-        const int wavHeaderBytes = 44;
-        const int bytesPerSecond = 32000; // 16-bit mono 16kHz
-        final pcmBytes = fileSize - wavHeaderBytes;
-        if (pcmBytes > 0) {
-          final fileDuration = Duration(seconds: (pcmBytes / bytesPerSecond).floor());
-          // If the file duration is significantly shorter than effective duration
-          // (>30 s difference), trust the file — the recording was interrupted
-          if (fileDuration < effectiveDuration - const Duration(seconds: 30)) {
-            RecordingLogger().warning(
-              'File-size safety net triggered: file suggests ${fileDuration.inSeconds}s '
-              'but effective duration was ${effectiveDuration.inSeconds}s. '
-              'Using file-based duration. (Interrupted: ${_totalInterruptedDuration.inSeconds}s)',
-            );
-            effectiveDuration = fileDuration;
-          }
+        const int bytesPerSecond = 32000; // 16-bit mono 16kHz WAV
+        // Ensure the current (last) stopped segment is included
+        final allSegments = [
+          ..._recordingSegmentPaths.where((p) => p != stoppedPath),
+          stoppedPath,
+        ].toSet().toList(); // deduplicate
+
+        int totalPcmBytes = 0;
+        for (final segPath in allSegments) {
+          try {
+            if (File(segPath).existsSync()) {
+              final fSize = File(segPath).lengthSync();
+              final isPcm = segPath.toLowerCase().endsWith('.pcm');
+              final headerBytes = isPcm ? 0 : 44;
+              totalPcmBytes += (fSize - headerBytes).clamp(0, fSize);
+            }
+          } catch (_) {}
+        }
+
+        if (totalPcmBytes > 0) {
+          final segmentDuration = Duration(seconds: (totalPcmBytes / bytesPerSecond).floor());
+          RecordingLogger().info(
+            'Segment-based duration: ${segmentDuration.inSeconds}s '
+            'across ${allSegments.length} segment(s). '
+            'Wall-clock: ${wallClockDuration.inSeconds}s, '
+            'Interrupted: ${_totalInterruptedDuration.inSeconds}s',
+          );
+          // Always trust the file-size derived duration — it reflects
+          // what actually got written to disk.
+          effectiveDuration = segmentDuration;
         }
       } catch (e) {
-        RecordingLogger().warning('File-size safety net check failed (non-fatal): $e');
+        RecordingLogger().warning('Segment-based duration check failed (non-fatal): $e');
       }
     }
 
@@ -1021,17 +1211,58 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
         return;
       }
 
-      int startMs = prefs.getInt('active_recording_start_ms') ?? 0;
-      if (startMs == 0) {
+      int? startMs = prefs.getInt('active_recording_start_ms');
+      int? endMs;
+
+      if (startMs == null) {
+        // active_recording_start_ms was never persisted (e.g. first-ever crash before prefs write).
+        // Derive the recording start from file size ÷ bytes-per-second, subtracted from the
+        // file's last-modified time (= closest proxy for when the recording STOPPED).
+        // This is far better than using stat.changed as the START time (the old bug).
         try {
           final stat = file.statSync();
-          startMs = stat.changed.millisecondsSinceEpoch;
+          // Use the last-modified time as the approximate END of recording
+          endMs = stat.modified.millisecondsSinceEpoch;
+          // Compute file-based audio duration (will be refined by the file-size safety net below)
+          final isPcmFallback = orphanPath.toLowerCase().endsWith('.pcm');
+          final fallbackFileSize = file.lengthSync();
+          final fallbackHeaderBytes = isPcmFallback ? 0 : 44;
+          const int fallbackBps = 32000;
+          final fallbackPcmBytes = max(0, fallbackFileSize - fallbackHeaderBytes);
+          final fallbackDurationSec = fallbackPcmBytes > 0 ? fallbackPcmBytes ~/ fallbackBps : 3600;
+          // start = end - duration (best-effort reconstruction)
+          startMs = endMs - (fallbackDurationSec * 1000);
+          RecordingLogger().warning(
+            'active_recording_start_ms missing. Reconstructed start from file size: '
+            'end=${DateTime.fromMillisecondsSinceEpoch(endMs)}, '
+            'durationSec=$fallbackDurationSec, '
+            'start=${DateTime.fromMillisecondsSinceEpoch(startMs)}',
+          );
         } catch (_) {
+          // Absolute last resort: 1 hour ago
           startMs = DateTime.now().subtract(const Duration(hours: 1)).millisecondsSinceEpoch;
+          RecordingLogger().warning('Could not stat orphan file; defaulting start to 1h ago.');
         }
+      } else {
+        // We have a reliable start time. The file stopped growing when the app was killed,
+        // so use the file's last-modified time as the end for a tighter elapsed estimate.
+        try {
+          final stat = file.statSync();
+          endMs = stat.modified.millisecondsSinceEpoch;
+        } catch (_) {}
       }
+
       final startTime = DateTime.fromMillisecondsSinceEpoch(startMs);
-      final elapsed = DateTime.now().difference(startTime);
+
+      Duration elapsed;
+      if (endMs != null && endMs > startMs) {
+        final endTime = DateTime.fromMillisecondsSinceEpoch(endMs);
+        elapsed = endTime.difference(startTime);
+        RecordingLogger().info('Orphan file recovered. Using file last-modified time to bound duration. Duration: $elapsed');
+      } else {
+        elapsed = DateTime.now().difference(startTime);
+      }
+
 
       // ── File-size safety net for orphans ─────────────────────────────────
       // If the app was killed at 2 AM, but the user opens it at 7 AM, `elapsed`
@@ -1048,11 +1279,19 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
         if (isPcm) {
           // PCM: no header, file size IS the audio data. Compute from file size
           // using the known recording format: 16-bit (2 bytes) mono 16kHz = 32000 B/s.
-          // But prefer elapsed when elapsed < file-computed time (race condition).
-          // For PCM, the file grows with the recording so elapsed ≈ file duration.
-          // Simply use elapsed — no truncation can occur with a live-growing PCM file.
-          actualFileDuration = elapsed;
-          RecordingLogger().info('PCM orphan: trusting wall-clock elapsed (${elapsed.inSeconds}s).');
+          final fileSize = file.lengthSync();
+          const int bytesPerSecond = 32000;
+          final computedDuration = Duration(seconds: (fileSize / bytesPerSecond).floor());
+          if (computedDuration < elapsed - const Duration(seconds: 30)) {
+            actualFileDuration = computedDuration;
+            RecordingLogger().warning(
+              'PCM orphan file-size check: file contains ${actualFileDuration.inSeconds}s of audio '
+              '(${bytesPerSecond}B/s), but wall-clock elapsed is ${elapsed.inSeconds}s. Using file-based duration.',
+            );
+          } else {
+            actualFileDuration = elapsed;
+            RecordingLogger().info('PCM orphan: using wall-clock elapsed (${elapsed.inSeconds}s).');
+          }
         } else {
           // WAV: read the actual byte-rate from the header (bytes 28-31, little-endian).
           // This avoids the previously hardcoded 32000 B/s which was wrong for any
@@ -1153,6 +1392,11 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
                         await prefs.remove('active_recording_path');
                         await prefs.remove('active_recording_start_ms');
                         try { await file.delete(); } catch (_) {}
+                        // Reset stale provider state so the next fresh recording
+                        // doesn't accidentally inherit this orphan's duration/startTime
+                        if (mounted) {
+                          context.read<SleepAnalysisProvider>().setRecordingActive(false);
+                        }
                       },
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary)),
@@ -1229,11 +1473,15 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     return Consumer<SleepAnalysisProvider>(
       builder: (context, provider, _) {
         if (provider.isRecording) {
+          // Cancel any stale stuck-timer if user is back to recording
+          _analysisStuckTimer?.cancel();
           return _buildRecordingView(provider);
         }
         if (provider.state == AnalysisState.analysing) {
           return _buildAnalysingView();
         }
+        // Analysis done/error/idle — stop the timer
+        _analysisStuckTimer?.cancel();
         return _buildIdleView(provider);
       },
     );
@@ -1241,6 +1489,8 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
 
   Widget _buildAnalysingView() {
     final isLight = Theme.of(context).brightness == Brightness.light;
+    // Start the stuck-state timer whenever this view is shown
+    _startAnalysisStuckTimer();
     return Scaffold(
       backgroundColor: isLight ? AppTheme.backgroundLight : AppTheme.background,
       body: SafeArea(
@@ -1249,25 +1499,27 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               // Pulsing brain icon
-              AnimatedBuilder(
-                animation: _pulseAnim,
-                builder: (_, __) => Transform.scale(
-                  scale: _pulseAnim.value,
-                  child: Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(colors: [
-                        AppTheme.primaryIndigo.withValues(alpha: 0.4),
-                        AppTheme.primaryIndigo.withValues(alpha: 0.05),
-                      ]),
-                      border: Border.all(
-                          color: AppTheme.primaryIndigo.withValues(alpha: 0.6),
-                          width: 1.5),
+              RepaintBoundary(
+                child: AnimatedBuilder(
+                  animation: _pulseAnim,
+                  builder: (_, __) => Transform.scale(
+                    scale: _pulseAnim.value,
+                    child: Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(colors: [
+                          AppTheme.primaryIndigo.withValues(alpha: 0.4),
+                          AppTheme.primaryIndigo.withValues(alpha: 0.05),
+                        ]),
+                        border: Border.all(
+                            color: AppTheme.primaryIndigo.withValues(alpha: 0.6),
+                            width: 1.5),
+                      ),
+                      child: const Center(
+                          child: Text('🧠', style: TextStyle(fontSize: 52))),
                     ),
-                    child: const Center(
-                        child: Text('🧠', style: TextStyle(fontSize: 52))),
                   ),
                 ),
               ),
@@ -1295,11 +1547,88 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
                   strokeWidth: 3,
                 ),
               ),
+              const SizedBox(height: 32),
+              // Show elapsed time and escape option after analysis runs long
+              ValueListenableBuilder<int>(
+                valueListenable: _analysisElapsedSeconds,
+                builder: (_, elapsed, __) {
+                  final minutes = elapsed ~/ 60;
+                  final seconds = elapsed % 60;
+                  final timeStr = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+                  final isStuck = elapsed >= 180; // 3 minutes
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Processing... $timeStr',
+                        style: TextStyle(
+                          color: isStuck ? Colors.amber : (isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary),
+                          fontSize: 13,
+                        ),
+                      ),
+                      if (elapsed > 30) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          elapsed < 180
+                            ? 'Long recordings take more time.'
+                            : 'This is taking unusually long.',
+                          style: TextStyle(
+                            color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                      if (isStuck) ...[
+                        const SizedBox(height: 24),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            _analysisStuckTimer?.cancel();
+                            _analysisElapsedSeconds.value = 0;
+                            final provider = context.read<SleepAnalysisProvider>();
+                            // Force-reset state so user can retry or go to history
+                            provider.reset();
+                          },
+                          icon: const Icon(Icons.cancel_outlined, size: 18),
+                          label: const Text('Cancel & Go Back'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.amber,
+                            side: const BorderSide(color: Colors.amber),
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Your report may still save in the background.',
+                          style: TextStyle(
+                            color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  void _startAnalysisStuckTimer() {
+    // Only start once per analysis run
+    if (_analysisStuckTimer != null && _analysisStuckTimer!.isActive) return;
+    _analysisElapsedSeconds.value = 0;
+    _analysisStuckTimer?.cancel();
+    _analysisStuckTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) {
+        _analysisStuckTimer?.cancel();
+        return;
+      }
+      _analysisElapsedSeconds.value += 1;
+    });
   }
 
   // ── Recording (active) view ───────────────────────────────────────
@@ -1447,71 +1776,73 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     return ValueListenableBuilder<double>(
       valueListenable: _liveAmplitude,
       builder: (context, amplitude, child) {
-        return AnimatedBuilder(
-          animation: Listenable.merge([_pulseController, _rippleController]),
-          builder: (_, __) {
-            // Apply smoothing for a fluid UI response to loud noises
-            final double activeScale = amplitude * 1.5;
-            final bool isLoud = amplitude > 0.3;
-
-            return SizedBox(
-              width: 180,
-              height: 180,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Outer Ripple (expands heavily on sound)
-                  AnimatedScale(
-                    scale: _rippleAnim.value + activeScale,
-                    duration: const Duration(milliseconds: 100),
-                    curve: Curves.easeOut,
-                    child: Container(
-                      width: 140,
-                      height: 140,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppTheme.error.withValues(
-                              alpha: (1 - _rippleController.value) * 0.6),
-                          width: 2 + (amplitude * 6),
+        return RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: Listenable.merge([_pulseController, _rippleController]),
+            builder: (_, __) {
+              // Apply smoothing for a fluid UI response to loud noises
+              final double activeScale = amplitude * 1.5;
+              final bool isLoud = amplitude > 0.3;
+  
+              return SizedBox(
+                width: 180,
+                height: 180,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Outer Ripple (expands heavily on sound)
+                    AnimatedScale(
+                      scale: _rippleAnim.value + activeScale,
+                      duration: const Duration(milliseconds: 100),
+                      curve: Curves.easeOut,
+                      child: Container(
+                        width: 140,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppTheme.error.withValues(
+                                alpha: (1 - _rippleController.value) * 0.6),
+                            width: 2 + (amplitude * 6),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  // Inner Base Pulse
-                  AnimatedScale(
-                    scale: _pulseAnim.value + (activeScale * 0.5),
-                    duration: const Duration(milliseconds: 100),
-                    curve: Curves.easeOut,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      width: 110,
-                      height: 110,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isLoud 
-                            ? AppTheme.error.withValues(alpha: 0.6) 
-                            : AppTheme.error.withValues(alpha: 0.15),
-                        border: Border.all(
-                          color: AppTheme.error.withValues(alpha: 0.7), 
-                          width: 2
+                    // Inner Base Pulse
+                    AnimatedScale(
+                      scale: _pulseAnim.value + (activeScale * 0.5),
+                      duration: const Duration(milliseconds: 100),
+                      curve: Curves.easeOut,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: 110,
+                        height: 110,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isLoud 
+                              ? AppTheme.error.withValues(alpha: 0.6) 
+                              : AppTheme.error.withValues(alpha: 0.15),
+                          border: Border.all(
+                            color: AppTheme.error.withValues(alpha: 0.7), 
+                            width: 2
+                          ),
                         ),
-                      ),
-                      child: AnimatedScale(
-                        scale: 1.0 + (amplitude * 0.6),
-                        duration: const Duration(milliseconds: 100),
-                        child: Icon(
-                          Icons.mic_rounded,
-                          color: isLoud ? Colors.white : AppTheme.error,
-                          size: 52,
+                        child: AnimatedScale(
+                          scale: 1.0 + (amplitude * 0.6),
+                          duration: const Duration(milliseconds: 100),
+                          child: Icon(
+                            Icons.mic_rounded,
+                            color: isLoud ? Colors.white : AppTheme.error,
+                            size: 52,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
+                  ],
+                ),
+              );
+            },
+          ),
         );
       },
     );
@@ -2008,98 +2339,184 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) => StatefulBuilder(
         builder: (context, setSheetState) {
           final isOn = _alarmTime != null;
+          final isLight = Theme.of(context).brightness == Brightness.light;
+          final cardBg = isLight ? AppTheme.surfaceLight : AppTheme.surfaceElevated;
+          final textPrimary = isLight ? AppTheme.textPrimaryLight : Colors.white;
+          final textSec = isLight ? AppTheme.textSecondaryLight : Colors.white70;
+          final borderCol = isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder;
+
+          // Temporary state for the UI mockup of days
+          final List<String> days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
           return Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
             decoration: BoxDecoration(
-              color: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surfaceElevated),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+              color: cardBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 20,
+                  offset: const Offset(0, -5),
+                )
+              ]
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(width: 40, height: 4, decoration: BoxDecoration(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.cardBorderLight : AppTheme.cardBorder), borderRadius: BorderRadius.circular(2))),
+                Container(width: 40, height: 4, decoration: BoxDecoration(color: borderCol, borderRadius: BorderRadius.circular(2))),
                 const SizedBox(height: 24),
+                // Header
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Smart Alarm', style: TextStyle(fontSize: 20, color: Theme.of(context).brightness == Brightness.light ? AppTheme.textPrimaryLight : Colors.white, fontWeight: FontWeight.bold)),
-                    Switch(
-                      value: isOn,
-                      activeThumbColor: AppTheme.accentTeal,
-                      onChanged: (val) async {
-                        if (val) {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: TimeOfDay.now(),
-                            builder: (context, child) => Theme(
-                              data: Theme.of(context).copyWith(
-                                colorScheme: ColorScheme.dark(
-                                  primary: AppTheme.accentTeal,
-                                  surface: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surfaceElevated),
-                                ),
-                              ),
-                              child: child!,
-                            ),
-                          );
-                          if (time != null && mounted) {
-                            setState(() => _alarmTime = time);
-                            _syncBackupAlarm();
-                            setSheetState(() {});
-                            _alarmTimer ??= Timer.periodic(const Duration(seconds: 1), (_) => _checkAlarm());
-                          }
-                        } else {
-                          setState(() => _alarmTime = null);
-                          _syncBackupAlarm();
-                          setSheetState(() {});
-                          _alarmTimer?.cancel();
-                          _alarmTimer = null;
-                        }
-                      },
-                    ),
+                    Icon(Icons.wb_twilight_rounded, color: AppTheme.primaryGold, size: 28),
+                    const SizedBox(width: 10),
+                    Text('Smart Wake', style: TextStyle(fontSize: 22, color: textPrimary, fontWeight: FontWeight.w800)),
                   ],
                 ),
-                if (isOn) ...[
-                  const SizedBox(height: 20),
-                  GestureDetector(
-                    onTap: () async {
-                      final time = await showTimePicker(
-                        context: context,
-                        initialTime: _alarmTime ?? TimeOfDay.now(),
-                        builder: (context, child) => Theme(
-                          data: Theme.of(context).copyWith(
-                            colorScheme: ColorScheme.dark(
-                              primary: AppTheme.accentTeal,
-                              surface: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surfaceElevated),
-                            ),
+                const SizedBox(height: 8),
+                Text('Wakes you up gently in your lightest sleep phase.', style: TextStyle(color: textSec, fontSize: 13), textAlign: TextAlign.center),
+                const SizedBox(height: 32),
+                
+                // Clock Display
+                GestureDetector(
+                  onTap: () async {
+                    final time = await showTimePicker(
+                      context: context,
+                      initialTime: _alarmTime ?? TimeOfDay.now(),
+                      builder: (context, child) => Theme(
+                        data: Theme.of(context).copyWith(
+                          colorScheme: ColorScheme.dark(
+                            primary: AppTheme.accentTeal,
+                            surface: cardBg,
                           ),
-                          child: child!,
                         ),
-                      );
-                      if (time != null && mounted) {
-                        setState(() => _alarmTime = time);
-                        _syncBackupAlarm();
-                        setSheetState(() {});
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryIndigo.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppTheme.primaryIndigo.withValues(alpha: 0.3)),
+                        child: child!,
                       ),
-                      alignment: Alignment.center,
+                    );
+                    if (time != null && mounted) {
+                      setState(() => _alarmTime = time);
+                      _syncBackupAlarm();
+                      setSheetState(() {});
+                      if (_alarmTimer == null) {
+                         _alarmTimer = Timer.periodic(const Duration(seconds: 1), (_) => _checkAlarm());
+                      }
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isOn 
+                            ? [AppTheme.primaryIndigo.withValues(alpha: 0.15), AppTheme.accentTeal.withValues(alpha: 0.15)]
+                            : [borderCol.withValues(alpha: 0.5), borderCol.withValues(alpha: 0.2)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: isOn ? AppTheme.accentTeal.withValues(alpha: 0.3) : borderCol),
+                    ),
+                    alignment: Alignment.center,
+                    child: Column(
+                      children: [
+                        Text(
+                          _alarmTime?.format(context) ?? '00:00',
+                          style: TextStyle(
+                            fontSize: 56, 
+                            color: isOn ? textPrimary : textSec, 
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -1,
+                          ),
+                        ),
+                        if (!isOn)
+                          Text('Tap to set time', style: TextStyle(color: textSec, fontSize: 14)),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // Days of week UI mockup
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: List.generate(7, (index) {
+                    final isWeekend = index >= 5;
+                    final isActive = isOn && !isWeekend; // Just a mock visual
+                    return Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isActive ? AppTheme.primaryIndigo : Colors.transparent,
+                        border: Border.all(color: isActive ? AppTheme.primaryIndigo : borderCol),
+                      ),
+                      child: Center(
+                        child: Text(
+                          days[index],
+                          style: TextStyle(
+                            color: isActive ? Colors.white : textSec,
+                            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+
+                const SizedBox(height: 32),
+                
+                // Toggle Button
+                GestureDetector(
+                  onTap: () {
+                    if (isOn) {
+                      setState(() => _alarmTime = null);
+                      _syncBackupAlarm();
+                      setSheetState(() {});
+                      _alarmTimer?.cancel();
+                      _alarmTimer = null;
+                    } else {
+                      // If turning on, prompt for time if null, else just turn on
+                      if (_alarmTime == null) {
+                         // trigger tap on clock
+                      }
+                    }
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    decoration: BoxDecoration(
+                      gradient: isOn 
+                          ? const LinearGradient(colors: [AppTheme.error, Color(0xFFEF4444)])
+                          : const LinearGradient(colors: [AppTheme.primaryIndigo, Color(0xFF6366F1)]),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (isOn ? AppTheme.error : AppTheme.primaryIndigo).withValues(alpha: 0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        )
+                      ],
+                    ),
+                    child: Center(
                       child: Text(
-                        _alarmTime!.format(context),
-                        style: TextStyle(fontSize: 40, color: Theme.of(context).brightness == Brightness.light ? AppTheme.textPrimaryLight : Colors.white, fontWeight: FontWeight.bold),
+                        isOn ? 'Turn Off Alarm' : 'Set Alarm',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                   ),
-                ],
-                const SizedBox(height: 20),
+                ),
               ],
             ),
           );
@@ -2183,7 +2600,14 @@ class SleepTaskHandler extends TaskHandler {
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {}
 
   @override
-  void onRepeatEvent(DateTime timestamp) {}
+  void onRepeatEvent(DateTime timestamp) {
+    // Periodic 60-second keep-alive tick to refresh foreground task status
+    // and prevent Android OS Doze mode from freezing the microphone audio pipeline.
+    FlutterForegroundTask.updateService(
+      notificationTitle: 'Recording Sleep...',
+      notificationText: 'SnoreClinics AI is actively recording your sleep.',
+    );
+  }
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {}

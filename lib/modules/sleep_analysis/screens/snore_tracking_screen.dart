@@ -23,8 +23,8 @@ class _SnoreTrackingScreenState extends State<SnoreTrackingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final history = context.watch<SleepAnalysisProvider>().history;
-    final isLight = context.watch<ThemeProvider>().isDarkMode == false;
+    final history = context.select<SleepAnalysisProvider, List<SleepReport>>((p) => p.history);
+    final isLight = context.select<ThemeProvider, bool>((p) => !p.isDarkMode);
     
     final bg = isLight ? AppTheme.backgroundLight : const Color(0xFF0D0F1E);
     final cardBorder = isLight ? AppTheme.cardBorderLight : Colors.white.withValues(alpha: 0.05);

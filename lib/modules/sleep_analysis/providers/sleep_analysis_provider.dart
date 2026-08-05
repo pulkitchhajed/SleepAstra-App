@@ -4,6 +4,9 @@ import 'dart:isolate';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import '../models/sleep_report.dart';
 import '../services/audio_analyzer_service.dart';
 import '../services/sleep_storage_service.dart';
@@ -62,12 +65,57 @@ class SleepAnalysisProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Checks SharedPreferences and FlutterForegroundTask to see if an active recording session is underway.
+  /// Restores _isRecording, _state, _recordingDuration, and _explicitStartTime if active.
+  Future<bool> checkAndRestoreActiveRecordingState() async {
+    if (kIsWeb) return _isRecording;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final activePath = prefs.getString('active_recording_path');
+      final startMs = prefs.getInt('active_recording_start_ms');
+
+      final bool serviceRunning = await FlutterForegroundTask.isRunningService;
+
+      if (activePath != null && File(activePath).existsSync() && (serviceRunning || _isRecording)) {
+        _isRecording = true;
+        _state = AnalysisState.recording;
+        if (startMs != null) {
+          final startTime = DateTime.fromMillisecondsSinceEpoch(startMs);
+          _explicitStartTime = startTime;
+          _recordingDuration = DateTime.now().difference(startTime);
+        }
+        notifyListeners();
+        return true;
+      }
+    } catch (e) {
+      debugPrint('[SleepAnalysisProvider] Error checking active recording state: $e');
+    }
+
+    return _isRecording;
+  }
+
+  /// Marks recording as active/inactive WITHOUT resetting duration.
+  /// Call [resetRecordingState] first when starting a brand-new recording.
   void setRecordingActive(bool active) {
     _isRecording = active;
-    if (active) {
-      _state = AnalysisState.recording;
-      _recordingDuration = Duration.zero;
+    _state = active ? AnalysisState.recording : AnalysisState.idle;
+    if (!active) {
+      // Clear the start time so it is not accidentally reused by the next session
+      _explicitStartTime = null;
     }
+    notifyListeners();
+  }
+
+  /// Resets duration and state for a brand-new recording session.
+  /// Must be called BEFORE starting the recorder so restored values from a
+  /// previous crash-recovery path are not accidentally carried over.
+  void resetRecordingState() {
+    _recordingDuration = Duration.zero;
+    _explicitStartTime = null;
+    _wasInterrupted = false;
+    _state = AnalysisState.recording;
+    _isRecording = true;
     notifyListeners();
   }
 

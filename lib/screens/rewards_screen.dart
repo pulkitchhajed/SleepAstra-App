@@ -9,17 +9,41 @@ import '../modules/rewards/providers/rewards_provider.dart';
 import '../modules/rewards/models/reward_models.dart';
 import '../modules/rewards/widgets/tier_progress_card.dart';
 import '../modules/rewards/widgets/ledger_transaction_tile.dart';
+import '../modules/sleep_analysis/models/sleep_report.dart';
+import '../modules/sleep_analysis/providers/sleep_analysis_provider.dart';
 import 'package:intl/intl.dart';
 
 class RewardsScreen extends StatelessWidget {
   const RewardsScreen({super.key});
+
+  int _calcStreak(List<SleepReport> history) {
+    if (history.isEmpty) return 0;
+    final dates = history
+        .map((s) => DateTime(s.recordedAt.year, s.recordedAt.month, s.recordedAt.day))
+        .toSet()
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    if (dates.first != today && dates.first != yesterday) return 0;
+    int streak = 1;
+    for (int i = 1; i < dates.length; i++) {
+      final expected = dates[i - 1].subtract(const Duration(days: 1));
+      if (dates[i] == expected) streak++; else break;
+    }
+    return streak;
+  }
 
   @override
   Widget build(BuildContext context) {
     final isLight = context.watch<ThemeProvider>().isDarkMode == false;
     final textPrimary = isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary;
     final textSecondary = isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary;
+    final cardBg = isLight ? AppTheme.surfaceLight : AppTheme.surface;
+    final cardBorder = isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder;
     final rewards = context.watch<RewardsProvider>();
+    final history = context.watch<SleepAnalysisProvider>().history;
+    final streak = _calcStreak(history);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -30,7 +54,7 @@ class RewardsScreen extends StatelessWidget {
               onRefresh: rewards.refreshWallet,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 200),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -134,6 +158,49 @@ class RewardsScreen extends StatelessWidget {
                                 const Icon(Icons.stars_rounded, color: Color(0xFFFFD700), size: 36),
                               ],
                             ),
+                            if (streak > 0) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                height: 1,
+                                color: Colors.white.withValues(alpha: 0.15),
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Text('🔥', style: TextStyle(fontSize: 14)),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          '$streak Day Streak',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Keep it up!',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 12,
+                                      color: Colors.white60,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -177,29 +244,44 @@ class RewardsScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _QuickAction(
-                            icon: Icons.mic_rounded,
-                            label: 'Record Sleep',
-                            color: const Color(0xFF818CF8),
-                            onTap: () => Navigator.pushNamed(context, AppRouter.sleepAnalysis),
-                          ),
-                          _QuickAction(
-                            icon: Icons.book_rounded,
-                            label: 'Journal',
-                            color: const Color(0xFF34D399),
-                            onTap: () => Navigator.pushNamed(context, AppRouter.eveningJournal),
-                          ),
-                          _QuickAction(
-                            icon: Icons.self_improvement_rounded,
-                            label: 'Meditate',
-                            color: const Color(0xFFFBBF24),
-                            onTap: () => Navigator.pushNamed(context, AppRouter.relaxation),
-                          ),
-                        ],
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: cardBorder),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: isLight ? 0.04 : 0.20),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _QuickAction(
+                              icon: Icons.mic_rounded,
+                              label: 'Record Sleep',
+                              color: const Color(0xFF818CF8),
+                              onTap: () => Navigator.pushNamed(context, AppRouter.sleepAnalysis),
+                            ),
+                            _QuickAction(
+                              icon: Icons.book_rounded,
+                              label: 'Journal',
+                              color: const Color(0xFF34D399),
+                              onTap: () => Navigator.pushNamed(context, AppRouter.eveningJournal),
+                            ),
+                            _QuickAction(
+                              icon: Icons.self_improvement_rounded,
+                              label: 'Meditate',
+                              color: const Color(0xFFFBBF24),
+                              onTap: () => Navigator.pushNamed(context, AppRouter.relaxation),
+                            ),
+                          ],
+                        ),
                       ),
 
                       const SizedBox(height: 32),

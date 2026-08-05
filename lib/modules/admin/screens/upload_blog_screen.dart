@@ -8,7 +8,8 @@ import '../../blogs/services/blog_service.dart';
 
 class UploadBlogScreen extends StatefulWidget {
   final BlogModel? existingBlog;
-  const UploadBlogScreen({super.key, this.existingBlog});
+  final String? defaultCategory;
+  const UploadBlogScreen({super.key, this.existingBlog, this.defaultCategory});
 
   @override
   State<UploadBlogScreen> createState() => _UploadBlogScreenState();
@@ -53,7 +54,15 @@ class _UploadBlogScreenState extends State<UploadBlogScreen> {
       _tagsController.text = b.tags.join(', ');
       if (_categories.contains(b.category)) {
         _selectedCategory = b.category;
+      } else {
+        _categories.add(b.category);
+        _selectedCategory = b.category;
       }
+    } else if (widget.defaultCategory != null) {
+      if (!_categories.contains(widget.defaultCategory!)) {
+        _categories.add(widget.defaultCategory!);
+      }
+      _selectedCategory = widget.defaultCategory!;
     }
   }
 
@@ -339,7 +348,7 @@ class _UploadBlogScreenState extends State<UploadBlogScreen> {
                           dropdownColor: AppTheme.surfaceElevated,
                           style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
                           items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                          onChanged: (v) => setState(() => _selectedCategory = v!),
+                          onChanged: widget.defaultCategory != null ? null : (v) => setState(() => _selectedCategory = v!),
                         ),
                       ],
                     ),
