@@ -24,11 +24,11 @@ class SettingsScreen extends StatelessWidget {
   void _showVersionInfo(BuildContext context) {
     showAboutDialog(
       context: context,
-      applicationName: 'SnoreClinics AI',
+      applicationName: 'Sleep Astra',
       applicationVersion: '1.12.0',
       applicationIcon: const Text('🌙', style: TextStyle(fontSize: 40)),
       children: [
-        const Text('Designed and developed by the SnoreClinics AI Team.'),
+        const Text('Designed and developed by the Sleep Astra Team.'),
       ],
     );
   }
@@ -108,7 +108,7 @@ class SettingsScreen extends StatelessWidget {
           _sectionHeader('About'),
           _tile(context,
             icon: Icons.star_outline_rounded,
-            label: 'Rate SnoreClinics AI',
+            label: 'Rate Sleep Astra',
             onTap: () => _launchUrl('https://play.google.com/store/apps/details?id=com.snoreclinics.app'),
           ),
           _tile(context,

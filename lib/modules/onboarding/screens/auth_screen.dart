@@ -311,7 +311,7 @@ class _AuthScreenState extends State<AuthScreen>
                 child: Text('🌙', style: TextStyle(fontSize: 44))),
           ),
           const SizedBox(height: 20),
-          Text('SnoreClinics AI',
+          Text('Sleep Astra',
               style: GoogleFonts.outfit(
                   fontSize: 34,
                   fontWeight: FontWeight.w800,

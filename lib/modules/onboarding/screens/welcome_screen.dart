@@ -46,7 +46,7 @@ class WelcomeScreen extends StatelessWidget {
                   ).animate().scale(duration: 600.ms, curve: Curves.easeOutBack),
                   const SizedBox(height: 32),
                   Text(
-                    'SnoreClinics AI',
+                    'Sleep Astra',
                     style: TextStyle(
                       fontSize: 34,
                       fontWeight: FontWeight.w800,

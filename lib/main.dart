@@ -50,11 +50,11 @@ void main() async {
     debugPrint('FCM Init Error: $e');
   });
   
-  runApp(const SnoreClinicsApp());
+  runApp(const SleepAstraApp());
 }
 
-class SnoreClinicsApp extends StatelessWidget {
-  const SnoreClinicsApp({super.key});
+class SleepAstraApp extends StatelessWidget {
+  const SleepAstraApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -156,7 +156,7 @@ class _AppGateState extends State<_AppGate> {
     // This effectively wipes the Navigator stack and all local UI state.
     return MaterialApp(
       key: ValueKey('app_gate_${auth.uid}_${auth.sessionKey}'),
-      title: 'SnoreClinics AI',
+      title: 'Sleep Astra',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

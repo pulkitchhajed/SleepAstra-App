@@ -158,10 +158,10 @@ Regular exercise improves sleep quality, but vigorous workouts within 3 hours of
 ### 7. Keep a Gratitude Journal
 Writing down 3 things you're grateful for before bed reduces cortisol and shifts your brain away from stress.
 
-*Track your sleep improvements with the Snore Clinic app and see the difference these habits make.*''',
+*Track your sleep improvements with the Sleep Astra app and see the difference these habits make.*''',
           'coverImageUrl': '',
           'category': 'Sleep Tips',
-          'author': 'Snore Clinic Team',
+          'author': 'Sleep Astra Team',
           'readTimeMinutes': 5,
           'tags': ['sleep', 'wellness', 'tips'],
           'uploadedBy': 'system',
@@ -205,7 +205,7 @@ Sleep apnea is a condition where your breathing repeatedly stops and starts duri
 
 If you or your partner notice any warning signs, speak to a healthcare professional. Untreated sleep apnea is linked to high blood pressure, type 2 diabetes, heart disease, and stroke.
 
-### How the Snore Clinic App Can Help
+### How the Sleep Astra App Can Help
 
 Our AI-powered recording detects snoring patterns and potential apnea events overnight, giving you a detailed report to share with your doctor.
 
@@ -230,7 +230,7 @@ I used to pride myself on being a "night owl." Late nights scrolling, binge-watc
 
 ### Week 1: The Chaos
 
-My Snore Clinic report was eye-opening. My sleep quality score was consistently below 50. I was having frequent snoring events and waking up exhausted.
+My Sleep Astra report was eye-opening. My sleep quality score was consistently below 50. I was having frequent snoring events and waking up exhausted.
 
 I decided to try something radical: a bedtime routine.
 
@@ -261,7 +261,7 @@ By the end of the month:
 
 1. **Consistency over perfection** — Missing one night didn't derail me
 2. **Analogue wind-down** — Reading a physical book beats any screen
-3. **Tracking with Snore Clinic** — Seeing the data improve kept me motivated
+3. **Tracking with Sleep Astra** — Seeing the data improve kept me motivated
 
 *Your journey starts with one small change. What will yours be?*''',
           'coverImageUrl': '',

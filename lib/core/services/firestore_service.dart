@@ -11,7 +11,7 @@ import '../../modules/onboarding/models/user_profile.dart';
 import '../../modules/journal/models/journal_entry.dart';
 import '../../modules/sleep_analysis/models/sleep_report.dart';
 
-/// Central Firestore service for all SnoreClinics AI cloud data operations.
+/// Central Firestore service for all Sleep Astra cloud data operations.
 /// Uses a device-level UID (no login required) scoped under /users/{uid}/.
 class FirestoreService {
   static const _uidKey = 'device_uid';

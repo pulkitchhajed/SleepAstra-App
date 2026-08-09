@@ -559,7 +559,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       );
       await FlutterForegroundTask.startService(
         notificationTitle: 'Recording Sleep...',
-        notificationText: 'SnoreClinics AI is listening for snoring.',
+        notificationText: 'Sleep Astra is listening for snoring.',
         callback: startCallback,
       );
       RecordingLogger().info('Foreground service started');
@@ -2605,7 +2605,7 @@ class SleepTaskHandler extends TaskHandler {
     // and prevent Android OS Doze mode from freezing the microphone audio pipeline.
     FlutterForegroundTask.updateService(
       notificationTitle: 'Recording Sleep...',
-      notificationText: 'SnoreClinics AI is actively recording your sleep.',
+      notificationText: 'Sleep Astra is actively recording your sleep.',
     );
   }
 

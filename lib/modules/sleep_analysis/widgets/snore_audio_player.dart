@@ -105,7 +105,7 @@ class _SnoreAudioPlayerState extends State<SnoreAudioPlayer> {
     if (widget.localPath != null && File(widget.localPath!).existsSync()) {
       await Share.shareXFiles(
         [XFile(widget.localPath!)],
-        text: 'Listen to my snore recording from Snore Clinics!',
+        text: 'Listen to my snore recording from Sleep Astra!',
       );
     } else {
       if (mounted) {

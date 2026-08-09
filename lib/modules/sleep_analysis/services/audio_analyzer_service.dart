@@ -1010,7 +1010,7 @@ class AudioAnalyzerService {
         title: 'Microphone May Be Muted',
         emoji: '🔕',
         description: 'No audio signal was detected. Your device may have suspended the microphone to save battery. '
-            'Go to Settings > Apps > SnoreClinics AI > Battery and set to "Unrestricted".',
+            'Go to Settings > Apps > Sleep Astra > Battery and set to "Unrestricted".',
       ));
       return insights;
     }

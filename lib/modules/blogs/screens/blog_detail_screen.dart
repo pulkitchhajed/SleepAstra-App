@@ -179,7 +179,7 @@ class _BlogDetailScreenState extends State<BlogDetailScreen> {
                   child: IconButton(
                     icon: const Icon(Icons.share_rounded, color: Colors.white),
                     onPressed: () {
-                      Share.share('Check out "${widget.blog.title}" on Snore Clinic! Download the app: https://play.google.com/store/apps/details?id=com.snoreclinics.app');
+                      Share.share('Check out "${widget.blog.title}" on Sleep Astra! Download the app: https://play.google.com/store/apps/details?id=com.snoreclinics.app');
                     },
                   ),
                 ),
