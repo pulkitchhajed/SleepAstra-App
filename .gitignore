@@ -44,6 +44,8 @@ app.*.map.json
 
 # Environment variables (contains API keys - never commit)
 .env
+# Allow the example template (no real keys inside)
+!.env.example
 
 # APK / IPA build outputs
 *.apk

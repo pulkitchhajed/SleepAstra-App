@@ -136,4 +136,4 @@ flutter:
   assets:
     - assets/images/
     - assets/models/
-    - .env
+    - .env.example

@@ -33,9 +33,10 @@ void main() async {
   try {
     await dotenv.load(fileName: ".env");
   } catch (_) {
-    // .env not found — developer must copy .env.example to .env and add their API key.
-    // The app will run but AI features requiring GEMINI_API_KEY will be unavailable.
-    debugPrint('[dotenv] WARNING: .env file not found. Copy .env.example to .env and add your GEMINI_API_KEY.');
+    // .env is gitignored (contains real API keys) and won't exist on a fresh clone.
+    // Copy .env.example -> .env and add your GEMINI_API_KEY to enable AI features.
+    // The app runs fine without it — AI-dependent features will gracefully degrade.
+    debugPrint('[dotenv] .env not found — AI features require a local .env with GEMINI_API_KEY.');
   }
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
