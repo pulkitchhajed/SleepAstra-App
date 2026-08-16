@@ -325,19 +325,19 @@ class _HomeScreenState extends State<HomeScreen> {
     final badgeIcon = isLight ? const Color(0xFF8B5CF6) : Colors.white;
     final dividerColor = isLight ? const Color(0xFFE2E8F0) : Colors.white.withValues(alpha: 0.08);
 
-    final bgGradient = isLight
-        ? const LinearGradient(colors: [Color(0xFFFAFBFE), Color(0xFFEFF2F9)], begin: Alignment.topLeft, end: Alignment.bottomRight)
-        : const LinearGradient(colors: [Color(0xFF1A1035), Color(0xFF0F1225)], begin: Alignment.topLeft, end: Alignment.bottomRight);
-
     final isDaytime = isLight; // align celestial body with app theme, not clock
 
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
-        gradient: bgGradient,
+        image: DecorationImage(
+          image: AssetImage(isLight ? 'assets/images/card_bg_morning.png' : 'assets/images/card_bg_night.png'),
+          fit: BoxFit.cover,
+          alignment: Alignment.centerRight,
+        ),
         border: Border.all(
-          color: isLight ? const Color(0xFFDDE3F0) : const Color(0xFF2A2D5E),
+          color: isLight ? const Color(0xFFDDE3F0).withValues(alpha: 0.5) : const Color(0xFF2A2D5E).withValues(alpha: 0.5),
           width: 1.5,
         ),
         boxShadow: [
@@ -352,51 +352,28 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(26),
         child: Stack(
           children: [
-            // ── Subtle decorative backdrop only – small, top-right corner ──
-            Positioned(
-              top: -20,
-              right: -20,
+            // Gradient overlay to ensure text readability on the left side
+            Positioned.fill(
               child: Container(
-                width: 100,
-                height: 100,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: isDaytime
-                        ? [const Color(0xFFFFE082).withValues(alpha: 0.35), Colors.transparent]
-                        : [const Color(0xFF8B8BF8).withValues(alpha: 0.20), Colors.transparent],
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: isLight
+                        ? [
+                            const Color(0xFFFFFFFF).withValues(alpha: 0.95),
+                            const Color(0xFFFFFFFF).withValues(alpha: 0.70),
+                            const Color(0xFFFFFFFF).withValues(alpha: 0.0),
+                          ]
+                        : [
+                            const Color(0xFF0F1225).withValues(alpha: 0.95),
+                            const Color(0xFF0F1225).withValues(alpha: 0.70),
+                            const Color(0xFF0F1225).withValues(alpha: 0.0),
+                          ],
+                    stops: const [0.0, 0.4, 0.8],
                   ),
                 ),
               ),
-            ),
-            // Small celestial icon (decorative only, never overlaps content)
-            Positioned(
-              top: 18,
-              right: 22,
-              child: isDaytime
-                  ? Icon(Icons.wb_sunny_rounded,
-                      color: const Color(0xFFFFCA28).withValues(alpha: 0.85), size: 28)
-                  : Icon(Icons.nightlight_round,
-                      color: const Color(0xFF9B9EF8).withValues(alpha: 0.80), size: 26),
-            ),
-            // Tiny accent stars
-            Positioned(
-              top: 48,
-              right: 26,
-              child: Icon(Icons.star_rounded,
-                  color: isDaytime
-                      ? const Color(0xFFFFB300).withValues(alpha: 0.50)
-                      : Colors.white.withValues(alpha: 0.25),
-                  size: 7),
-            ),
-            Positioned(
-              top: 60,
-              right: 52,
-              child: Icon(Icons.star_rounded,
-                  color: isDaytime
-                      ? const Color(0xFF818CF8).withValues(alpha: 0.40)
-                      : Colors.white.withValues(alpha: 0.20),
-                  size: 5),
             ),
 
             // Subtle wave decoration at the bottom of the card
