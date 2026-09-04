@@ -11,6 +11,7 @@ class UserProfile {
   final String bedtime;   // "HH:mm" 24h format e.g. "22:30"
   final String wakeTime;  // "HH:mm" 24h format e.g. "06:30"
   final int goalDurationMinutes;
+  final bool complianceAccepted;
   final bool onboardingComplete;
   final bool bedtimeReminderEnabled;
   final bool morningPromptEnabled;
@@ -36,6 +37,7 @@ class UserProfile {
     required this.bedtime,
     required this.wakeTime,
     required this.goalDurationMinutes,
+    this.complianceAccepted = false,
     this.onboardingComplete = false,
     this.bedtimeReminderEnabled = true,
     this.morningPromptEnabled = true,
@@ -62,6 +64,7 @@ class UserProfile {
     String? bedtime,
     String? wakeTime,
     int? goalDurationMinutes,
+    bool? complianceAccepted,
     bool? onboardingComplete,
     bool? bedtimeReminderEnabled,
     bool? morningPromptEnabled,
@@ -85,6 +88,7 @@ class UserProfile {
       bedtime: bedtime ?? this.bedtime,
       wakeTime: wakeTime ?? this.wakeTime,
       goalDurationMinutes: goalDurationMinutes ?? this.goalDurationMinutes,
+      complianceAccepted: complianceAccepted ?? this.complianceAccepted,
       onboardingComplete: onboardingComplete ?? this.onboardingComplete,
       bedtimeReminderEnabled: bedtimeReminderEnabled ?? this.bedtimeReminderEnabled,
       morningPromptEnabled: morningPromptEnabled ?? this.morningPromptEnabled,
@@ -110,6 +114,7 @@ class UserProfile {
       'bedtime': bedtime,
       'wakeTime': wakeTime,
       'goalDurationMinutes': goalDurationMinutes,
+      'complianceAccepted': complianceAccepted,
       'onboardingComplete': onboardingComplete,
       'bedtimeReminderEnabled': bedtimeReminderEnabled,
       'morningPromptEnabled': morningPromptEnabled,
@@ -139,6 +144,7 @@ class UserProfile {
     bedtime: json['bedtime'] as String? ?? '22:30',
     wakeTime: json['wakeTime'] as String? ?? '06:30',
     goalDurationMinutes: (json['goalDurationMinutes'] as num?)?.toInt() ?? 480,
+    complianceAccepted: json['complianceAccepted'] as bool? ?? false,
     onboardingComplete: json['onboardingComplete'] as bool? ?? false,
     bedtimeReminderEnabled: json['bedtimeReminderEnabled'] as bool? ?? true,
     morningPromptEnabled: json['morningPromptEnabled'] as bool? ?? true,

@@ -157,14 +157,14 @@ class _AuthScreenState extends State<AuthScreen>
           backgroundColor: AppTheme.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text('Reset Password',
-              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white)),
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.white)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Enter your email address below and we will send you a secure link to reset your password.',
-                style: GoogleFonts.outfit(color: AppTheme.textSecondary, fontSize: 14),
+                style: GoogleFonts.plusJakartaSans(color: AppTheme.textSecondary, fontSize: 14),
               ),
               const SizedBox(height: 16),
               _field(
@@ -183,7 +183,7 @@ class _AuthScreenState extends State<AuthScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('Cancel', style: GoogleFonts.outfit(color: AppTheme.textSecondary)),
+              child: Text('Cancel', style: GoogleFonts.plusJakartaSans(color: AppTheme.textSecondary)),
             ),
             ElevatedButton(
               onPressed: loading ? null : () async {
@@ -217,7 +217,7 @@ class _AuthScreenState extends State<AuthScreen>
               ),
               child: loading
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : Text('Send Link', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+                  : Text('Send Link', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -312,7 +312,7 @@ class _AuthScreenState extends State<AuthScreen>
           ),
           const SizedBox(height: 20),
           Text('Sleep Astra',
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.playfairDisplay(
                   fontSize: 34,
                   fontWeight: FontWeight.w800,
                   color: AppTheme.textPrimary,
@@ -321,7 +321,7 @@ class _AuthScreenState extends State<AuthScreen>
           Text(
             'Clinical-grade sleep intelligence\nin the palm of your hand.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.plusJakartaSans(
                 fontSize: 15,
                 color: AppTheme.textSecondary,
                 height: 1.5),
@@ -355,7 +355,7 @@ class _AuthScreenState extends State<AuthScreen>
               Text(f.$1, style: const TextStyle(fontSize: 22)),
               const SizedBox(height: 4),
               Text(f.$2,
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.plusJakartaSans(
                       color: AppTheme.textSecondary,
                       fontSize: 10,
                       fontWeight: FontWeight.w500)),
@@ -399,9 +399,9 @@ class _AuthScreenState extends State<AuthScreen>
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerColor: Colors.transparent,
-                labelStyle: GoogleFonts.outfit(
+                labelStyle: GoogleFonts.plusJakartaSans(
                     fontWeight: FontWeight.w700, fontSize: 14),
-                unselectedLabelStyle: GoogleFonts.outfit(
+                unselectedLabelStyle: GoogleFonts.plusJakartaSans(
                     fontWeight: FontWeight.w500, fontSize: 14),
                 labelColor: Colors.white,
                 unselectedLabelColor: AppTheme.textSecondary,
@@ -434,7 +434,7 @@ class _AuthScreenState extends State<AuthScreen>
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Text('or continue with',
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.plusJakartaSans(
                         color: AppTheme.textSecondary.withValues(alpha: 0.7),
                         fontSize: 12)),
               ),
@@ -498,7 +498,7 @@ class _AuthScreenState extends State<AuthScreen>
               ),
               child: Text(
                 'Forgot Password?',
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.plusJakartaSans(
                   color: AppTheme.primaryIndigo,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -528,7 +528,7 @@ class _AuthScreenState extends State<AuthScreen>
                   ? const SizedBox(width: 22, height: 22,
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
                   : Text('Sign In',
-                      style: GoogleFonts.outfit(
+                      style: GoogleFonts.plusJakartaSans(
                           fontSize: 16, fontWeight: FontWeight.w700)),
             ),
           ),
@@ -608,7 +608,7 @@ class _AuthScreenState extends State<AuthScreen>
                   ? const SizedBox(width: 22, height: 22,
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
                   : Text('Create Account',
-                      style: GoogleFonts.outfit(
+                      style: GoogleFonts.plusJakartaSans(
                           fontSize: 16, fontWeight: FontWeight.w700)),
             ),
           ),
@@ -652,7 +652,7 @@ class _AuthScreenState extends State<AuthScreen>
                 ),
                 const SizedBox(width: 14),
                 Text('Continue with Google',
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.plusJakartaSans(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                         color: Colors.black87)),
@@ -679,7 +679,7 @@ class _AuthScreenState extends State<AuthScreen>
                 const Icon(Icons.phone_android_rounded, color: AppTheme.primaryIndigo, size: 22),
                 const SizedBox(width: 14),
                 Text('Continue with Phone',
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.plusJakartaSans(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                         color: Colors.black87)),
@@ -727,7 +727,7 @@ class _AuthScreenState extends State<AuthScreen>
                 Text(
                   smsSent ? 'Verify Phone Code' : 'Phone Authentication',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
@@ -739,7 +739,7 @@ class _AuthScreenState extends State<AuthScreen>
                       ? 'Enter the 6-digit SMS verification code sent to ${phoneCtrl.text}.'
                       : 'Enter your phone number (including country code, e.g., +91 or +44) to receive an SMS OTP verification.',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     color: AppTheme.textSecondary,
                   ),
@@ -849,7 +849,7 @@ class _AuthScreenState extends State<AuthScreen>
                       ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : Text(
                           smsSent ? 'Verify & Login' : 'Send Code',
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
+                          style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
                         ),
                 ),
                 if (smsSent) ...[
@@ -864,7 +864,7 @@ class _AuthScreenState extends State<AuthScreen>
                             }),
                     child: Text(
                       '← Back to Phone Number',
-                      style: GoogleFonts.outfit(color: AppTheme.primaryIndigo, fontWeight: FontWeight.w600),
+                      style: GoogleFonts.plusJakartaSans(color: AppTheme.primaryIndigo, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -890,11 +890,11 @@ class _AuthScreenState extends State<AuthScreen>
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscure,
-      style: GoogleFonts.outfit(color: AppTheme.textPrimary, fontSize: 15),
+      style: GoogleFonts.plusJakartaSans(color: AppTheme.textPrimary, fontSize: 15),
       onChanged: (_) => onChanged(),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: GoogleFonts.outfit(
+        labelStyle: GoogleFonts.plusJakartaSans(
             color: AppTheme.textSecondary, fontSize: 13),
         prefixIcon: Icon(icon, color: AppTheme.textSecondary, size: 20),
         suffixIcon: trailing != null
@@ -937,7 +937,7 @@ class _AuthScreenState extends State<AuthScreen>
         const SizedBox(width: 8),
         Expanded(
           child: Text(msg,
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.plusJakartaSans(
                   color: AppTheme.error, fontSize: 13)),
         ),
       ]),

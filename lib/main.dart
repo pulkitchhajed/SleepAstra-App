@@ -15,6 +15,8 @@ import 'modules/rewards/providers/rewards_provider.dart';
 import 'modules/paywall/providers/subscription_provider.dart';
 import 'modules/onboarding/screens/auth_screen.dart';
 import 'modules/onboarding/screens/email_step_screen.dart';
+import 'modules/onboarding/screens/compliance_check_screen.dart';
+import 'modules/onboarding/screens/email_step_screen.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/services/firestore_service.dart';
@@ -209,7 +211,15 @@ class _AppGateState extends State<_AppGate> {
     final auth = context.read<AuthProvider>();
     // STATE 1: Not authenticated → show login screen
     if (!auth.isAuthenticated) return const AuthScreen();
-    // STATE 2: Authenticated but profile incomplete → start onboarding
+    // STATE 2a: Authenticated but compliance not accepted
+    if (!onboarding.profile.complianceAccepted) {
+      return ComplianceCheckScreen(
+        onAccepted: () {
+          onboarding.acceptCompliance();
+        },
+      );
+    }
+    // STATE 2b: Authenticated but profile incomplete → start onboarding
     if (!onboarding.isComplete) return const EmailStepScreen();
     // STATE 3: Authenticated + complete profile → main app
     return const MainNavScreen();

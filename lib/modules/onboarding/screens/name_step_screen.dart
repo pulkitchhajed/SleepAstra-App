@@ -60,14 +60,14 @@ class _NameStepScreenState extends State<NameStepScreen> {
               _stepIndicator(3, 13, border),
               const SizedBox(height: 32),
               Text('What should we call you?',
-                  style: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.w800, color: textPrimary)),
+                  style: GoogleFonts.plusJakartaSans(fontSize: 32, fontWeight: FontWeight.w800, color: textPrimary)),
               const SizedBox(height: 8),
               Text("Let's start with your name.",
                   style: TextStyle(color: textSec, fontSize: 16)),
               const SizedBox(height: 40),
               TextField(
                 controller: _ctrl,
-                style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.w600, color: textPrimary),
+                style: GoogleFonts.plusJakartaSans(fontSize: 24, fontWeight: FontWeight.w600, color: textPrimary),
                 decoration: InputDecoration(
                   hintText: 'Your name',
                   hintStyle: TextStyle(color: textSec.withValues(alpha: 0.5)),

@@ -67,7 +67,7 @@ class _EmailStepScreenState extends State<EmailStepScreen> {
               _stepIndicator(2, 13, border),
               const SizedBox(height: 32),
               Text('Confirm your email',
-                  style: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.w800, color: textPrimary)),
+                  style: GoogleFonts.plusJakartaSans(fontSize: 32, fontWeight: FontWeight.w800, color: textPrimary)),
               const SizedBox(height: 8),
               Text('This is your Master Key for data recovery across all devices.',
                   style: TextStyle(color: textSec, fontSize: 16)),
@@ -114,7 +114,7 @@ class _EmailStepScreenState extends State<EmailStepScreen> {
                     else
                       Text(
                         capturedEmail.isEmpty ? 'Not captured yet' : capturedEmail,
-                        style: GoogleFonts.outfit(
+                        style: GoogleFonts.plusJakartaSans(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
                           color: capturedEmail.isEmpty ? Colors.red : textPrimary,

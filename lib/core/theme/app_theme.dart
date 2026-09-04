@@ -15,9 +15,9 @@ class AppTheme {
   static const Color error            = Color(0xFFF87171);
 
   // ── Aurora Cosmica Backgrounds (Dark Mode) ─────────────────────────
-  static const Color background       = Color(0xFF08090F); // True Space Black
-  static const Color surface          = Color(0xFF0E0F1A); // Deep Space
-  static const Color surfaceElevated  = Color(0xCC0E0F1A); // Deep Space 80%
+  static const Color background       = Color(0xFF040810); // True Space Black
+  static const Color surface          = Color(0xFF07111F); // Deep Space
+  static const Color surfaceElevated  = Color(0xCC07111F); // Deep Space 80%
   static const Color cardBorder       = Color(0x396366F1); // Indigo Glow Border ~22%
   static const Color cardBackground   = surfaceElevated;
 
@@ -77,50 +77,50 @@ class AppTheme {
         surface: surface,
         error: error,
       ),
-      // ── Typography: Unified Outfit ─────────────────────────────────
-      textTheme: GoogleFonts.outfitTextTheme(
-        const TextTheme(
-          displayLarge: TextStyle(
+      // ── Typography: Unified Premium ─────────────────────────────────
+      textTheme: GoogleFonts.plusJakartaSansTextTheme(
+        TextTheme(
+          displayLarge: GoogleFonts.playfairDisplay(
             fontSize: 32,
             fontWeight: FontWeight.w700,
             color: textPrimary,
             letterSpacing: -0.5,
           ),
-          displayMedium: TextStyle(
+          displayMedium: GoogleFonts.playfairDisplay(
             fontSize: 26,
             fontWeight: FontWeight.w700,
             color: textPrimary,
             letterSpacing: -0.3,
           ),
-          displaySmall: TextStyle(
+          displaySmall: GoogleFonts.playfairDisplay(
             fontSize: 22,
             fontWeight: FontWeight.w700,
             color: textPrimary,
             letterSpacing: -0.2,
           ),
-          headlineLarge: TextStyle(
+          headlineLarge: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w600,
             color: textPrimary,
           ),
-          headlineMedium: TextStyle(
+          headlineMedium: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
             color: textPrimary,
           ),
-          bodyLarge: TextStyle(
+          bodyLarge: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w400,
             color: textPrimary,
             height: 1.6,
           ),
-          bodyMedium: TextStyle(
+          bodyMedium: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w400,
             color: textSecondary,
             height: 1.6,
           ),
-          labelLarge: TextStyle(
+          labelLarge: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: textPrimary,
@@ -147,7 +147,7 @@ class AppTheme {
           ),
           elevation: 8,
           shadowColor: primaryIndigo.withValues(alpha: 0.55),
-          textStyle: GoogleFonts.outfit(
+          textStyle: GoogleFonts.plusJakartaSans(
             fontSize: 16,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.5,
@@ -166,7 +166,7 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.outfit(
+        titleTextStyle: GoogleFonts.plusJakartaSans(
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: textPrimary,
@@ -189,49 +189,49 @@ class AppTheme {
         surface: surfaceLight,
         error: error,
       ),
-      textTheme: GoogleFonts.outfitTextTheme(
-        const TextTheme(
-          displayLarge: TextStyle(
+      textTheme: GoogleFonts.plusJakartaSansTextTheme(
+        TextTheme(
+          displayLarge: GoogleFonts.playfairDisplay(
             fontSize: 32,
             fontWeight: FontWeight.w700,
             color: textPrimaryLight,
             letterSpacing: -0.5,
           ),
-          displayMedium: TextStyle(
+          displayMedium: GoogleFonts.playfairDisplay(
             fontSize: 26,
             fontWeight: FontWeight.w700,
             color: textPrimaryLight,
             letterSpacing: -0.3,
           ),
-          displaySmall: TextStyle(
+          displaySmall: GoogleFonts.playfairDisplay(
             fontSize: 22,
             fontWeight: FontWeight.w700,
             color: textPrimaryLight,
             letterSpacing: -0.2,
           ),
-          headlineLarge: TextStyle(
+          headlineLarge: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w600,
             color: textPrimaryLight,
           ),
-          headlineMedium: TextStyle(
+          headlineMedium: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
             color: textPrimaryLight,
           ),
-          bodyLarge: TextStyle(
+          bodyLarge: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w400,
             color: textPrimaryLight,
             height: 1.6,
           ),
-          bodyMedium: TextStyle(
+          bodyMedium: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w400,
             color: textSecondaryLight,
             height: 1.6,
           ),
-          labelLarge: TextStyle(
+          labelLarge: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: textPrimaryLight,
@@ -257,7 +257,7 @@ class AppTheme {
           ),
           elevation: 4,
           shadowColor: primaryIndigo.withValues(alpha: 0.3),
-          textStyle: GoogleFonts.outfit(
+          textStyle: GoogleFonts.plusJakartaSans(
             fontSize: 16,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.5,
@@ -275,7 +275,7 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.outfit(
+        titleTextStyle: GoogleFonts.plusJakartaSans(
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: textPrimaryLight,

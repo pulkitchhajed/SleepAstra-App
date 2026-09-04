@@ -259,6 +259,14 @@ class OnboardingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> acceptCompliance() async {
+    _profile = _profile.copyWith(complianceAccepted: true);
+    if (_currentUid != null) {
+      await saveProfile(_currentUid!);
+    }
+    notifyListeners();
+  }
+
   Future<void> completeOnboarding() async {
     _profile = _profile.copyWith(onboardingComplete: true);
     _updateReminders();
@@ -286,7 +294,7 @@ class OnboardingProvider extends ChangeNotifier {
       name: '', email: '', age: 25, gender: 'other',
       weightKg: 70, heightCm: 170,
       bedtime: '22:30', wakeTime: '06:30',
-      goalDurationMinutes: 480, onboardingComplete: false,
+      goalDurationMinutes: 480, complianceAccepted: false, onboardingComplete: false,
       bedtimeReminderEnabled: true, morningPromptEnabled: true,
     );
     await FirestoreService.saveProfile(uid, _profile);
@@ -299,7 +307,7 @@ class OnboardingProvider extends ChangeNotifier {
       name: '', email: '', age: 25, gender: 'other',
       weightKg: 70, heightCm: 170,
       bedtime: '22:30', wakeTime: '06:30',
-      goalDurationMinutes: 480, onboardingComplete: false,
+      goalDurationMinutes: 480, complianceAccepted: false, onboardingComplete: false,
       bedtimeReminderEnabled: true, morningPromptEnabled: true,
     );
     _initialized = false;
