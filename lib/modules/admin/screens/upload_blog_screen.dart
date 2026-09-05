@@ -1,10 +1,15 @@
-import 'dart:typed_data';
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:snore_clinics/core/theme/app_theme.dart';
 import 'package:snore_clinics/core/utils/docx_converter.dart';
 import '../../blogs/models/blog_model.dart';
 import '../../blogs/services/blog_service.dart';
+import '../../videos/services/video_service.dart';
+import '../models/wellness_zone_model.dart';
+import '../services/wellness_zone_service.dart';
 
 class UploadBlogScreen extends StatefulWidget {
   final BlogModel? existingBlog;
@@ -25,18 +30,14 @@ class _UploadBlogScreenState extends State<UploadBlogScreen> {
   final _readTimeController = TextEditingController();
   final _tagsController = TextEditingController();
 
-  String _selectedCategory = 'Wellness';
+  PlatformFile? _pickedCoverImageFile;
+  String? _pickedCoverImageFileName;
+  List<WellnessZoneModel> _zones = [];
+  StreamSubscription<List<WellnessZoneModel>>? _zonesSub;
+  String? _selectedCategory;
+
   bool _isUploading = false;
   String? _errorMessage;
-
-  final List<String> _categories = [
-    'Sleep Tips',
-    'Wellness',
-    'Stories',
-    'Research',
-    'Nutrition',
-    'Exercise',
-  ];
 
   bool get _isEditMode => widget.existingBlog != null;
 
@@ -52,22 +53,26 @@ class _UploadBlogScreenState extends State<UploadBlogScreen> {
       _authorController.text = b.author;
       _readTimeController.text = b.readTimeMinutes.toString();
       _tagsController.text = b.tags.join(', ');
-      if (_categories.contains(b.category)) {
-        _selectedCategory = b.category;
-      } else {
-        _categories.add(b.category);
-        _selectedCategory = b.category;
-      }
+      _selectedCategory = b.category;
     } else if (widget.defaultCategory != null) {
-      if (!_categories.contains(widget.defaultCategory!)) {
-        _categories.add(widget.defaultCategory!);
-      }
       _selectedCategory = widget.defaultCategory!;
     }
+
+    _zonesSub = WellnessZoneService.watchZones().listen((zones) {
+      if (mounted) {
+        setState(() {
+          _zones = zones;
+          if (_selectedCategory == null && zones.isNotEmpty) {
+            _selectedCategory = zones.first.name;
+          }
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
+    _zonesSub?.cancel();
     _titleController.dispose();
     _summaryController.dispose();
     _contentController.dispose();
@@ -76,6 +81,32 @@ class _UploadBlogScreenState extends State<UploadBlogScreen> {
     _readTimeController.dispose();
     _tagsController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickCoverImage() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: kIsWeb,
+    );
+    if (result != null && result.files.isNotEmpty) {
+      final file = result.files.single;
+      double fileSizeInMb = 0;
+      if (kIsWeb && file.bytes != null) {
+        fileSizeInMb = file.bytes!.length / (1024 * 1024);
+      } else if (file.path != null) {
+        fileSizeInMb = await File(file.path!).length() / (1024 * 1024);
+      }
+      if (fileSizeInMb > 15) {
+        setState(() => _errorMessage = 'Image is too large. Pick an image under 15MB.');
+        return;
+      }
+      setState(() {
+        _pickedCoverImageFile = file;
+        _pickedCoverImageFileName = file.name;
+        _errorMessage = null;
+      });
+    }
   }
 
   /// Picks a .docx file and auto-populates all form fields.
@@ -87,7 +118,7 @@ class _UploadBlogScreenState extends State<UploadBlogScreen> {
     );
     if (result == null || result.files.single.bytes == null) return;
 
-    final bytes = result.files.single.bytes! as Uint8List;
+    final bytes = result.files.single.bytes!;
     final parsed = DocxConverter.convert(bytes);
 
     setState(() {
@@ -120,6 +151,18 @@ class _UploadBlogScreenState extends State<UploadBlogScreen> {
     });
 
     try {
+      String finalCoverUrl = _coverImageController.text.trim();
+      if (_pickedCoverImageFile != null) {
+        finalCoverUrl = await VideoService.uploadImageToCloudinary(
+          imageFile: kIsWeb ? null : File(_pickedCoverImageFile!.path!),
+          imageBytes: kIsWeb ? _pickedCoverImageFile!.bytes : null,
+          filename: _pickedCoverImageFile!.name,
+        );
+      }
+      if (finalCoverUrl.isEmpty) {
+        throw Exception('Please upload a cover image or provide an image URL.');
+      }
+
       final tags = _tagsController.text
           .split(',')
           .map((t) => t.trim())
@@ -127,6 +170,7 @@ class _UploadBlogScreenState extends State<UploadBlogScreen> {
           .toList();
 
       final readTime = int.tryParse(_readTimeController.text.trim()) ?? 5;
+      final category = _selectedCategory ?? 'Wellness';
 
       if (_isEditMode) {
         await BlogService.updateBlog(
@@ -134,8 +178,8 @@ class _UploadBlogScreenState extends State<UploadBlogScreen> {
           title: _titleController.text.trim(),
           content: _contentController.text.trim(),
           summary: _summaryController.text.trim(),
-          coverImageUrl: _coverImageController.text.trim(),
-          category: _selectedCategory,
+          coverImageUrl: finalCoverUrl,
+          category: category,
           author: _authorController.text.trim(),
           readTimeMinutes: readTime,
           tags: tags,
@@ -145,8 +189,8 @@ class _UploadBlogScreenState extends State<UploadBlogScreen> {
           title: _titleController.text.trim(),
           content: _contentController.text.trim(),
           summary: _summaryController.text.trim(),
-          coverImageUrl: _coverImageController.text.trim(),
-          category: _selectedCategory,
+          coverImageUrl: finalCoverUrl,
+          category: category,
           author: _authorController.text.trim(),
           readTimeMinutes: readTime,
           tags: tags,
@@ -314,17 +358,110 @@ class _UploadBlogScreenState extends State<UploadBlogScreen> {
               ),
               const SizedBox(height: 20),
 
-              // ── Cover Image URL ──────────────────────────────────────
-              _SectionLabel(label: 'Cover Image URL'),
+              // ── Cover Image / Thumbnail Picker ──────────────────────
+              _SectionLabel(label: 'Cover Image / Thumbnail'),
               const SizedBox(height: 10),
+              GestureDetector(
+                onTap: _isUploading ? null : _pickCoverImage,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceElevated,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _pickedCoverImageFile != null ? AppTheme.primaryIndigo : AppTheme.cardBorder,
+                      width: _pickedCoverImageFile != null ? 2 : 1,
+                    ),
+                  ),
+                  child: _pickedCoverImageFile != null
+                      ? Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: kIsWeb && _pickedCoverImageFile!.bytes != null
+                                  ? Image.memory(
+                                      _pickedCoverImageFile!.bytes!,
+                                      width: 70,
+                                      height: 50,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Image.file(
+                                      File(_pickedCoverImageFile!.path!),
+                                      width: 70,
+                                      height: 50,
+                                      fit: BoxFit.cover,
+                                    ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _pickedCoverImageFileName ?? 'Custom Thumbnail',
+                                    style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600, fontSize: 14),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text('Thumbnail image selected', style: TextStyle(color: AppTheme.success, fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, color: AppTheme.error),
+                              onPressed: () => setState(() {
+                                _pickedCoverImageFile = null;
+                                _pickedCoverImageFileName = null;
+                              }),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryIndigo.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.add_photo_alternate_rounded, color: AppTheme.primaryIndigo, size: 22),
+                            ),
+                            const SizedBox(width: 14),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Upload Thumbnail / Cover Image',
+                                    style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600, fontSize: 14),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text('JPG, PNG up to 15 MB', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.upload_rounded, color: AppTheme.textSecondary, size: 20),
+                          ],
+                        ),
+                ),
+              ),
+              const SizedBox(height: 12),
               _StyledField(
                 controller: _coverImageController,
-                hint: 'https://example.com/image.jpg',
-                validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                hint: 'Or enter Cover Image URL (https://...)',
+                validator: (v) {
+                  if (_pickedCoverImageFile != null) return null;
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Please upload an image or provide an image URL';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 20),
 
-              // ── Category & Read Time ─────────────────────────────────
+              // ── Zone / Category & Read Time ─────────────────────────
               Row(
                 children: [
                   Expanded(
@@ -332,23 +469,58 @@ class _UploadBlogScreenState extends State<UploadBlogScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _SectionLabel(label: 'Category'),
+                        _SectionLabel(label: 'Zone / Category'),
                         const SizedBox(height: 10),
-                        DropdownButtonFormField<String>(
-                          value: _selectedCategory,
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: AppTheme.surfaceElevated,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(color: AppTheme.cardBorder),
-                            ),
-                          ),
-                          dropdownColor: AppTheme.surfaceElevated,
-                          style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
-                          items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                          onChanged: widget.defaultCategory != null ? null : (v) => setState(() => _selectedCategory = v!),
+                        Builder(
+                          builder: (context) {
+                            final defaultBlogZones = [
+                              'Sleep Tips',
+                              'Wellness',
+                              'Stories',
+                              'Research',
+                              'Nutrition',
+                              'Exercise',
+                              'Meditation',
+                              'Sleep Sounds',
+                              'Breathwork',
+                              'Music',
+                              'Yoga',
+                            ];
+                            final zoneNames = {
+                              ...defaultBlogZones,
+                              ..._zones.map((z) => z.name),
+                              if (_selectedCategory != null) _selectedCategory!,
+                            }.toList();
+                            final currentValue = zoneNames.contains(_selectedCategory) ? _selectedCategory : zoneNames.first;
+
+                            return DropdownButtonFormField<String>(
+                              value: currentValue,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: AppTheme.surfaceElevated,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(color: AppTheme.cardBorder),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(color: AppTheme.cardBorder),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(color: AppTheme.primaryIndigo, width: 2),
+                                ),
+                              ),
+                              dropdownColor: AppTheme.surfaceElevated,
+                              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
+                              items: zoneNames.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
+                              onChanged: widget.defaultCategory != null ? null : (v) {
+                                if (v != null) setState(() => _selectedCategory = v);
+                              },
+                              validator: (v) => v == null || v.isEmpty ? 'Zone is required' : null,
+                            );
+                          },
                         ),
                       ],
                     ),

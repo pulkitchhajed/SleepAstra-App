@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../onboarding/providers/onboarding_provider.dart';
-import '../../onboarding/screens/profile_setup_screen.dart';
+import '../../onboarding/screens/setup_flow_screen.dart';
 
 class ProfileDetailScreen extends StatelessWidget {
   const ProfileDetailScreen({super.key});
@@ -41,17 +41,16 @@ class ProfileDetailScreen extends StatelessWidget {
             Divider(color: dividerColor, height: 1),
             _buildProfileRow(Icons.cake_rounded, 'Age', '${profile.age} years', iconColor, textSec, textPrimary),
             Divider(color: dividerColor, height: 1),
-            // Gender isn't explicitly in the model, default to Not Specified
-            _buildProfileRow(Icons.person_rounded, 'Gender', 'Not Specified', iconColor, textSec, textPrimary),
+            _buildProfileRow(Icons.person_rounded, 'Gender', profile.gender.isNotEmpty ? profile.gender : 'Not Specified', iconColor, textSec, textPrimary),
             Divider(color: dividerColor, height: 1),
-            _buildProfileRow(Icons.bedtime_rounded, 'Target Sleep', '7 - 8 hours', iconColor, textSec, textPrimary),
+            _buildProfileRow(Icons.bedtime_rounded, 'Target Sleep', '${profile.targetDurationHours.toStringAsFixed(1)} hours', iconColor, textSec, textPrimary),
             const SizedBox(height: 40),
             SizedBox(
               width: double.infinity,
               height: 56,
               child: OutlinedButton.icon(
                 onPressed: () => Navigator.push(
-                    context, MaterialPageRoute(builder: (_) => const ProfileSetupScreen())),
+                    context, MaterialPageRoute(builder: (_) => const SetupFlowScreen())),
                 icon: const Icon(Icons.edit_rounded, color: AppTheme.primaryIndigo),
                 label: const Text('Edit Profile',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.primaryIndigo)),

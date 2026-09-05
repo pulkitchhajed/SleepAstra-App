@@ -22,6 +22,8 @@ import '../core/services/firestore_service.dart';
 import '../core/widgets/sleep_calendar_widget.dart';
 import '../modules/paywall/providers/subscription_provider.dart';
 import '../modules/blogs/widgets/blog_hub_widget.dart';
+import '../modules/admin/models/quick_access_model.dart';
+import '../modules/admin/services/quick_access_service.dart';
 
 const _moods = [
   ('😊', 'Good', Color(0xFF34D399)),
@@ -96,7 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
               color: AppTheme.primaryIndigo,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(top: 16, bottom: 100),
+                padding: const EdgeInsets.only(top: 16, bottom: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -124,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 24),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: _buildAskNidraBanner(),
+                      child: _buildAskNidraBanner(isLight),
                     ).animate().fadeIn(delay: 300.ms, duration: 350.ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOut),
                     const SizedBox(height: 24),
                     // BlogHubWidget handles its own horizontal padding to bleed to edges
@@ -532,38 +534,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 16),
 
                   // ── SECTION 2: Sleep Sound Analyser ──────────────────────
-                  // Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: isLight
-                          ? const Color(0xFF8B5CF6).withValues(alpha: 0.08)
-                          : Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isLight
-                            ? const Color(0xFF8B5CF6).withValues(alpha: 0.20)
-                            : Colors.white.withValues(alpha: 0.15),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.auto_awesome,
-                            color: isLight ? const Color(0xFF8B5CF6) : const Color(0xFFB483F6), size: 12),
-                        const SizedBox(width: 5),
-                        Text(
-                          'Understand. Improve. Sleep better.',
-                          style: GoogleFonts.inter(
-                            color: isLight ? const Color(0xFF6D28D9) : const Color(0xFFCBB4FC),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
+
 
                   // Title row
                   RichText(
@@ -1019,7 +990,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 
   // ── Ask Nidra AI Banner ───────────────────────────────────────────────
-  Widget _buildAskNidraBanner() {
+  Widget _buildAskNidraBanner(bool isLight) {
     final isPremium = context.watch<SubscriptionProvider>().isPremium;
 
     return GestureDetector(
@@ -1031,68 +1002,47 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       },
       child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF6366F1), Color(0xFF818CF8)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: AppTheme.primaryIndigo.withValues(alpha: 0.3),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+              color: Colors.black.withValues(alpha: isLight ? 0.05 : 0.2),
+              blurRadius: 15,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: Row(
+        child: Stack(
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Ask Nidra AI',
-                      style: GoogleFonts.outfit(
-                          fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Get personalized insights and recommendations for better sleep.',
-                    style: TextStyle(fontSize: 13, color: Colors.white70, height: 1.4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Image.asset(
+                isLight ? 'assets/images/nidra_ai_light.jpg' : 'assets/images/nidra_ai_dark.jpg',
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+            if (!isPremium)
+              Positioned(
+                bottom: 12,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white24, width: 1),
                   ),
-                ],
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock_rounded, size: 14, color: AppTheme.primaryGold),
+                      SizedBox(width: 4),
+                      Text('Premium', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 16),
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 30),
-                  if (!isPremium)
-                    Positioned(
-                      bottom: 4,
-                      right: 4,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: AppTheme.surfaceElevated,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.lock_rounded, size: 10, color: AppTheme.primaryGold),
-                      ),
-                    ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -1228,67 +1178,97 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          clipBehavior: Clip.none, // Allow shadows to draw outside bounds
-          child: Row(
-            children: [
-              _quickItem(Icons.book_rounded, 'Sleep Diary', AppTheme.primaryIndigo, textSec, cardBg, cardBorder,
-                  () => Navigator.pushNamed(context, AppRouter.sleepHistory)),
-              _quickItem(Icons.self_improvement_rounded, 'Yoga', AppTheme.accentTeal, textSec, cardBg, cardBorder,
-                  () {
-                    // Navigate to MainNavScreen and switch to Wellness tab (index 1)
-                    Navigator.pushNamedAndRemoveUntil(context, AppRouter.mainNav, (r) => false, arguments: 1);
-                  }),
-              _quickItem(Icons.spa_rounded, 'Meditation', AppTheme.primaryGold, textSec, cardBg, cardBorder,
-                  () => Navigator.pushNamed(context, AppRouter.relaxation)),
-              _quickItem(Icons.mic_rounded, 'Snore Track', AppTheme.error, textSec, cardBg, cardBorder, 
-                  () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SnoreTrackingScreen()))),
-              _quickItem(Icons.bar_chart_rounded, 'Sleep Stages', const Color(0xFF8B5CF6), textSec, cardBg, cardBorder,
-                  () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SleepStagesScreen()))),
-            ],
-          ),
+        StreamBuilder<List<QuickAccessModel>>(
+          stream: QuickAccessService.watchItems(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator(color: AppTheme.primaryIndigo));
+            }
+            if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            final items = snapshot.data!;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              clipBehavior: Clip.none,
+              child: Row(
+                children: items.map((item) => _quickItemCard(item, textPrimary, textSec, cardBg, cardBorder)).toList(),
+              ),
+            );
+          },
         ),
       ],
     );
   }
 
-  Widget _quickItem(IconData icon, String label, Color color, Color textSec, Color cardBg, Color cardBorder, VoidCallback? onTap) {
+  Widget _quickItemCard(QuickAccessModel item, Color textPrimary, Color textSec, Color cardBg, Color cardBorder) {
     return GestureDetector(
-      onTap: onTap,
-      child: Opacity(
-        opacity: onTap == null ? 0.45 : 1.0,
-        child: Padding(
-          padding: const EdgeInsets.only(right: 16.0),
-          child: Column(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      color.withValues(alpha: 0.15),
-                      color.withValues(alpha: 0.05),
-                    ],
-                  ),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: color.withValues(alpha: 0.2)),
-                  boxShadow: [
-                    BoxShadow(color: color.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 4)),
-                  ],
-                ),
-                child: Icon(icon, color: color, size: 24),
+      onTap: () {
+        if (item.target.startsWith('route:')) {
+          if (item.target == 'route:/wellness') {
+            Navigator.pushNamedAndRemoveUntil(context, AppRouter.mainNav, (r) => false, arguments: 1);
+          } else if (item.target == 'route:/snore_track') {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const SnoreTrackingScreen()));
+          } else if (item.target == 'route:/sleep_stages') {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const SleepStagesScreen()));
+          }
+        } else if (item.target.startsWith('/')) {
+          Navigator.pushNamed(context, item.target);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('External links not supported yet: ${item.target}')));
+        }
+      },
+      child: Container(
+        width: 120,
+        margin: const EdgeInsets.only(right: 16.0),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cardBorder),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              height: 100,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryIndigo.withValues(alpha: 0.1),
               ),
-              const SizedBox(height: 8),
-              Text(label,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textSec),
-                  textAlign: TextAlign.center),
-            ],
-          ),
+              child: item.thumbnailUrl.isNotEmpty
+                  ? Image.network(
+                      item.thumbnailUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (c, e, s) => const Icon(Icons.image_not_supported_rounded, color: AppTheme.textSecondary),
+                    )
+                  : const Center(
+                      child: Icon(Icons.bolt_rounded, size: 40, color: AppTheme.primaryIndigo),
+                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                item.title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: textPrimary,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1442,7 +1422,8 @@ class _SleepFlowSheetState extends State<_SleepFlowSheet> {
       children: [
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.only(top: 16, bottom: 20),
+            physics: const BouncingScrollPhysics(),
             child: Column(children: [
               Text('How are you feeling?', style: GoogleFonts.outfit(fontSize: 26, fontWeight: FontWeight.w700, color: textP)),
               const SizedBox(height: 8),

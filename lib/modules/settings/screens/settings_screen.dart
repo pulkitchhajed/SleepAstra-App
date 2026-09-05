@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../onboarding/providers/onboarding_provider.dart';
-import '../../onboarding/screens/profile_setup_screen.dart';
+import '../../onboarding/screens/setup_flow_screen.dart';
 import '../../../core/services/firestore_service.dart';
 import 'debug_logs_screen.dart';
 import 'profile_detail_screen.dart';
@@ -63,7 +63,7 @@ class SettingsScreen extends StatelessWidget {
             icon: Icons.person_outline_rounded,
             label: 'Edit Profile',
             onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const ProfileSetupScreen())),
+                MaterialPageRoute(builder: (_) => const SetupFlowScreen())),
           ),
           _tile(context,
             icon: Icons.logout_rounded,

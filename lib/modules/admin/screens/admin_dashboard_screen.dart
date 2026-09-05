@@ -12,14 +12,27 @@ import 'upload_audio_screen.dart';
 import '../models/wellness_zone_model.dart';
 import '../services/wellness_zone_service.dart';
 import 'zone_details_screen.dart';
+import '../models/quick_access_model.dart';
+import '../services/quick_access_service.dart';
 
-class AdminDashboardScreen extends StatelessWidget {
+class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
+
+  @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // WellnessZoneService.ensureDefaultZones();
+  }
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         backgroundColor: AppTheme.background,
         appBar: AppBar(
@@ -37,6 +50,7 @@ class AdminDashboardScreen extends StatelessWidget {
               Tab(text: 'Videos'),
               Tab(text: 'Blogs'),
               Tab(text: 'Audio'),
+              Tab(text: 'Quick Access'),
             ],
           ),
         ),
@@ -46,6 +60,7 @@ class AdminDashboardScreen extends StatelessWidget {
             _AdminVideosTab(),
             _AdminBlogsTab(),
             _AdminAudioTab(),
+            _AdminQuickAccessTab(),
           ],
         ),
         floatingActionButton: Column(
@@ -101,6 +116,17 @@ class AdminDashboardScreen extends StatelessWidget {
               icon: const Icon(Icons.audiotrack_rounded, color: Colors.white),
               label: const Text(
                 'Upload Audio',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 12),
+            FloatingActionButton.extended(
+              heroTag: 'create_quick_access',
+              onPressed: () => _showCreateQuickAccessDialog(context),
+              backgroundColor: AppTheme.primaryIndigo,
+              icon: const Icon(Icons.bolt_rounded, color: Colors.white),
+              label: const Text(
+                'Add Quick Access',
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
               ),
             ),
@@ -186,8 +212,116 @@ class AdminDashboardScreen extends StatelessWidget {
       ),
     );
   }
-}
 
+  void _showCreateQuickAccessDialog(BuildContext context) {
+    final titleCtrl = TextEditingController();
+    final targetCtrl = TextEditingController();
+    final thumbCtrl = TextEditingController();
+    String selectedRoute = 'custom';
+
+    final builtInRoutes = {
+      'custom': 'Custom URL / Other',
+      '/sleep-history': 'Sleep Diary',
+      'route:/wellness': 'Wellness Hub (Yoga)',
+      '/relaxation': 'Meditation',
+      'route:/snore_track': 'Snore Track',
+      'route:/sleep_stages': 'Sleep Stages',
+      '/journal': 'Journal List',
+      '/insights': 'Nidra AI Insights',
+      '/daily_sleep_goal': 'Daily Sleep Goal',
+    };
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: AppTheme.surfaceElevated,
+              title: const Text('Add Quick Access', style: TextStyle(color: AppTheme.textPrimary)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleCtrl,
+                      style: const TextStyle(color: AppTheme.textPrimary),
+                      decoration: const InputDecoration(
+                        labelText: 'Title',
+                        labelStyle: TextStyle(color: AppTheme.textSecondary),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedRoute,
+                      dropdownColor: AppTheme.surfaceElevated,
+                      style: const TextStyle(color: AppTheme.textPrimary),
+                      decoration: const InputDecoration(
+                        labelText: 'Target Type / Route',
+                        labelStyle: TextStyle(color: AppTheme.textSecondary),
+                      ),
+                      items: builtInRoutes.entries
+                          .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                          .toList(),
+                      onChanged: (v) {
+                        setState(() {
+                          selectedRoute = v ?? 'custom';
+                          if (selectedRoute != 'custom') {
+                            targetCtrl.text = selectedRoute;
+                          } else {
+                            targetCtrl.clear();
+                          }
+                        });
+                      },
+                    ),
+                    if (selectedRoute == 'custom') ...[
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: targetCtrl,
+                        style: const TextStyle(color: AppTheme.textPrimary),
+                        decoration: const InputDecoration(
+                          labelText: 'Custom Target URL or Route',
+                          labelStyle: TextStyle(color: AppTheme.textSecondary),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: thumbCtrl,
+                      style: const TextStyle(color: AppTheme.textPrimary),
+                      decoration: const InputDecoration(
+                        labelText: 'Thumbnail URL',
+                        labelStyle: TextStyle(color: AppTheme.textSecondary),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    if (titleCtrl.text.trim().isEmpty || targetCtrl.text.trim().isEmpty) return;
+                    await QuickAccessService.createItem(
+                      title: titleCtrl.text.trim(),
+                      target: targetCtrl.text.trim(),
+                      thumbnailUrl: thumbCtrl.text.trim(),
+                    );
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  },
+                  child: const Text('Create', style: TextStyle(color: AppTheme.primaryIndigo)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
 
 class _AdminZonesTab extends StatelessWidget {
   const _AdminZonesTab();
@@ -205,36 +339,50 @@ class _AdminZonesTab extends StatelessWidget {
         }
 
         final zones = snapshot.data!;
-        if (zones.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('No Zones found. Create one to get started.', style: TextStyle(color: AppTheme.textSecondary)),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () async {
-                    await WellnessZoneService.backfillDefaultZones();
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryIndigo),
-                  child: const Text('Backfill Default Zones', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            ),
-          );
-        }
 
-        return ReorderableListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: zones.length,
-          onReorder: (oldIndex, newIndex) {
-            if (newIndex > oldIndex) newIndex -= 1;
-            final item = zones.removeAt(oldIndex);
-            zones.insert(newIndex, item);
-            for (int i = 0; i < zones.length; i++) {
-              WellnessZoneService.updateZoneOrder(zones[i].id, i);
-            }
-          },
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Row(
+                children: [
+                  Text(
+                    '${zones.length} Zones Available',
+                    style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (zones.isEmpty)
+              const Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.layers_clear_rounded, color: AppTheme.textSecondary, size: 48),
+                      SizedBox(height: 12),
+                      Text('No Zones yet. Tap + to create one.', style: TextStyle(color: AppTheme.textSecondary)),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child: ReorderableListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: zones.length,
+                  onReorder: (oldIndex, newIndex) {
+                    if (newIndex > oldIndex) newIndex -= 1;
+                    final item = zones.removeAt(oldIndex);
+                    zones.insert(newIndex, item);
+                    for (int i = 0; i < zones.length; i++) {
+                      WellnessZoneService.updateZoneOrder(zones[i].id, i);
+                    }
+                  },
           itemBuilder: (context, index) {
             final zone = zones[index];
             return Card(
@@ -265,9 +413,12 @@ class _AdminZonesTab extends StatelessWidget {
               ),
             );
           },
-        );
-      },
-    );
+        ),
+      ),
+    ],
+  );
+},
+);
   }
 
   void _confirmDelete(BuildContext context, WellnessZoneModel zone) {
@@ -330,7 +481,7 @@ class _AdminVideosTab extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
           itemCount: videos.length,
           separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, i) => _AdminVideoCard(video: videos[i]),
+          itemBuilder: (context, i) => AdminVideoCard(video: videos[i]),
         );
       },
     );
@@ -371,16 +522,16 @@ class _AdminBlogsTab extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
           itemCount: blogs.length,
           separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, i) => _AdminBlogCard(blog: blogs[i]),
+          itemBuilder: (context, i) => AdminBlogCard(blog: blogs[i]),
         );
       },
     );
   }
 }
 
-class _AdminVideoCard extends StatelessWidget {
+class AdminVideoCard extends StatelessWidget {
   final VideoModel video;
-  const _AdminVideoCard({required this.video});
+  const AdminVideoCard({super.key, required this.video});
 
   @override
   Widget build(BuildContext context) {
@@ -496,9 +647,9 @@ class _AdminVideoCard extends StatelessWidget {
   }
 }
 
-class _AdminBlogCard extends StatelessWidget {
+class AdminBlogCard extends StatelessWidget {
   final BlogModel blog;
-  const _AdminBlogCard({required this.blog});
+  const AdminBlogCard({super.key, required this.blog});
 
   @override
   Widget build(BuildContext context) {
@@ -649,18 +800,18 @@ class _AdminAudioTab extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
           itemCount: tracks.length,
           separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, i) => _AdminAudioCard(track: tracks[i], service: service),
+          itemBuilder: (context, i) => AdminAudioCard(track: tracks[i], service: service),
         );
       },
     );
   }
 }
 
-class _AdminAudioCard extends StatelessWidget {
+class AdminAudioCard extends StatelessWidget {
   final AudioTrackModel track;
   final AudioTrackService service;
   
-  const _AdminAudioCard({required this.track, required this.service});
+  const AdminAudioCard({super.key, required this.track, required this.service});
 
   @override
   Widget build(BuildContext context) {
@@ -671,21 +822,20 @@ class _AdminAudioCard extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Container(
-              width: 60, height: 60,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                image: track.thumbnailUrl.isNotEmpty
-                    ? DecorationImage(
-                        image: NetworkImage(track.thumbnailUrl),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: 60,
+                height: 60,
+                color: AppTheme.primaryIndigo.withValues(alpha: 0.15),
+                child: track.thumbnailUrl.isNotEmpty
+                    ? Image.network(
+                        track.thumbnailUrl,
                         fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.audiotrack_rounded, color: AppTheme.primaryIndigo),
                       )
-                    : null,
-                color: AppTheme.primaryIndigo.withValues(alpha: 0.2),
+                    : const Icon(Icons.audiotrack_rounded, color: AppTheme.primaryIndigo),
               ),
-              child: track.thumbnailUrl.isEmpty
-                  ? const Icon(Icons.audiotrack, color: AppTheme.primaryIndigo)
-                  : null,
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -706,6 +856,39 @@ class _AdminAudioCard extends StatelessWidget {
                   Text(
                     '${track.category} • ${track.duration}',
                     style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: track.loop
+                              ? AppTheme.primaryIndigo.withValues(alpha: 0.15)
+                              : AppTheme.textSecondary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              track.loop ? Icons.repeat_rounded : Icons.play_arrow_rounded,
+                              size: 12,
+                              color: track.loop ? AppTheme.primaryIndigo : AppTheme.textSecondary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              track.loop ? 'Loop: On' : 'Loop: Off',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: track.loop ? AppTheme.primaryIndigo : AppTheme.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -748,6 +931,140 @@ class _AdminAudioCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AdminQuickAccessTab extends StatelessWidget {
+  const _AdminQuickAccessTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<QuickAccessModel>>(
+      stream: QuickAccessService.watchItems(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: AppTheme.error)));
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator(color: AppTheme.primaryIndigo));
+        }
+
+        final items = snapshot.data!;
+
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Row(
+                children: [
+                  Text(
+                    '${items.length} Quick Access Items',
+                    style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () async {
+                      await QuickAccessService.ensureDefaultItems();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Default quick access items populated!')),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.sync_rounded, size: 16, color: AppTheme.primaryIndigo),
+                    label: const Text('Sync Defaults', style: TextStyle(color: AppTheme.primaryIndigo, fontSize: 13)),
+                  ),
+                ],
+              ),
+            ),
+            if (items.isEmpty)
+              const Expanded(
+                child: Center(
+                  child: Text('No Quick Access items found.', style: TextStyle(color: AppTheme.textSecondary)),
+                ),
+              )
+            else
+              Expanded(
+                child: ReorderableListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: items.length,
+                  onReorder: (oldIndex, newIndex) {
+                    if (newIndex > oldIndex) newIndex -= 1;
+                    final item = items.removeAt(oldIndex);
+                    items.insert(newIndex, item);
+                    for (int i = 0; i < items.length; i++) {
+                      QuickAccessService.updateOrder(items[i].id, i);
+                    }
+                  },
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return Card(
+                      key: ValueKey(item.id),
+                      color: AppTheme.surfaceElevated,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        leading: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryIndigo.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: item.thumbnailUrl.isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(item.thumbnailUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.bolt, color: AppTheme.primaryIndigo)),
+                                )
+                              : const Icon(Icons.bolt, color: AppTheme.primaryIndigo),
+                        ),
+                        title: Text(item.title, style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600)),
+                        subtitle: Text('Target: ${item.target}', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.drag_handle_rounded, color: AppTheme.textSecondary),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: AppTheme.error),
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (c) => AlertDialog(
+                                    backgroundColor: AppTheme.surfaceElevated,
+                                    title: const Text('Delete Item', style: TextStyle(color: AppTheme.textPrimary)),
+                                    content: const Text('Delete this Quick Access item?', style: TextStyle(color: AppTheme.textSecondary)),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(c, false),
+                                        child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(c, true),
+                                        child: const Text('Delete', style: TextStyle(color: AppTheme.error)),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirm == true) {
+                                  await QuickAccessService.deleteItem(item.id);
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

@@ -5,9 +5,9 @@ import 'package:flutter/foundation.dart';
 /// Service to handle Firebase Authentication operations.
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = kIsWeb 
-      ? GoogleSignIn() 
-      : GoogleSignIn(serverClientId: '840529050371-2r0lf2ukmtieqo5r8bfbloeqjaloui6l.apps.googleusercontent.com');
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    serverClientId: '469010978794-bi4qbl7qloba5r7ooaknv8u02do5874n.apps.googleusercontent.com',
+  );
 
   /// Stream of user state changes.
   Stream<User?> get userChanges => _auth.userChanges();
@@ -34,6 +34,17 @@ class AuthService {
   /// or if the silent sign-in token has expired.
   Future<User?> signInWithGoogle({bool forceAccountPicker = false}) async {
     try {
+      if (kIsWeb) {
+        final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        googleProvider.addScope('email');
+        googleProvider.addScope('profile');
+        if (forceAccountPicker) {
+          googleProvider.setCustomParameters({'prompt': 'select_account'});
+        }
+        final UserCredential userCredential = await _auth.signInWithPopup(googleProvider);
+        return userCredential.user;
+      }
+
       GoogleSignInAccount? googleUser;
 
       // 1. Try silent sign-in first (no UI shown if already signed in)
@@ -46,6 +57,14 @@ class AuthService {
       if (googleUser == null) return null; // user cancelled
 
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      debugPrint('AuthService: accessToken=${googleAuth.accessToken != null}  idToken=${googleAuth.idToken != null}');
+
+      if (googleAuth.idToken == null) {
+        debugPrint('AuthService: idToken is null — check that the Web OAuth Client ID is set as serverClientId');
+        throw Exception('Google Sign-In failed: could not get ID token. Please try again.');
+      }
+
       final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
@@ -60,9 +79,10 @@ class AuthService {
 
       final UserCredential userCredential = await _auth.signInWithCredential(credential);
       return userCredential.user;
-    } catch (e) {
+    } on Exception catch (e, stack) {
       debugPrint('AuthService: Google Sign-in Error: $e');
-      return null;
+      debugPrint('AuthService: Stack: $stack');
+      rethrow;
     }
   }
 

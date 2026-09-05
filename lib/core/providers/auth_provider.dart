@@ -43,8 +43,8 @@ class AuthProvider extends ChangeNotifier {
   void _triggerSeedOnce() {
     if (_seeded) return;
     _seeded = true;
-    BlogService.seedDemoBlogs();
-    VideoService.seedDemoVideos();
+    // BlogService.seedDemoBlogs();
+    // VideoService.seedDemoVideos();
   }
 
   @override

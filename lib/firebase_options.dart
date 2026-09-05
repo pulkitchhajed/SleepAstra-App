@@ -41,29 +41,31 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyC1CpT15JA-qVrV1BLqi98g5rMoP6MA3HY',
-    appId: '1:840529050371:web:a7eed996b70ee998b84736',
-    messagingSenderId: '840529050371',
-    projectId: 'snoreclinics-ai',
-    authDomain: 'snoreclinics-ai.firebaseapp.com',
-    storageBucket: 'snoreclinics-ai.firebasestorage.app',
+    apiKey: 'AIzaSyBsVx6A0UDuicrNRtuOaJylFgxNTg2QZHM',
+    appId: '1:469010978794:web:a7f3582ae579b9fc1e0493',
+    messagingSenderId: '469010978794',
+    projectId: 'snoreastra',
+    authDomain: 'snoreastra.firebaseapp.com',
+    storageBucket: 'snoreastra.firebasestorage.app',
+    measurementId: 'G-XYEFY2F675',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBpXHSGiU4mObeVgNkVZEuxLm1Qrvyyuj0',
-    appId: '1:840529050371:android:bf133a452279cd64b84736',
-    messagingSenderId: '840529050371',
-    projectId: 'snoreclinics-ai',
-    storageBucket: 'snoreclinics-ai.firebasestorage.app',
+    apiKey: 'AIzaSyD_XZMuF7Feexi38qvtvNo92OWdb88lso0',
+    appId: '1:469010978794:android:775070c4d7db47f91e0493',
+    messagingSenderId: '469010978794',
+    projectId: 'snoreastra',
+    storageBucket: 'snoreastra.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyA0yQo-D9UPQiyU19sGubOE6s0AvJpDN5I',
-    appId: '1:840529050371:ios:b9265959d446e913b84736',
-    messagingSenderId: '840529050371',
-    projectId: 'snoreclinics-ai',
-    storageBucket: 'snoreclinics-ai.firebasestorage.app',
+    apiKey: 'AIzaSyCtxKu86DjIHQtCIC9uErilh65o-9fJHy8',
+    appId: '1:469010978794:ios:6b74123dc940c6bc1e0493',
+    messagingSenderId: '469010978794',
+    projectId: 'snoreastra',
+    storageBucket: 'snoreastra.firebasestorage.app',
     iosBundleId: 'com.snoreclinics.ai',
+    iosClientId: '469010978794-jr7536c2s4p8mg0ddsms2ahoq6sk2vfl.apps.googleusercontent.com',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(

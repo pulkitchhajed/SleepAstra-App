@@ -1,14 +1,12 @@
-import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/auth_provider.dart';
-import '../../../core/widgets/animated_sleep_background.dart';
+import '../../../core/providers/theme_provider.dart';
 
-/// The single entry-point for all authentication flows.
-/// Replaces both WelcomeScreen and SignupStepScreen.
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
 
@@ -16,18 +14,28 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen>
-    with TickerProviderStateMixin {
-  late final TabController _tabCtrl;
+class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
+  late final AnimationController _entranceCtrl;
+  late final AnimationController _emailExpandCtrl;
 
-  // Sign In controllers
+  late final Animation<double> _fadeHeader;
+  late final Animation<Offset> _slideHeader;
+  late final Animation<double> _fadeGoogleBtn;
+  late final Animation<Offset> _slideGoogleBtn;
+  late final Animation<double> _fadeEmailBtn;
+  late final Animation<Offset> _slideEmailBtn;
+  late final Animation<double> _fadeFooter;
+  late final Animation<Offset> _slideFooter;
+
+  bool _emailExpanded = false;
+  bool _isSignIn = true;
+
   final _siEmailCtrl = TextEditingController();
   final _siPwCtrl = TextEditingController();
   bool _siShowPw = false;
   bool _siLoading = false;
   String? _siError;
 
-  // Sign Up controllers
   final _suEmailCtrl = TextEditingController();
   final _suPwCtrl = TextEditingController();
   final _suConfirmPwCtrl = TextEditingController();
@@ -37,23 +45,56 @@ class _AuthScreenState extends State<AuthScreen>
   String? _suError;
 
   bool _googleLoading = false;
-  final bool _phoneLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
-    _tabCtrl.addListener(() {
-      // Rebuild to animate to the correct dynamic height when tab changes
-      if (!_tabCtrl.indexIsChanging) {
-        setState(() {});
-      }
-    });
+    _entranceCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+
+    _emailExpandCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+
+    // Staggered Animations to match framer-motion staggerChildren
+    _fadeHeader = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _entranceCtrl, curve: const Interval(0.15, 0.6, curve: Curves.easeOut)),
+    );
+    _slideHeader = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
+      CurvedAnimation(parent: _entranceCtrl, curve: const Interval(0.15, 0.6, curve: Curves.easeOut)),
+    );
+
+    _fadeGoogleBtn = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _entranceCtrl, curve: const Interval(0.25, 0.75, curve: Curves.easeOut)),
+    );
+    _slideGoogleBtn = Tween<Offset>(begin: const Offset(0, 0.25), end: Offset.zero).animate(
+      CurvedAnimation(parent: _entranceCtrl, curve: const Interval(0.25, 0.75, curve: Curves.easeOut)),
+    );
+
+    _fadeEmailBtn = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _entranceCtrl, curve: const Interval(0.35, 0.85, curve: Curves.easeOut)),
+    );
+    _slideEmailBtn = Tween<Offset>(begin: const Offset(0, 0.25), end: Offset.zero).animate(
+      CurvedAnimation(parent: _entranceCtrl, curve: const Interval(0.35, 0.85, curve: Curves.easeOut)),
+    );
+
+    _fadeFooter = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _entranceCtrl, curve: const Interval(0.6, 1.0, curve: Curves.easeOut)),
+    );
+    _slideFooter = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+      CurvedAnimation(parent: _entranceCtrl, curve: const Interval(0.6, 1.0, curve: Curves.easeOut)),
+    );
+
+    _entranceCtrl.forward();
   }
 
   @override
   void dispose() {
-    _tabCtrl.dispose();
+    _entranceCtrl.dispose();
+    _emailExpandCtrl.dispose();
     _siEmailCtrl.dispose();
     _siPwCtrl.dispose();
     _suEmailCtrl.dispose();
@@ -62,7 +103,31 @@ class _AuthScreenState extends State<AuthScreen>
     super.dispose();
   }
 
-  // ─── Actions ─────────────────────────────────────────────────────────────
+  Future<void> _googleSignIn() async {
+    setState(() => _googleLoading = true);
+    try {
+      final auth = context.read<AuthProvider>();
+      final user = await auth.signInWithGoogle(forceAccountPicker: true);
+      if (!mounted) return;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign-in was cancelled.'), backgroundColor: Colors.orange),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google Sign-In Error: $e'),
+            backgroundColor: AppTheme.error,
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _googleLoading = false);
+    }
+  }
 
   Future<void> _signIn() async {
     final email = _siEmailCtrl.text.trim();
@@ -73,8 +138,6 @@ class _AuthScreenState extends State<AuthScreen>
     try {
       final auth = context.read<AuthProvider>();
       final user = await auth.signInWithEmailAndPassword(email, pw);
-      // _AppGate watches auth state and routes automatically.
-      // No manual navigation needed here.
       if (!mounted) return;
       if (user == null) {
         setState(() => _siError = 'Invalid email or password. Please try again.');
@@ -104,7 +167,6 @@ class _AuthScreenState extends State<AuthScreen>
     try {
       final auth = context.read<AuthProvider>();
       final user = await auth.signUpWithEmailAndPassword(email, pw);
-      // _AppGate watches auth state and routes automatically.
       if (!mounted) return;
       if (user == null) {
         setState(() => _suError = 'Could not create account. Please try again.');
@@ -112,10 +174,11 @@ class _AuthScreenState extends State<AuthScreen>
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       if (e.code == 'email-already-in-use') {
-        // Auto-fill sign in tab and switch to it
         _siEmailCtrl.text = _suEmailCtrl.text;
-        _tabCtrl.animateTo(0);
-        setState(() => _siError = 'Account exists. Enter your password below to sign in.');
+        setState(() {
+          _isSignIn = true;
+          _siError = 'Account exists. Enter your password below to sign in.';
+        });
       } else {
         setState(() => _suError = _friendlyError(e));
       }
@@ -126,105 +189,6 @@ class _AuthScreenState extends State<AuthScreen>
     }
   }
 
-  Future<void> _googleSignIn() async {
-    setState(() { _googleLoading = true; });
-    try {
-      final auth = context.read<AuthProvider>();
-      await auth.signInWithGoogle(forceAccountPicker: true);
-      // _AppGate watches auth state and routes automatically.
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_friendlyError(e)),
-              backgroundColor: AppTheme.error),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _googleLoading = false);
-    }
-  }
-
-
-  void _showForgotPasswordDialog() {
-    final emailCtrl = TextEditingController(text: _siEmailCtrl.text);
-    bool loading = false;
-    String? error;
-    
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppTheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text('Reset Password',
-              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.white)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Enter your email address below and we will send you a secure link to reset your password.',
-                style: GoogleFonts.plusJakartaSans(color: AppTheme.textSecondary, fontSize: 14),
-              ),
-              const SizedBox(height: 16),
-              _field(
-                controller: emailCtrl,
-                label: 'Email address',
-                icon: Icons.mail_outline_rounded,
-                keyboardType: TextInputType.emailAddress,
-                onChanged: () => setDialogState(() => error = null),
-              ),
-              if (error != null) ...[
-                const SizedBox(height: 10),
-                _errorBanner(error!),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('Cancel', style: GoogleFonts.plusJakartaSans(color: AppTheme.textSecondary)),
-            ),
-            ElevatedButton(
-              onPressed: loading ? null : () async {
-                final email = emailCtrl.text.trim();
-                if (email.isEmpty || !email.contains('@')) {
-                  setDialogState(() => error = 'Please enter a valid email.');
-                  return;
-                }
-                setDialogState(() => loading = true);
-                try {
-                  final scaffoldMessenger = ScaffoldMessenger.of(this.context);
-                  await ctx.read<AuthProvider>().sendPasswordResetEmail(email);
-                  if (!ctx.mounted) return;
-                  Navigator.pop(ctx);
-                  if (mounted) { scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Password reset email sent to $email.'),
-                      backgroundColor: AppTheme.success,
-                    ),
-                  ); }
-                } catch (e) {
-                  setDialogState(() {
-                    loading = false;
-                    error = _friendlyError(e);
-                  });
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryIndigo,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: loading
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : Text('Send Link', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   String _friendlyError(Object e) {
     String code = '';
     if (e is FirebaseAuthException) code = e.code;
@@ -233,646 +197,422 @@ class _AuthScreenState extends State<AuthScreen>
     if (code == 'wrong-password' || msg.contains('wrong-password')) return 'Incorrect password.';
     if (code == 'invalid-credential' || msg.contains('invalid-login-credentials') || msg.contains('invalid-credential')) return 'Incorrect email or password. Please try again.';
     if (code == 'email-already-in-use' || msg.contains('email-already-in-use')) return 'An account with this email already exists.';
-    if (code == 'weak-password' || msg.contains('weak-password')) return 'Please choose a stronger password (min. 8 characters).';
-    if (code == 'invalid-email' || msg.contains('invalid-email')) return 'Please enter a valid email address.';
-    if (code == 'too-many-requests' || msg.contains('too-many-requests')) return 'Too many attempts. Please wait a moment and try again.';
-    if (code == 'operation-not-allowed' || msg.contains('operation-not-allowed')) return 'Sign-in method is disabled in Firebase. Please enable it in the console.';
-    if (code == 'invalid-phone-number' || msg.contains('invalid-phone-number')) return 'The format of the phone number is incorrect.';
-    if (code == 'session-expired' || msg.contains('session-expired')) return 'SMS verification code has expired. Please request a new code.';
-    if (code == 'invalid-verification-code' || msg.contains('invalid-verification-code')) return 'Invalid verification code. Please check and try again.';
     if (msg.contains('network')) return 'Network error. Check your connection.';
-    
-    // Fallback: show the actual raw error so the user (and we) can debug it
-    if (e is FirebaseAuthException) {
-      return e.message ?? e.code;
-    }
+    if (e is FirebaseAuthException) return e.message ?? e.code;
     return e.toString();
   }
 
-  // ─── Build ────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        backgroundColor: AppTheme.background,
-        body: AnimatedSleepBackground(
-          child: SafeArea(
+    final theme = context.watch<ThemeProvider>();
+    final isDark = theme.isDarkMode;
+
+    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC); // slate-900 / slate-50
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subTextColor = isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569); // slate-300 / slate-600
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Theme Toggle Bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+              child: Align(
+                alignment: Alignment.topRight,
+                child: GestureDetector(
+                  onTap: () => theme.toggleTheme(),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: isDark 
+                        ? [] 
+                        : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isDark ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+                          size: 14,
+                          color: isDark ? const Color(0xFF818CF8) : const Color(0xFFF59E0B),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isDark ? 'Dark' : 'Light',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Main Content Centered
+            Expanded(
               child: SingleChildScrollView(
                 physics: const ClampingScrollPhysics(),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: MediaQuery.of(context).size.height -
-                        MediaQuery.of(context).padding.top,
-                  ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32.0),
                   child: Column(
                     children: [
-                      _buildHeader(),
-                      _buildFeatureRow(),
-                      const SizedBox(height: 8),
-                      _buildAuthCard(),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 60),
+
+                      // Header
+                      FadeTransition(
+                        opacity: _fadeHeader,
+                        child: SlideTransition(
+                          position: _slideHeader,
+                          child: Column(
+                            children: [
+                              Text(
+                                'Welcome',
+                                style: GoogleFonts.inter(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -0.5,
+                                  color: textColor,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Your personalized sleep wellness\njourney starts here.',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: subTextColor,
+                                  height: 1.5,
+                                  letterSpacing: 0.2,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // Google Button
+                      FadeTransition(
+                        opacity: _fadeGoogleBtn,
+                        child: SlideTransition(
+                          position: _slideGoogleBtn,
+                          child: _buildGoogleButton(isDark),
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      // Email Button
+                      FadeTransition(
+                        opacity: _fadeEmailBtn,
+                        child: SlideTransition(
+                          position: _slideEmailBtn,
+                          child: Column(
+                            children: [
+                              _buildEmailButton(isDark),
+                              
+                              // Expandable Email Form
+                              AnimatedSize(
+                                duration: const Duration(milliseconds: 400),
+                                curve: Curves.easeInOut,
+                                child: _emailExpanded
+                                    ? _buildEmailForm(isDark)
+                                    : const SizedBox.shrink(),
+                              ),
+
+                              const SizedBox(height: 12),
+                              if (!_emailExpanded)
+                                GestureDetector(
+                                  onTap: () => setState(() => _emailExpanded = true),
+                                  child: Text.rich(
+                                    TextSpan(
+                                      text: 'Already have an account? ',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                                      ),
+                                      children: [
+                                        TextSpan(
+                                          text: 'Log in',
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w500,
+                                            color: isDark ? const Color(0xFFA5B4FC) : const Color(0xFF4F46E5),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 48),
                     ],
                   ),
                 ),
               ),
             ),
+
+            // Footer
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24.0),
+              child: FadeTransition(
+                opacity: _fadeFooter,
+                child: SlideTransition(
+                  position: _slideFooter,
+                  child: Text(
+                    'By continuing, you agree to our Terms & Privacy Policy.',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w300,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 40, 28, 0),
-      child: Column(
-        children: [
-          // Logo container
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(colors: [
-                AppTheme.primaryIndigo.withValues(alpha: 0.5),
-                AppTheme.primaryIndigo.withValues(alpha: 0.05),
-              ]),
-              border: Border.all(
-                  color: AppTheme.primaryIndigo.withValues(alpha: 0.7), width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                    color: AppTheme.primaryIndigo.withValues(alpha: 0.35),
-                    blurRadius: 32,
-                    spreadRadius: 2),
-              ],
-            ),
-            child: const Center(
-                child: Text('🌙', style: TextStyle(fontSize: 44))),
-          ),
-          const SizedBox(height: 20),
-          Text('Sleep Astra',
-              style: GoogleFonts.playfairDisplay(
-                  fontSize: 34,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.textPrimary,
-                  letterSpacing: -1)),
-          const SizedBox(height: 8),
-          Text(
-            'Clinical-grade sleep intelligence\nin the palm of your hand.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.plusJakartaSans(
-                fontSize: 15,
-                color: AppTheme.textSecondary,
-                height: 1.5),
-          ),
-          const SizedBox(height: 32),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeatureRow() {
-    const features = [
-      ('🎙️', 'Record'),
-      ('🧠', 'AI Analysis'),
-      ('📊', 'Insights'),
-      ('💬', 'Nidra AI'),
-    ];
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: features.map((f) {
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppTheme.surface.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.cardBorder),
-            ),
-            child: Column(children: [
-              Text(f.$1, style: const TextStyle(fontSize: 22)),
-              const SizedBox(height: 4),
-              Text(f.$2,
-                  style: GoogleFonts.plusJakartaSans(
-                      color: AppTheme.textSecondary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500)),
-            ]),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildAuthCard() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 28, 16, 0),
-      decoration: BoxDecoration(
-        color: AppTheme.surface.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppTheme.cardBorder, width: 1),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.4),
-              blurRadius: 40,
-              offset: const Offset(0, 8)),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Tab bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: Container(
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppTheme.background.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: TabBar(
-                controller: _tabCtrl,
-                indicator: BoxDecoration(
-                  color: AppTheme.primaryIndigo,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                dividerColor: Colors.transparent,
-                labelStyle: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w700, fontSize: 14),
-                unselectedLabelStyle: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w500, fontSize: 14),
-                labelColor: Colors.white,
-                unselectedLabelColor: AppTheme.textSecondary,
-                tabs: const [
-                  Tab(text: 'Sign In'),
-                  Tab(text: 'Create Account'),
-                ],
-              ),
-            ),
-          ),
-          // Dynamic dynamic-height Tab Content
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-            height: _tabCtrl.index == 0
-                ? (_siError != null ? 320.0 : 270.0)
-                : (_suError != null ? 360.0 : 310.0),
-            child: TabBarView(
-              controller: _tabCtrl,
-              physics: const NeverScrollableScrollPhysics(), // Require tab taps for synchronized height
-              children: [_buildSignIn(), _buildSignUp()],
-            ),
-          ),
-          // Divider
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(children: [
-              Expanded(
-                  child: Divider(color: AppTheme.cardBorder.withValues(alpha: 0.6))),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text('or continue with',
-                    style: GoogleFonts.plusJakartaSans(
-                        color: AppTheme.textSecondary.withValues(alpha: 0.7),
-                        fontSize: 12)),
-              ),
-              Expanded(
-                  child: Divider(color: AppTheme.cardBorder.withValues(alpha: 0.6))),
-            ]),
-          ),
-          const SizedBox(height: 16),
-          // Google & Phone buttons
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-            child: Column(
-              children: [
-                _buildGoogleButton(),
-                const SizedBox(height: 12),
-                _buildPhoneButton(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSignIn() {
-    final canSubmit = _siEmailCtrl.text.contains('@') &&
-        _siPwCtrl.text.length >= 6 &&
-        !_siLoading;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-      child: Column(
-        children: [
-          _field(
-            controller: _siEmailCtrl,
-            label: 'Email address',
-            icon: Icons.mail_outline_rounded,
-            keyboardType: TextInputType.emailAddress,
-            onChanged: () => setState(() { _siError = null; }),
-          ),
-          const SizedBox(height: 14),
-          _field(
-            controller: _siPwCtrl,
-            label: 'Password',
-            icon: Icons.lock_outline_rounded,
-            obscure: !_siShowPw,
-            suffixIcon: IconButton(
-              icon: Icon(_siShowPw ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-                  size: 20, color: AppTheme.textSecondary),
-              onPressed: () => setState(() => _siShowPw = !_siShowPw),
-            ),
-            onChanged: () => setState(() { _siError = null; }),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: _showForgotPasswordDialog,
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: const Size(0, 30),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Text(
-                'Forgot Password?',
-                style: GoogleFonts.plusJakartaSans(
-                  color: AppTheme.primaryIndigo,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-          if (_siError != null) ...[
-            const SizedBox(height: 6),
-            _errorBanner(_siError!),
-          ],
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity, height: 52,
-            child: ElevatedButton(
-              onPressed: canSubmit ? _signIn : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: canSubmit
-                    ? AppTheme.primaryIndigo
-                    : AppTheme.primaryIndigo.withValues(alpha: 0.35),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-                elevation: canSubmit ? 4 : 0,
-                shadowColor: AppTheme.primaryIndigo.withValues(alpha: 0.5),
-              ),
-              child: _siLoading
-                  ? const SizedBox(width: 22, height: 22,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                  : Text('Sign In',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 16, fontWeight: FontWeight.w700)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSignUp() {
-    final passwordsMatch = _suPwCtrl.text == _suConfirmPwCtrl.text;
-    final canSubmit = _suEmailCtrl.text.contains('@') &&
-        _suPwCtrl.text.length >= 8 &&
-        passwordsMatch &&
-        !_suLoading;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-      child: Column(
-        children: [
-          _field(
-            controller: _suEmailCtrl,
-            label: 'Email address',
-            icon: Icons.mail_outline_rounded,
-            keyboardType: TextInputType.emailAddress,
-            onChanged: () => setState(() { _suError = null; }),
-          ),
-          const SizedBox(height: 10),
-          _field(
-            controller: _suPwCtrl,
-            label: 'Password  (min. 8 characters)',
-            icon: Icons.lock_outline_rounded,
-            obscure: !_suShowPw,
-            suffixIcon: IconButton(
-              icon: Icon(_suShowPw ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-                  size: 20, color: AppTheme.textSecondary),
-              onPressed: () => setState(() => _suShowPw = !_suShowPw),
-            ),
-            onChanged: () => setState(() { _suError = null; }),
-          ),
-          const SizedBox(height: 10),
-          _field(
-            controller: _suConfirmPwCtrl,
-            label: 'Confirm password',
-            icon: Icons.lock_outline_rounded,
-            obscure: !_suShowConfirm,
-            suffixIcon: IconButton(
-              icon: Icon(_suShowConfirm ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-                  size: 20, color: AppTheme.textSecondary),
-              onPressed: () => setState(() => _suShowConfirm = !_suShowConfirm),
-            ),
-            trailing: _suConfirmPwCtrl.text.isNotEmpty
-                ? Icon(
-                    passwordsMatch ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                    color: passwordsMatch ? AppTheme.success : AppTheme.error,
-                    size: 20)
-                : null,
-            onChanged: () => setState(() { _suError = null; }),
-          ),
-          if (_suError != null) ...[
-            const SizedBox(height: 8),
-            _errorBanner(_suError!),
-          ],
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity, height: 52,
-            child: ElevatedButton(
-              onPressed: canSubmit ? _signUp : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: canSubmit
-                    ? AppTheme.primaryIndigo
-                    : AppTheme.primaryIndigo.withValues(alpha: 0.35),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-                elevation: canSubmit ? 4 : 0,
-                shadowColor: AppTheme.primaryIndigo.withValues(alpha: 0.5),
-              ),
-              child: _suLoading
-                  ? const SizedBox(width: 22, height: 22,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                  : Text('Create Account',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 16, fontWeight: FontWeight.w700)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGoogleButton() {
+  Widget _buildGoogleButton(bool isDark) {
     return SizedBox(
-      width: double.infinity, height: 52,
-      child: OutlinedButton(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton(
         onPressed: _googleLoading ? null : _googleSignIn,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          side: const BorderSide(color: Colors.white24),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF2563EB), // blue-600
+          disabledBackgroundColor: const Color(0xFF2563EB).withValues(alpha: 0.6),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: const Color(0xFF60A5FA).withValues(alpha: 0.4)),
+          ),
+          elevation: 0,
         ),
         child: _googleLoading
-            ? const SizedBox(width: 22, height: 22,
-                child: CircularProgressIndicator(color: Colors.black45, strokeWidth: 2.5))
-            : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                // Google "G" styled manually
-                Container(
-                  width: 28, height: 28,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)
-                    ],
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 26, height: 26,
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white),
+                    padding: const EdgeInsets.all(4),
+                    child: Center(
+                      child: Image.asset('assets/images/google_logo.png'),
+                    ),
                   ),
-                  child: const Center(
-                    child: Text('G',
-                        style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF4285F4))),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Continue with Google',
+                    style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white),
                   ),
-                ),
-                const SizedBox(width: 14),
-                Text('Continue with Google',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87)),
-              ]),
+                ],
+              ),
       ),
     );
   }
 
-  Widget _buildPhoneButton() {
+  Widget _buildEmailButton(bool isDark) {
     return SizedBox(
-      width: double.infinity, height: 52,
-      child: OutlinedButton(
-        onPressed: _phoneLoading ? null : _startPhoneAuthFlow,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          side: const BorderSide(color: Colors.white24),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton(
+        onPressed: () {
+          setState(() => _emailExpanded = !_emailExpanded);
+          if (_emailExpanded) {
+            Future.delayed(const Duration(milliseconds: 100), () {
+              if (!mounted) return;
+              FocusScope.of(context).requestFocus(FocusNode());
+            });
+          }
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isDark ? const Color(0xFF0F172A).withValues(alpha: 0.8) : Colors.white,
+          foregroundColor: isDark ? Colors.white : const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: isDark ? const Color(0xFF334155).withValues(alpha: 0.8) : const Color(0xFFE2E8F0),
+            ),
+          ),
+          elevation: isDark ? 0 : 1,
+          shadowColor: Colors.black.withValues(alpha: 0.05),
         ),
-        child: _phoneLoading
-            ? const SizedBox(width: 22, height: 22,
-                child: CircularProgressIndicator(color: Colors.black45, strokeWidth: 2.5))
-            : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const Icon(Icons.phone_android_rounded, color: AppTheme.primaryIndigo, size: 22),
-                const SizedBox(width: 14),
-                Text('Continue with Phone',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87)),
-              ]),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.mail_outline_rounded, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569), size: 18),
+            const SizedBox(width: 12),
+            Text(
+              'Continue with Email',
+              style: GoogleFonts.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B)),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _startPhoneAuthFlow() {
-    final phoneCtrl = TextEditingController(text: '+');
-    final otpCtrl = TextEditingController();
-    String? verificationId;
-    String? phoneError;
-    bool smsSent = false;
-    bool submitting = false;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
-          return Container(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, bottomPadding > 0 ? bottomPadding + 20 : 40),
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              border: Border.all(color: AppTheme.cardBorder),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40, height: 4,
-                    decoration: BoxDecoration(
-                      color: AppTheme.cardBorder,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  smsSent ? 'Verify Phone Code' : 'Phone Authentication',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  smsSent
-                      ? 'Enter the 6-digit SMS verification code sent to ${phoneCtrl.text}.'
-                      : 'Enter your phone number (including country code, e.g., +91 or +44) to receive an SMS OTP verification.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 28),
-                if (!smsSent)
-                  _field(
-                    controller: phoneCtrl,
-                    label: 'Phone number (e.g., +91 1234567890)',
-                    icon: Icons.phone_rounded,
-                    keyboardType: TextInputType.phone,
-                    onChanged: () => setSheetState(() => phoneError = null),
-                  )
-                else
-                  _field(
-                    controller: otpCtrl,
-                    label: 'Verification code',
-                    icon: Icons.sms_rounded,
-                    keyboardType: TextInputType.number,
-                    onChanged: () => setSheetState(() => phoneError = null),
-                  ),
-                if (phoneError != null) ...[
-                  const SizedBox(height: 12),
-                  _errorBanner(phoneError!),
-                ],
-                const SizedBox(height: 28),
-                ElevatedButton(
-                  onPressed: submitting
-                      ? null
-                      : () async {
-                          final auth = ctx.read<AuthProvider>();
-                          if (!smsSent) {
-                            final number = phoneCtrl.text.trim();
-                            if (number.length < 8 || !number.startsWith('+')) {
-                              setSheetState(() => phoneError = 'Please enter a valid phone number starting with country code (e.g., +91).');
-                              return;
-                            }
-                            setSheetState(() {
-                              submitting = true;
-                              phoneError = null;
-                            });
-                            try {
-                              await auth.verifyPhoneNumber(
-                                number,
-                                onCodeSent: (id) {
-                                  setSheetState(() {
-                                    verificationId = id;
-                                    smsSent = true;
-                                    submitting = false;
-                                    phoneError = null;
-                                  });
-                                },
-                                onVerificationFailed: (e) {
-                                  setSheetState(() {
-                                    submitting = false;
-                                    phoneError = _friendlyError(e);
-                                  });
-                                },
-                              );
-                            } catch (e) {
-                              setSheetState(() {
-                                submitting = false;
-                                phoneError = _friendlyError(e);
-                              });
-                            }
-                          } else {
-                            final otp = otpCtrl.text.trim();
-                            if (otp.length != 6) {
-                              setSheetState(() => phoneError = 'Verification code must be exactly 6 digits.');
-                              return;
-                            }
-                            if (verificationId == null) {
-                              setSheetState(() => phoneError = 'Verification expired. Please try again.');
-                              return;
-                            }
-                            setSheetState(() {
-                              submitting = true;
-                              phoneError = null;
-                            });
-                            try {
-                              final scaffoldMessenger = ScaffoldMessenger.of(this.context);
-                              final user = await auth.signInWithPhoneCredential(verificationId!, otp);
-                              if (!ctx.mounted) return;
-                              Navigator.pop(ctx);
-                              if (user == null && mounted) {
-                                scaffoldMessenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Phone sign-in failed. Please try again.'),
-                                    backgroundColor: AppTheme.error,
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              setSheetState(() {
-                                submitting = false;
-                                phoneError = _friendlyError(e);
-                              });
-                            }
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryIndigo,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: submitting
-                      ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : Text(
-                          smsSent ? 'Verify & Login' : 'Send Code',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
-                        ),
-                ),
-                if (smsSent) ...[
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: submitting
-                        ? null
-                        : () => setSheetState(() {
-                              smsSent = false;
-                              otpCtrl.clear();
-                              phoneError = null;
-                            }),
-                    child: Text(
-                      '← Back to Phone Number',
-                      style: GoogleFonts.plusJakartaSans(color: AppTheme.primaryIndigo, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          );
-        },
+  Widget _buildEmailForm(bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+        boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4))],
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildModeToggle(isDark),
+          const SizedBox(height: 20),
+          if (_isSignIn) _buildSignInFields(isDark) else _buildSignUpFields(isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModeToggle(bool isDark) {
+    return Container(
+      height: 40,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          _modeTab('Sign In', _isSignIn, () => setState(() { _isSignIn = true; _siError = null; }), isDark),
+          _modeTab('Create Account', !_isSignIn, () => setState(() { _isSignIn = false; _suError = null; }), isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _modeTab(String label, bool active, VoidCallback onTap, bool isDark) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFF2563EB) : Colors.transparent, // blue-600
+            borderRadius: BorderRadius.circular(8),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: GoogleFonts.inter(
+              color: active ? Colors.white : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+              fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSignInFields(bool isDark) {
+    final canSubmit = _siEmailCtrl.text.contains('@') && _siPwCtrl.text.length >= 6 && !_siLoading;
+    return Column(
+      children: [
+        _field(controller: _siEmailCtrl, label: 'Email address', icon: Icons.mail_outline_rounded, isDark: isDark, onChanged: () => setState(() => _siError = null)),
+        const SizedBox(height: 12),
+        _field(
+          controller: _siPwCtrl, label: 'Password', icon: Icons.lock_outline_rounded, isDark: isDark, obscure: !_siShowPw,
+          suffixIcon: IconButton(icon: Icon(_siShowPw ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 18, color: isDark ? Colors.white38 : Colors.black38), onPressed: () => setState(() => _siShowPw = !_siShowPw)),
+          onChanged: () => setState(() => _siError = null),
+        ),
+        if (_siError != null) Padding(padding: const EdgeInsets.only(top: 8), child: _errorBanner(_siError!)),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity, height: 48,
+          child: ElevatedButton(
+            onPressed: canSubmit ? _signIn : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              disabledBackgroundColor: const Color(0xFF2563EB).withValues(alpha: 0.4),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 0,
+            ),
+            child: _siLoading
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : Text('Sign In', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSignUpFields(bool isDark) {
+    final passwordsMatch = _suPwCtrl.text == _suConfirmPwCtrl.text;
+    final canSubmit = _suEmailCtrl.text.contains('@') && _suPwCtrl.text.length >= 8 && passwordsMatch && !_suLoading;
+    return Column(
+      children: [
+        _field(controller: _suEmailCtrl, label: 'Email address', icon: Icons.mail_outline_rounded, isDark: isDark, onChanged: () => setState(() => _suError = null)),
+        const SizedBox(height: 12),
+        _field(
+          controller: _suPwCtrl, label: 'Password', icon: Icons.lock_outline_rounded, isDark: isDark, obscure: !_suShowPw,
+          suffixIcon: IconButton(icon: Icon(_suShowPw ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 18, color: isDark ? Colors.white38 : Colors.black38), onPressed: () => setState(() => _suShowPw = !_suShowPw)),
+          onChanged: () => setState(() => _suError = null),
+        ),
+        const SizedBox(height: 12),
+        _field(
+          controller: _suConfirmPwCtrl, label: 'Confirm password', icon: Icons.lock_outline_rounded, isDark: isDark, obscure: !_suShowConfirm,
+          suffixIcon: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_suConfirmPwCtrl.text.isNotEmpty) Icon(passwordsMatch ? Icons.check_circle_rounded : Icons.cancel_rounded, color: passwordsMatch ? AppTheme.accentTeal : AppTheme.error, size: 18),
+              IconButton(icon: Icon(_suShowConfirm ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 18, color: isDark ? Colors.white38 : Colors.black38), onPressed: () => setState(() => _suShowConfirm = !_suShowConfirm)),
+            ],
+          ),
+          onChanged: () => setState(() => _suError = null),
+        ),
+        if (_suError != null) Padding(padding: const EdgeInsets.only(top: 8), child: _errorBanner(_suError!)),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity, height: 48,
+          child: ElevatedButton(
+            onPressed: canSubmit ? _signUp : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              disabledBackgroundColor: const Color(0xFF2563EB).withValues(alpha: 0.4),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 0,
+            ),
+            child: _suLoading
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : Text('Create Account', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
+          ),
+        ),
+      ],
     );
   }
 
@@ -880,66 +620,48 @@ class _AuthScreenState extends State<AuthScreen>
     required TextEditingController controller,
     required String label,
     required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
+    required bool isDark,
     bool obscure = false,
     Widget? suffixIcon,
-    Widget? trailing,
     required VoidCallback onChanged,
   }) {
     return TextField(
       controller: controller,
-      keyboardType: keyboardType,
       obscureText: obscure,
-      style: GoogleFonts.plusJakartaSans(color: AppTheme.textPrimary, fontSize: 15),
+      style: GoogleFonts.inter(color: isDark ? Colors.white : const Color(0xFF1E293B), fontSize: 14),
       onChanged: (_) => onChanged(),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: GoogleFonts.plusJakartaSans(
-            color: AppTheme.textSecondary, fontSize: 13),
-        prefixIcon: Icon(icon, color: AppTheme.textSecondary, size: 20),
-        suffixIcon: trailing != null
-            ? Row(mainAxisSize: MainAxisSize.min, children: [
-                trailing,
-                if (suffixIcon != null) suffixIcon,
-              ])
-            : suffixIcon,
+        labelStyle: GoogleFonts.inter(color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8), fontSize: 12),
+        prefixIcon: Icon(icon, color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8), size: 18),
+        suffixIcon: suffixIcon,
         filled: true,
-        fillColor: AppTheme.background.withValues(alpha: 0.5),
+        fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppTheme.cardBorder),
+          borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppTheme.cardBorder),
+          borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(color: AppTheme.primaryIndigo, width: 1.5),
+          borderSide: const BorderSide(color: Color(0xFF2563EB)),
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       ),
     );
   }
 
   Widget _errorBanner(String msg) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppTheme.error.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.error.withValues(alpha: 0.4)),
-      ),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(color: AppTheme.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
       child: Row(children: [
-        const Icon(Icons.error_outline_rounded, color: AppTheme.error, size: 18),
+        Icon(Icons.error_outline, color: AppTheme.error, size: 16),
         const SizedBox(width: 8),
-        Expanded(
-          child: Text(msg,
-              style: GoogleFonts.plusJakartaSans(
-                  color: AppTheme.error, fontSize: 13)),
-        ),
+        Expanded(child: Text(msg, style: GoogleFonts.inter(color: AppTheme.error, fontSize: 11))),
       ]),
     );
   }

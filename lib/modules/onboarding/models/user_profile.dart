@@ -1,51 +1,81 @@
 import 'dart:convert';
 
-/// Represents a user's baseline health profile and sleep goals.
 class UserProfile {
   final String name;
   final String? email;
-  final int age;
-  final String gender; // 'male', 'female', 'other'
+  final String dateOfBirth; // YYYY-MM-DD
+  final String gender;
   final double weightKg;
   final double heightCm;
-  final String bedtime;   // "HH:mm" 24h format e.g. "22:30"
-  final String wakeTime;  // "HH:mm" 24h format e.g. "06:30"
-  final int goalDurationMinutes;
+  final String bmiCategory;
+
+  // Current Schedule
+  final String currentBedtime;
+  final String currentWakeTime;
+  final double currentDurationHours;
+
+  // Target Schedule
+  final String targetBedtime;
+  final String targetWakeTime;
+  final double targetDurationHours;
+
+  // Circadian
+  final double sleepDebtHours;
+  final double weeklySleepDebtHours;
+  final String recommendedBedtime;
+  final String recommendedWakeTime;
+  final double recommendedDurationHours;
+  final String transitionStrategy;
+
+  // Goals & Assessment
+  final List<String> primarySleepGoals;
+  final int stopBangScore;
+  final Map<String, bool> stopAnswers;
+
+  // App State
   final bool complianceAccepted;
   final bool onboardingComplete;
   final bool bedtimeReminderEnabled;
   final bool morningPromptEnabled;
   final bool healthIntegrationEnabled;
-  // Lifestyle & Clinical
-  final int caffeineCups;
-  final int alcoholDays;
-  final int exerciseDays;
-  final int stopBangScore;
   final int coins;
-  // Subscription
   final bool isPremium;
-  final String subscriptionTier; // 'free', 'monthly', 'annual'
+  final String subscriptionTier;
   final DateTime? subscriptionExpiry;
 
   const UserProfile({
     required this.name,
     this.email,
-    required this.age,
+    required this.dateOfBirth,
     required this.gender,
     required this.weightKg,
     required this.heightCm,
-    required this.bedtime,
-    required this.wakeTime,
-    required this.goalDurationMinutes,
+    this.bmiCategory = 'Optimal',
+    this.currentBedtime = '00:00',
+    this.currentWakeTime = '06:30',
+    this.currentDurationHours = 6.5,
+    this.targetBedtime = '22:30',
+    this.targetWakeTime = '07:00',
+    this.targetDurationHours = 8.5,
+    this.sleepDebtHours = 0.0,
+    this.weeklySleepDebtHours = 0.0,
+    this.recommendedBedtime = '22:30',
+    this.recommendedWakeTime = '07:00',
+    this.recommendedDurationHours = 8.5,
+    this.transitionStrategy = '',
+    this.primarySleepGoals = const [],
+    this.stopBangScore = 0,
+    this.stopAnswers = const {
+      'snoring': false,
+      'tiredness': false,
+      'observed': false,
+      'pressure': false,
+    },
     this.complianceAccepted = false,
     this.onboardingComplete = false,
     this.bedtimeReminderEnabled = true,
     this.morningPromptEnabled = true,
     this.healthIntegrationEnabled = false,
-    this.caffeineCups = 0,
-    this.alcoholDays = 0,
-    this.exerciseDays = 0,
-    this.stopBangScore = 0,
     this.coins = 0,
     this.isPremium = false,
     this.subscriptionTier = 'free',
@@ -54,25 +84,69 @@ class UserProfile {
 
   double get bmi => weightKg / ((heightCm / 100) * (heightCm / 100));
 
+  /// Computed age from dateOfBirth (YYYY-MM-DD).
+  int get age {
+    try {
+      final parts = dateOfBirth.split('-');
+      final dob = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+      final now = DateTime.now();
+      int years = now.year - dob.year;
+      if (now.month < dob.month || (now.month == dob.month && now.day < dob.day)) years--;
+      return years < 0 ? 0 : years;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Alias — points to currentBedtime for legacy code.
+  String get bedtime => currentBedtime;
+
+  /// Alias — points to currentWakeTime for legacy code.
+  String get wakeTime => currentWakeTime;
+
+  /// Target sleep duration in minutes (from targetDurationHours).
+  int get goalDurationMinutes => (targetDurationHours * 60).round();
+
+  /// Alias — no longer collected, returns 0.
+  int get caffeineCups => 0;
+
+  /// Alias — no longer collected, returns 0.
+  int get alcoholDays => 0;
+
+  /// Alias — no longer collected, returns 0.
+  int get exerciseDays => 0;
+
+  /// Alias for sleepDebtHours.
+  double get dailySleepDebtHours => sleepDebtHours;
+
   UserProfile copyWith({
     String? name,
     String? email,
-    int? age,
+    String? dateOfBirth,
     String? gender,
     double? weightKg,
     double? heightCm,
-    String? bedtime,
-    String? wakeTime,
-    int? goalDurationMinutes,
+    String? bmiCategory,
+    String? currentBedtime,
+    String? currentWakeTime,
+    double? currentDurationHours,
+    String? targetBedtime,
+    String? targetWakeTime,
+    double? targetDurationHours,
+    double? sleepDebtHours,
+    double? weeklySleepDebtHours,
+    String? recommendedBedtime,
+    String? recommendedWakeTime,
+    double? recommendedDurationHours,
+    String? transitionStrategy,
+    List<String>? primarySleepGoals,
+    int? stopBangScore,
+    Map<String, bool>? stopAnswers,
     bool? complianceAccepted,
     bool? onboardingComplete,
     bool? bedtimeReminderEnabled,
     bool? morningPromptEnabled,
     bool? healthIntegrationEnabled,
-    int? caffeineCups,
-    int? alcoholDays,
-    int? exerciseDays,
-    int? stopBangScore,
     int? coins,
     bool? isPremium,
     String? subscriptionTier,
@@ -81,22 +155,31 @@ class UserProfile {
     return UserProfile(
       name: name ?? this.name,
       email: email ?? this.email,
-      age: age ?? this.age,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
       gender: gender ?? this.gender,
       weightKg: weightKg ?? this.weightKg,
       heightCm: heightCm ?? this.heightCm,
-      bedtime: bedtime ?? this.bedtime,
-      wakeTime: wakeTime ?? this.wakeTime,
-      goalDurationMinutes: goalDurationMinutes ?? this.goalDurationMinutes,
+      bmiCategory: bmiCategory ?? this.bmiCategory,
+      currentBedtime: currentBedtime ?? this.currentBedtime,
+      currentWakeTime: currentWakeTime ?? this.currentWakeTime,
+      currentDurationHours: currentDurationHours ?? this.currentDurationHours,
+      targetBedtime: targetBedtime ?? this.targetBedtime,
+      targetWakeTime: targetWakeTime ?? this.targetWakeTime,
+      targetDurationHours: targetDurationHours ?? this.targetDurationHours,
+      sleepDebtHours: sleepDebtHours ?? this.sleepDebtHours,
+      weeklySleepDebtHours: weeklySleepDebtHours ?? this.weeklySleepDebtHours,
+      recommendedBedtime: recommendedBedtime ?? this.recommendedBedtime,
+      recommendedWakeTime: recommendedWakeTime ?? this.recommendedWakeTime,
+      recommendedDurationHours: recommendedDurationHours ?? this.recommendedDurationHours,
+      transitionStrategy: transitionStrategy ?? this.transitionStrategy,
+      primarySleepGoals: primarySleepGoals ?? this.primarySleepGoals,
+      stopBangScore: stopBangScore ?? this.stopBangScore,
+      stopAnswers: stopAnswers ?? this.stopAnswers,
       complianceAccepted: complianceAccepted ?? this.complianceAccepted,
       onboardingComplete: onboardingComplete ?? this.onboardingComplete,
       bedtimeReminderEnabled: bedtimeReminderEnabled ?? this.bedtimeReminderEnabled,
       morningPromptEnabled: morningPromptEnabled ?? this.morningPromptEnabled,
       healthIntegrationEnabled: healthIntegrationEnabled ?? this.healthIntegrationEnabled,
-      caffeineCups: caffeineCups ?? this.caffeineCups,
-      alcoholDays: alcoholDays ?? this.alcoholDays,
-      exerciseDays: exerciseDays ?? this.exerciseDays,
-      stopBangScore: stopBangScore ?? this.stopBangScore,
       coins: coins ?? this.coins,
       isPremium: isPremium ?? this.isPremium,
       subscriptionTier: subscriptionTier ?? this.subscriptionTier,
@@ -107,22 +190,31 @@ class UserProfile {
   Map<String, dynamic> toJson() {
     final data = <String, dynamic>{
       'name': name,
-      'age': age,
+      'dateOfBirth': dateOfBirth,
       'gender': gender,
       'weightKg': weightKg,
       'heightCm': heightCm,
-      'bedtime': bedtime,
-      'wakeTime': wakeTime,
-      'goalDurationMinutes': goalDurationMinutes,
+      'bmiCategory': bmiCategory,
+      'currentBedtime': currentBedtime,
+      'currentWakeTime': currentWakeTime,
+      'currentDurationHours': currentDurationHours,
+      'targetBedtime': targetBedtime,
+      'targetWakeTime': targetWakeTime,
+      'targetDurationHours': targetDurationHours,
+      'sleepDebtHours': sleepDebtHours,
+      'weeklySleepDebtHours': weeklySleepDebtHours,
+      'recommendedBedtime': recommendedBedtime,
+      'recommendedWakeTime': recommendedWakeTime,
+      'recommendedDurationHours': recommendedDurationHours,
+      'transitionStrategy': transitionStrategy,
+      'primarySleepGoals': primarySleepGoals,
+      'stopBangScore': stopBangScore,
+      'stopAnswers': stopAnswers,
       'complianceAccepted': complianceAccepted,
       'onboardingComplete': onboardingComplete,
       'bedtimeReminderEnabled': bedtimeReminderEnabled,
       'morningPromptEnabled': morningPromptEnabled,
       'healthIntegrationEnabled': healthIntegrationEnabled,
-      'caffeineCups': caffeineCups,
-      'alcoholDays': alcoholDays,
-      'exerciseDays': exerciseDays,
-      'stopBangScore': stopBangScore,
       'coins': coins,
       'isPremium': isPremium,
       'subscriptionTier': subscriptionTier,
@@ -137,22 +229,38 @@ class UserProfile {
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
     name: json['name'] as String? ?? '',
     email: json['email'] as String?,
-    age: (json['age'] as num?)?.toInt() ?? 25,
+    dateOfBirth: json['dateOfBirth'] as String? ?? '1995-01-01',
     gender: json['gender'] as String? ?? 'other',
     weightKg: (json['weightKg'] as num?)?.toDouble() ?? 70.0,
     heightCm: (json['heightCm'] as num?)?.toDouble() ?? 170.0,
-    bedtime: json['bedtime'] as String? ?? '22:30',
-    wakeTime: json['wakeTime'] as String? ?? '06:30',
-    goalDurationMinutes: (json['goalDurationMinutes'] as num?)?.toInt() ?? 480,
+    bmiCategory: json['bmiCategory'] as String? ?? 'Optimal',
+    currentBedtime: json['currentBedtime'] as String? ?? '00:00',
+    currentWakeTime: json['currentWakeTime'] as String? ?? '06:30',
+    currentDurationHours: (json['currentDurationHours'] as num?)?.toDouble() ?? 6.5,
+    targetBedtime: json['targetBedtime'] as String? ?? '22:30',
+    targetWakeTime: json['targetWakeTime'] as String? ?? '07:00',
+    targetDurationHours: (json['targetDurationHours'] as num?)?.toDouble() ?? 8.5,
+    sleepDebtHours: (json['sleepDebtHours'] as num?)?.toDouble() ?? 0.0,
+    weeklySleepDebtHours: (json['weeklySleepDebtHours'] as num?)?.toDouble() ?? 0.0,
+    recommendedBedtime: json['recommendedBedtime'] as String? ?? '22:30',
+    recommendedWakeTime: json['recommendedWakeTime'] as String? ?? '07:00',
+    recommendedDurationHours: (json['recommendedDurationHours'] as num?)?.toDouble() ?? 8.5,
+    transitionStrategy: json['transitionStrategy'] as String? ?? '',
+    primarySleepGoals: (json['primarySleepGoals'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+    stopBangScore: (json['stopBangScore'] as num?)?.toInt() ?? 0,
+    stopAnswers: (json['stopAnswers'] as Map<String, dynamic>?)?.map(
+          (key, value) => MapEntry(key, value as bool? ?? false),
+        ) ?? {
+      'snoring': false,
+      'tiredness': false,
+      'observed': false,
+      'pressure': false,
+    },
     complianceAccepted: json['complianceAccepted'] as bool? ?? false,
     onboardingComplete: json['onboardingComplete'] as bool? ?? false,
     bedtimeReminderEnabled: json['bedtimeReminderEnabled'] as bool? ?? true,
     morningPromptEnabled: json['morningPromptEnabled'] as bool? ?? true,
     healthIntegrationEnabled: json['healthIntegrationEnabled'] as bool? ?? false,
-    caffeineCups: (json['caffeineCups'] as num?)?.toInt() ?? 0,
-    alcoholDays: (json['alcoholDays'] as num?)?.toInt() ?? 0,
-    exerciseDays: (json['exerciseDays'] as num?)?.toInt() ?? 0,
-    stopBangScore: (json['stopBangScore'] as num?)?.toInt() ?? 0,
     coins: (json['coins'] as num?)?.toInt() ?? 0,
     isPremium: json['isPremium'] as bool? ?? false,
     subscriptionTier: json['subscriptionTier'] as String? ?? 'free',

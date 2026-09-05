@@ -17,6 +17,7 @@ class SleepTrack {
     required this.color,
     required this.url,
     required this.type,
+    this.loop = true,
   });
 
   final String name;
@@ -28,6 +29,9 @@ class SleepTrack {
 
   /// Wellness screen filter category (e.g. 'Sleep Sounds', 'Meditation').
   final String type;
+
+  /// Whether the audio should loop during playback.
+  final bool loop;
 }
 
 /// The canonical list of all app audio tracks.

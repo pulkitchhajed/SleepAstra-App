@@ -14,15 +14,14 @@ import 'modules/journal/providers/journal_provider.dart';
 import 'modules/rewards/providers/rewards_provider.dart';
 import 'modules/paywall/providers/subscription_provider.dart';
 import 'modules/onboarding/screens/auth_screen.dart';
-import 'modules/onboarding/screens/email_step_screen.dart';
-import 'modules/onboarding/screens/compliance_check_screen.dart';
-import 'modules/onboarding/screens/email_step_screen.dart';
+import 'modules/onboarding/screens/setup_flow_screen.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/services/firestore_service.dart';
 import 'screens/main_nav_screen.dart';
 import 'core/services/notification_service.dart';
 import 'core/widgets/animated_sleep_background.dart';
+import 'screens/splash_screen.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -86,6 +85,7 @@ class _AppGate extends StatefulWidget {
 class _AppGateState extends State<_AppGate> {
   bool _ready = false;
   bool _authError = false;
+  bool _splashComplete = false;
   String? _lastUid = 'INITIAL_BOOT';
   int _lastSessionKey = -1;
 
@@ -200,27 +200,23 @@ class _AppGateState extends State<_AppGate> {
     if (!_ready || !onboarding.isInitialized) {
       return const Scaffold(
         backgroundColor: AppTheme.background,
-        body: AnimatedSleepBackground(
-          child: Center(
-            child: CircularProgressIndicator(color: AppTheme.primaryIndigo),
-          ),
+        body: Center(
+          child: CircularProgressIndicator(color: AppTheme.primaryIndigo),
         ),
+      );
+    }
+
+    if (!_splashComplete) {
+      return SplashScreen(
+        onFinish: () => setState(() => _splashComplete = true),
       );
     }
 
     final auth = context.read<AuthProvider>();
     // STATE 1: Not authenticated → show login screen
     if (!auth.isAuthenticated) return const AuthScreen();
-    // STATE 2a: Authenticated but compliance not accepted
-    if (!onboarding.profile.complianceAccepted) {
-      return ComplianceCheckScreen(
-        onAccepted: () {
-          onboarding.acceptCompliance();
-        },
-      );
-    }
-    // STATE 2b: Authenticated but profile incomplete → start onboarding
-    if (!onboarding.isComplete) return const EmailStepScreen();
+    // STATE 2: Authenticated but profile incomplete → start onboarding
+    if (!onboarding.isComplete) return const SetupFlowScreen();
     // STATE 3: Authenticated + complete profile → main app
     return const MainNavScreen();
   }

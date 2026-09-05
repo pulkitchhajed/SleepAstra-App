@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:snore_clinics/core/theme/app_theme.dart';
 import '../models/video_model.dart';
@@ -9,20 +8,136 @@ import '../services/video_service.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
   final VideoModel video;
-  const VideoPlayerScreen({super.key, required this.video});
+  final List<VideoModel>? playlist;
+  final int? startIndex;
+
+  const VideoPlayerScreen({
+    super.key,
+    required this.video,
+    this.playlist,
+    this.startIndex,
+  });
 
   @override
   State<VideoPlayerScreen> createState() => _VideoPlayerScreenState();
 }
 
 class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
+  late PageController _pageController;
+  late List<VideoModel> _videos;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _videos = widget.playlist ?? [widget.video];
+    _currentIndex = widget.startIndex ?? 0;
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            scrollDirection: Axis.vertical,
+            itemCount: _videos.length,
+            onPageChanged: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            itemBuilder: (context, index) {
+              return _VideoPage(
+                video: _videos[index],
+                isActive: _currentIndex == index,
+              );
+            },
+          ),
+          // Back Button (top-left)
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 28),
+                    onPressed: () => Navigator.pop(context),
+                    style: IconButton.styleFrom(backgroundColor: Colors.black45),
+                  ),
+                  // Shuffle button
+                  IconButton(
+                    icon: const Icon(Icons.shuffle_rounded, color: Colors.white, size: 26),
+                    tooltip: 'Shuffle',
+                    style: IconButton.styleFrom(backgroundColor: Colors.black45),
+                    onPressed: () {
+                      final shuffled = List<VideoModel>.from(_videos)..shuffle();
+                      setState(() {
+                        _videos = shuffled;
+                        _currentIndex = 0;
+                      });
+                      _pageController.jumpToPage(0);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('🔀 Playlist shuffled!'),
+                          duration: Duration(seconds: 1),
+                          behavior: SnackBarBehavior.floating,
+                          backgroundColor: AppTheme.primaryIndigo,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Swipe-up hint (shown when more videos exist)
+          if (_videos.length > 1)
+            Positioned(
+              bottom: 16,
+              left: 0,
+              right: 0,
+              child: Column(
+                children: [
+                  Icon(Icons.keyboard_arrow_up_rounded, color: Colors.white.withValues(alpha: 0.6), size: 28),
+                  Text(
+                    'Swipe up for next',
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VideoPage extends StatefulWidget {
+  final VideoModel video;
+  final bool isActive;
+
+  const _VideoPage({required this.video, required this.isActive});
+
+  @override
+  State<_VideoPage> createState() => _VideoPageState();
+}
+
+class _VideoPageState extends State<_VideoPage> {
   late VideoPlayerController _controller;
   bool _isInitialized = false;
   bool _hasError = false;
-  bool _showControls = true;
   bool _isBuffering = false;
-  Duration _position = Duration.zero;
-  Duration _duration = Duration.zero;
 
   @override
   void initState() {
@@ -32,19 +147,17 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   Future<void> _initPlayer() async {
     try {
-      _controller = VideoPlayerController.networkUrl(
-        Uri.parse(widget.video.videoUrl),
-      );
+      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.video.videoUrl));
       await _controller.initialize();
+      _controller.setLooping(true);
       _controller.addListener(_onVideoUpdate);
       if (mounted) {
         setState(() {
           _isInitialized = true;
-          _duration = _controller.value.duration;
         });
-        // Auto-play on open
-        _controller.play();
-        _autoHideControls();
+        if (widget.isActive) {
+          _controller.play();
+        }
       }
     } catch (e) {
       debugPrint('[VideoPlayer] init error: $e');
@@ -54,43 +167,24 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   void _onVideoUpdate() {
     if (!mounted) return;
-    setState(() {
-      _position = _controller.value.position;
-      _isBuffering = _controller.value.isBuffering;
-      if (_controller.value.duration != _duration) {
-        _duration = _controller.value.duration;
+    final isBuffering = _controller.value.isBuffering;
+    if (_isBuffering != isBuffering) {
+      setState(() {
+        _isBuffering = isBuffering;
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _VideoPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_isInitialized) {
+      if (widget.isActive && !oldWidget.isActive) {
+        _controller.play();
+      } else if (!widget.isActive && oldWidget.isActive) {
+        _controller.pause();
       }
-    });
-  }
-
-  void _togglePlayPause() {
-    setState(() {
-      _controller.value.isPlaying ? _controller.pause() : _controller.play();
-    });
-    _autoHideControls();
-  }
-
-  void _stopVideo() {
-    setState(() {
-      _controller.seekTo(Duration.zero);
-      _controller.pause();
-      _showControls = true;
-    });
-  }
-
-  void _autoHideControls() {
-    setState(() => _showControls = true);
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted && _controller.value.isPlaying) {
-        setState(() => _showControls = false);
-      }
-    });
-  }
-
-  String _format(Duration d) {
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
+    }
   }
 
   @override
@@ -100,178 +194,172 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     super.dispose();
   }
 
+  void _togglePlayPause() {
+    if (_controller.value.isPlaying) {
+      _controller.pause();
+    } else {
+      _controller.play();
+    }
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Column(
-        children: [
-          // ── Video Player ─────────────────────────────────────────────
-          GestureDetector(
-            onTap: () => setState(() => _showControls = !_showControls),
-            child: AspectRatio(
-              aspectRatio: _isInitialized ? _controller.value.aspectRatio : 16 / 9,
-              child: Stack(
-                alignment: Alignment.center,
+    return GestureDetector(
+      onTap: _togglePlayPause,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 40, left: 12, right: 12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+          // Video Layer
+          if (_isInitialized)
+            FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: _controller.value.size.width,
+                height: _controller.value.size.height,
+                child: VideoPlayer(_controller),
+              ),
+            )
+          else if (_hasError)
+            const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (_isInitialized)
-                    VideoPlayer(_controller)
-                  else if (_hasError)
-                    const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.error_outline,
-                              color: AppTheme.error, size: 48),
-                          SizedBox(height: 12),
-                          Text('Failed to load video',
-                              style: TextStyle(color: Colors.white70, fontSize: 14)),
-                          SizedBox(height: 4),
-                          Text('Check your internet connection',
-                              style: TextStyle(color: Colors.white38, fontSize: 12)),
-                        ],
-                      ),
-                    )
-                  else
-                    Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (widget.video.thumbnailUrl.isNotEmpty)
-                          Image.network(widget.video.thumbnailUrl, fit: BoxFit.cover),
-                        Container(color: Colors.black45),
-                        const Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircularProgressIndicator(color: AppTheme.primaryIndigo),
-                              SizedBox(height: 12),
-                              Text('Loading video…',
-                                  style: TextStyle(color: Colors.white54, fontSize: 13)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                  // Buffering spinner overlay (after init, while seeking/buffering)
-                  if (_isInitialized && _isBuffering)
-                    const Center(
-                      child: CircularProgressIndicator(
-                          color: Colors.white70, strokeWidth: 3),
-                    ),
-
-                  // Controls overlay
-                  if (_isInitialized && _showControls)
-                    _ControlsOverlay(
-                      controller: _controller,
-                      position: _position,
-                      duration: _duration,
-                      onTogglePlay: _togglePlayPause,
-                      onStop: _stopVideo,
-                      onBack: () => Navigator.pop(context),
-                      formatFn: _format,
-                    ),
+                  Icon(Icons.error_outline, color: AppTheme.error, size: 48),
+                  SizedBox(height: 12),
+                  Text('Failed to load video', style: TextStyle(color: Colors.white70, fontSize: 14)),
                 ],
               ),
+            )
+          else
+            Stack(
+              fit: StackFit.expand,
+              children: [
+                if (widget.video.thumbnailUrl.isNotEmpty)
+                  Image.network(widget.video.thumbnailUrl, fit: BoxFit.cover),
+                Container(color: Colors.black45),
+                const Center(child: CircularProgressIndicator(color: AppTheme.primaryIndigo)),
+              ],
             ),
-          ),
 
-          // ── Description Panel ────────────────────────────────────────
-          Expanded(
+          // Play/Pause Icon overlay (transient)
+          if (_isInitialized && !_controller.value.isPlaying)
+            Container(
+              color: Colors.black26,
+              child: const Center(
+                child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 80),
+              ),
+            ),
+
+          if (_isBuffering)
+            const Center(child: CircularProgressIndicator(color: Colors.white70)),
+
+          // Gradient overlay for text readability
+          Positioned.fill(
             child: Container(
-              color: AppTheme.background,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title
-                    Text(
-                      widget.video.title,
-                      style: const TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    // Reactions and Share
-                    _buildReactionRow(),
-                    const SizedBox(height: 16),
-
-                    // Tags
-                    if (widget.video.tags.isNotEmpty)
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        children: widget.video.tags
-                            .map(
-                              (t) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.primaryIndigo.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                      color:
-                                          AppTheme.primaryIndigo.withValues(alpha: 0.4)),
-                                ),
-                                child: Text(
-                                  t,
-                                  style: const TextStyle(
-                                    color: AppTheme.primaryIndigo,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    const SizedBox(height: 20),
-
-                    // Divider
-                    Container(
-                      height: 1,
-                      color: AppTheme.cardBorder,
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Description
-                    const Text(
-                      'About this video',
-                      style: TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      widget.video.description,
-                      style: const TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 15,
-                        height: 1.7,
-                      ),
-                    ),
-                  ],
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.transparent, Colors.transparent, Colors.black87],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: [0.0, 0.6, 1.0],
                 ),
               ),
             ),
           ),
+
+          // Content overlay (Text on left, buttons on right)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 30, // Above progress bar
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Left side details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.video.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.video.description,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (widget.video.tags.isNotEmpty)
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: widget.video.tags.map((t) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              t,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          )).toList(),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Right side action buttons
+                _buildActionButtons(),
+              ],
+            ),
+          ),
+
+          // Progress Bar
+          if (_isInitialized)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: VideoProgressIndicator(
+                _controller,
+                allowScrubbing: true,
+                colors: const VideoProgressColors(
+                  playedColor: AppTheme.primaryIndigo,
+                  bufferedColor: Colors.white24,
+                  backgroundColor: Colors.white10,
+                ),
+              ),
+            ),
         ],
       ),
-    );
+    ))));
   }
 
-  Widget _buildReactionRow() {
+  Widget _buildActionButtons() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    // We would ideally listen to a stream for real-time updates, but for simplicity we rely on local state or the initial video object.
-    // Let's wrap this in a StreamBuilder to get real-time reaction counts.
     return StreamBuilder<List<VideoModel>>(
       stream: VideoService.watchVideos(),
       builder: (context, snapshot) {
@@ -283,31 +371,31 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         final likesCount = currentVideo.likes.length;
         final usefulCount = currentVideo.useful.length;
 
-        return Row(
+        return Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _reactionButton(
-              icon: isLiked ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
-              label: likesCount > 0 ? '$likesCount' : 'Like',
-              isActive: isLiked,
+            _actionButton(
+              icon: isLiked ? Icons.favorite_rounded : Icons.favorite_outline_rounded,
+              label: _formatCount(likesCount),
+              color: isLiked ? Colors.redAccent : Colors.white,
               onTap: () => VideoService.toggleReaction(currentVideo.id, 'likes'),
             ),
-            const SizedBox(width: 12),
-            _reactionButton(
+            const SizedBox(height: 20),
+            _actionButton(
               icon: isUseful ? Icons.lightbulb_rounded : Icons.lightbulb_outline_rounded,
-              label: usefulCount > 0 ? '$usefulCount' : 'Useful',
-              isActive: isUseful,
+              label: _formatCount(usefulCount),
+              color: isUseful ? AppTheme.primaryGold : Colors.white,
               onTap: () => VideoService.toggleReaction(currentVideo.id, 'useful'),
             ),
-            const Spacer(),
-            _reactionButton(
+            const SizedBox(height: 20),
+            _actionButton(
               icon: Icons.share_rounded,
               label: 'Share',
-              isActive: false,
+              color: Colors.white,
               onTap: () {
                 final text = "Check out this wellness video on SnoreClinics!\n\n"
                     "${currentVideo.title}\n"
-                    "Watch here: https://snoreclinics.com/video?id=${currentVideo.id}\n\n"
-                    "Don't have the app? Install it to improve your sleep health today!";
+                    "Watch here: https://snoreclinics.com/video?id=${currentVideo.id}";
                 Share.share(text);
               },
             ),
@@ -317,164 +405,29 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     );
   }
 
-  Widget _reactionButton({
+  String _formatCount(int count) {
+    if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}k';
+    }
+    return count.toString();
+  }
+
+  Widget _actionButton({
     required IconData icon,
     required String label,
-    required bool isActive,
+    required Color color,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? AppTheme.primaryIndigo.withValues(alpha: 0.15) : AppTheme.surfaceElevated,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isActive ? AppTheme.primaryIndigo.withValues(alpha: 0.5) : AppTheme.cardBorder,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: isActive ? AppTheme.primaryIndigo : AppTheme.textSecondary),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: isActive ? AppTheme.primaryIndigo : AppTheme.textSecondary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Controls Overlay ──────────────────────────────────────────────────────────
-
-class _ControlsOverlay extends StatelessWidget {
-  final VideoPlayerController controller;
-  final Duration position;
-  final Duration duration;
-  final VoidCallback onTogglePlay;
-  final VoidCallback onStop;
-  final VoidCallback onBack;
-  final String Function(Duration) formatFn;
-
-  const _ControlsOverlay({
-    required this.controller,
-    required this.position,
-    required this.duration,
-    required this.onTogglePlay,
-    required this.onStop,
-    required this.onBack,
-    required this.formatFn,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = duration.inMilliseconds > 0
-        ? position.inMilliseconds / duration.inMilliseconds
-        : 0.0;
-
-    return Container(
-      color: Colors.black45,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Top bar
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                        color: Colors.white, size: 22),
-                    onPressed: onBack,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Center controls
-          Expanded(
-            child: Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  GestureDetector(
-                    onTap: onStop,
-                    child: const Icon(
-                      Icons.stop_circle_rounded,
-                      color: Colors.white,
-                      size: 48,
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  GestureDetector(
-                    onTap: onTogglePlay,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: Icon(
-                        controller.value.isPlaying
-                            ? Icons.pause_circle_filled_rounded
-                            : Icons.play_circle_filled_rounded,
-                        key: ValueKey(controller.value.isPlaying),
-                        color: Colors.white,
-                        size: 64,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Seek bar + time
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            child: Column(
-              children: [
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 3,
-                    thumbShape:
-                        const RoundSliderThumbShape(enabledThumbRadius: 7),
-                    overlayShape:
-                        const RoundSliderOverlayShape(overlayRadius: 14),
-                    activeTrackColor: AppTheme.primaryIndigo,
-                    inactiveTrackColor: Colors.white30,
-                    thumbColor: Colors.white,
-                    overlayColor: AppTheme.primaryIndigo.withValues(alpha: 0.3),
-                  ),
-                  child: Slider(
-                    value: progress.clamp(0.0, 1.0),
-                    onChanged: (v) {
-                      final target = Duration(
-                        milliseconds:
-                            (v * duration.inMilliseconds).round(),
-                      );
-                      controller.seekTo(target);
-                    },
-                  ),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(formatFn(position),
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 12)),
-                    Text(formatFn(duration),
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 12)),
-                  ],
-                ),
-              ],
-            ),
+          Icon(icon, color: color, size: 36),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
           ),
         ],
       ),

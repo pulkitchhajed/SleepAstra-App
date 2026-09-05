@@ -140,20 +140,22 @@ class FirestoreService {
 
         if (profile == null) {
           // Create new profile with the provided email
-          profile = UserProfile(
+          final newProfile = UserProfile(
             name: '',
             email: email,
-            age: 25,
+            dateOfBirth: '1995-01-01',
             gender: 'other',
             weightKg: 70,
             heightCm: 170,
-            bedtime: '22:30',
-            wakeTime: '06:30',
-            goalDurationMinutes: 480,
+            currentBedtime: '22:30',
+            currentWakeTime: '06:30',
+            targetBedtime: '22:30',
+            targetWakeTime: '07:00',
             onboardingComplete: false,
           );
+          profile = newProfile;
           doc.set({
-            ...profile.toJson(),
+            ...newProfile.toJson(),
             'updatedAt': FieldValue.serverTimestamp(),
           }).catchError((e) => debugPrint('[Firestore] profile set error: $e'));
         }

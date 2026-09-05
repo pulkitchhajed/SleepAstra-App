@@ -16,8 +16,8 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
-  <meta name="google-signin-client_id" content="840529050371-2r0lf2ukmtieqo5r8bfbloeqjaloui6l.apps.googleusercontent.com">
+  <meta name="description" content="Snore Clinics AI">
+  <meta name="google-signin-client_id" content="469010978794-bi4qbl7qloba5r7ooaknv8u02do5874n.apps.googleusercontent.com">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -114,7 +114,21 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for (var i = 0; i < registrations.length; i++) {
+          registrations[i].unregister();
+        }
+      });
+      if (window.caches) {
+        caches.keys().then(function(names) {
+          for (var i = 0; i < names.length; i++) {
+            caches.delete(names[i]);
+          }
+        });
+      }
+    }
+  </script>
   <script src="flutter_bootstrap.js" async=""></script>
-
-
 </body></html>

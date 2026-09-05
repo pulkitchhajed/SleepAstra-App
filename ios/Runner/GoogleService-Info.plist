@@ -3,23 +3,23 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>840529050371-tj6l953cmm1cqvd9ak53eie71qn8r2i5.apps.googleusercontent.com</string>
+	<string>469010978794-jr7536c2s4p8mg0ddsms2ahoq6sk2vfl.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.840529050371-tj6l953cmm1cqvd9ak53eie71qn8r2i5</string>
+	<string>com.googleusercontent.apps.469010978794-jr7536c2s4p8mg0ddsms2ahoq6sk2vfl</string>
 	<key>ANDROID_CLIENT_ID</key>
-	<string>840529050371-2t4t19negsugnto158og4t51p4bjmc62.apps.googleusercontent.com</string>
+	<string>469010978794-4obrecig4rgt2a61e7ml06mcsrqb3p05.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
-	<string>AIzaSyA0yQo-D9UPQiyU19sGubOE6s0AvJpDN5I</string>
+	<string>AIzaSyCtxKu86DjIHQtCIC9uErilh65o-9fJHy8</string>
 	<key>GCM_SENDER_ID</key>
-	<string>840529050371</string>
+	<string>469010978794</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.snoreclinics.ai</string>
 	<key>PROJECT_ID</key>
-	<string>snoreclinics-ai</string>
+	<string>snoreastra</string>
 	<key>STORAGE_BUCKET</key>
-	<string>snoreclinics-ai.firebasestorage.app</string>
+	<string>snoreastra.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -31,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:840529050371:ios:b9265959d446e913b84736</string>
+	<string>1:469010978794:ios:6b74123dc940c6bc1e0493</string>
 </dict>
 </plist>

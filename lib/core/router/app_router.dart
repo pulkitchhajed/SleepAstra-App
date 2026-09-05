@@ -5,7 +5,7 @@ import '../../modules/sleep_analysis/screens/sleep_report_screen.dart';
 import '../../modules/sleep_analysis/screens/sleep_history_screen.dart';
 import '../../modules/sleep_analysis/models/sleep_report.dart';
 import '../../modules/sleep_analysis/screens/snore_clips_screen.dart';
-import '../../modules/onboarding/screens/welcome_screen.dart';
+import '../../modules/onboarding/screens/auth_screen.dart';
 import '../../modules/journal/screens/evening_journal_screen.dart';
 import '../../modules/journal/screens/morning_journal_screen.dart';
 import '../../modules/journal/screens/journal_list_screen.dart';
@@ -54,7 +54,7 @@ class AppRouter {
         return _fadeRoute(MainNavScreen(initialIndex: idx), s);
       case onboarding:
       case welcome:
-        return _fadeRoute(const WelcomeScreen(), s);
+        return _fadeRoute(const AuthScreen(), s);
       case sleepAnalysis:
         bool autoStart = false;
         TimeOfDay? alarmTime;

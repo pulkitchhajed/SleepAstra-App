@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -21,8 +22,10 @@ class VideoService {
 
   /// Uploads a video file to Cloudinary and returns its public URL.
   /// Reports progress via [onProgress] callback (0.0 – 1.0).
-  static Future<Map<String, String>> uploadVideoToCloudinary(
-    File videoFile, {
+  static Future<Map<String, String>> uploadVideoToCloudinary({
+    File? videoFile,
+    Uint8List? videoBytes,
+    String? filename,
     void Function(double progress)? onProgress,
   }) async {
     final url = Uri.parse(
@@ -31,8 +34,15 @@ class VideoService {
 
     final request = http.MultipartRequest('POST', url)
       ..fields['upload_preset'] = CloudinaryConfig.uploadPreset
-      ..fields['resource_type'] = 'video'
-      ..files.add(await http.MultipartFile.fromPath('file', videoFile.path));
+      ..fields['resource_type'] = 'video';
+      
+    if (kIsWeb && videoBytes != null) {
+      request.files.add(http.MultipartFile.fromBytes('file', videoBytes, filename: filename ?? 'video.mp4'));
+    } else if (videoFile != null) {
+      request.files.add(await http.MultipartFile.fromPath('file', videoFile.path));
+    } else {
+      throw Exception('No file provided for upload');
+    }
 
     final streamedResponse = await request.send();
 
@@ -62,6 +72,111 @@ class VideoService {
         .replaceAll('.avi', '.jpg');
 
     return {'videoUrl': videoUrl, 'thumbnailUrl': thumbnailUrl};
+  }
+
+  /// Uploads an image file to Cloudinary and returns its public URL.
+  /// Reports progress via [onProgress] callback (0.0 – 1.0).
+  static Future<String> uploadImageToCloudinary({
+    File? imageFile,
+    Uint8List? imageBytes,
+    String? filename,
+    void Function(double progress)? onProgress,
+  }) async {
+    final url = Uri.parse(
+      'https://api.cloudinary.com/v1_1/${CloudinaryConfig.cloudName}/image/upload',
+    );
+
+    final request = http.MultipartRequest('POST', url)
+      ..fields['upload_preset'] = CloudinaryConfig.uploadPreset;
+
+    if (kIsWeb && imageBytes != null) {
+      request.files.add(http.MultipartFile.fromBytes('file', imageBytes, filename: filename ?? 'image.jpg'));
+    } else if (imageFile != null) {
+      request.files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+    } else {
+      throw Exception('No file provided for upload');
+    }
+
+    final streamedResponse = await request.send();
+
+    int bytesReceived = 0;
+    final total = streamedResponse.contentLength ?? 1;
+    final responseBytes = <int>[];
+
+    await for (final chunk in streamedResponse.stream) {
+      responseBytes.addAll(chunk);
+      bytesReceived += chunk.length;
+      onProgress?.call(bytesReceived / total);
+    }
+
+    final body = json.decode(utf8.decode(responseBytes)) as Map<String, dynamic>;
+
+    if (streamedResponse.statusCode != 200) {
+      final err = body['error'];
+      final msg = err is Map ? err['message'] : err?.toString();
+      throw Exception('Cloudinary image upload failed: ${msg ?? 'Unknown error'}');
+    }
+
+    return body['secure_url'] as String;
+  }
+
+  /// Uploads an audio file to Cloudinary and returns its public URL and duration string (e.g. "10:00").
+  /// Reports progress via [onProgress] callback (0.0 – 1.0).
+  static Future<Map<String, dynamic>> uploadAudioToCloudinary({
+    File? audioFile,
+    Uint8List? audioBytes,
+    String? filename,
+    void Function(double progress)? onProgress,
+  }) async {
+    final url = Uri.parse(
+      'https://api.cloudinary.com/v1_1/${CloudinaryConfig.cloudName}/video/upload',
+    );
+
+    final request = http.MultipartRequest('POST', url)
+      ..fields['upload_preset'] = CloudinaryConfig.uploadPreset
+      ..fields['resource_type'] = 'video';
+
+    if (kIsWeb && audioBytes != null) {
+      request.files.add(http.MultipartFile.fromBytes('file', audioBytes, filename: filename ?? 'audio.mp3'));
+    } else if (audioFile != null) {
+      request.files.add(await http.MultipartFile.fromPath('file', audioFile.path));
+    } else {
+      throw Exception('No file provided for upload');
+    }
+
+    final streamedResponse = await request.send();
+
+    int bytesReceived = 0;
+    final total = streamedResponse.contentLength ?? 1;
+    final responseBytes = <int>[];
+
+    await for (final chunk in streamedResponse.stream) {
+      responseBytes.addAll(chunk);
+      bytesReceived += chunk.length;
+      onProgress?.call(bytesReceived / total);
+    }
+
+    final body = json.decode(utf8.decode(responseBytes)) as Map<String, dynamic>;
+
+    if (streamedResponse.statusCode != 200) {
+      final err = body['error'];
+      final msg = err is Map ? err['message'] : err?.toString();
+      throw Exception('Cloudinary audio upload failed: ${msg ?? 'Unknown error'}');
+    }
+
+    final audioUrl = body['secure_url'] as String;
+    String durationStr = '0:00';
+    if (body['duration'] != null) {
+      final seconds = (body['duration'] as num).toDouble();
+      final mins = seconds ~/ 60;
+      final remainingSecs = (seconds % 60).round();
+      durationStr = '$mins:${remainingSecs.toString().padLeft(2, '0')}';
+    }
+
+    return {
+      'audioUrl': audioUrl,
+      'duration': durationStr,
+    };
   }
 
   // ─── Firestore CRUD ───────────────────────────────────────────────────────

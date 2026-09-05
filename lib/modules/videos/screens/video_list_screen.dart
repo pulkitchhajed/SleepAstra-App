@@ -8,6 +8,7 @@ import 'video_player_screen.dart';
 import '../../admin/screens/admin_dashboard_screen.dart';
 import '../../paywall/providers/subscription_provider.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/providers/theme_provider.dart';
 
 class VideoListScreen extends StatelessWidget {
   const VideoListScreen({super.key});
@@ -15,16 +16,22 @@ class VideoListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAdmin = context.watch<AuthProvider>().isAdmin;
+    final themeProvider = context.watch<ThemeProvider>();
+    final isLight = !themeProvider.isDarkMode;
+
+    final bg = isLight ? AppTheme.backgroundLight : AppTheme.background;
+    final textP = isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary;
+    final textS = isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary;
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: bg,
       body: CustomScrollView(
         slivers: [
           // ── App Bar ──────────────────────────────────────────────────
           SliverAppBar(
             expandedHeight: 160,
             pinned: true,
-            backgroundColor: AppTheme.background,
+            backgroundColor: bg,
             automaticallyImplyLeading: false,
             actions: [
               if (isAdmin)
@@ -68,25 +75,49 @@ class VideoListScreen extends StatelessWidget {
                               color: Colors.white, size: 28),
                         ),
                         const SizedBox(width: 14),
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Video Library',
-                              style: TextStyle(
-                                color: AppTheme.textPrimary,
-                                fontSize: 24,
-                                fontWeight: FontWeight.w700,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Video Library',
+                                style: TextStyle(
+                                  color: textP,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                            ),
-                            Text(
-                              'Wellness videos curated for you',
-                              style: TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontSize: 13,
+                              Text(
+                                'Wellness videos curated for you',
+                                style: TextStyle(
+                                  color: textS,
+                                  fontSize: 13,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                        ),
+                        // Shuffle Play Button
+                        StreamBuilder<List<VideoModel>>(
+                          stream: VideoService.watchVideos(),
+                          builder: (context, snapshot) {
+                            final videos = snapshot.data ?? [];
+                            if (videos.isEmpty) return const SizedBox.shrink();
+                            return IconButton(
+                              onPressed: () {
+                                final shuffled = List<VideoModel>.from(videos)..shuffle();
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => VideoPlayerScreen(video: shuffled.first, playlist: shuffled)),
+                                );
+                              },
+                              icon: const Icon(Icons.shuffle_rounded, color: AppTheme.primaryIndigo),
+                              tooltip: 'Shuffle Play',
+                              style: IconButton.styleFrom(
+                                backgroundColor: AppTheme.primaryIndigo.withValues(alpha: 0.1),
+                              ),
+                            );
+                          }
                         ),
                       ],
                     ),
@@ -116,13 +147,13 @@ class VideoListScreen extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.video_library_outlined,
-                            color: AppTheme.textSecondary, size: 64),
+                        Icon(Icons.video_library_outlined,
+                            color: textS, size: 64),
                         const SizedBox(height: 16),
-                        const Text(
+                        Text(
                           'No videos available yet.',
                           style: TextStyle(
-                            color: AppTheme.textSecondary,
+                            color: textS,
                             fontSize: 16,
                           ),
                         ),
@@ -148,16 +179,13 @@ class VideoListScreen extends StatelessWidget {
 
               return SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                sliver: SliverGrid(
+                sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (context, i) => _VideoCard(video: videos[i], index: i),
+                    (context, i) => Padding(
+                      padding: const EdgeInsets.only(bottom: 24.0),
+                      child: _VideoCard(video: videos[i], index: i, allVideos: videos),
+                    ),
                     childCount: videos.length,
-                  ),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 20,
-                    crossAxisSpacing: 14,
-                    childAspectRatio: 0.70,
                   ),
                 ),
               );
@@ -174,12 +202,17 @@ class VideoListScreen extends StatelessWidget {
 class _VideoCard extends StatelessWidget {
   final VideoModel video;
   final int index;
-  const _VideoCard({required this.video, required this.index});
+  final List<VideoModel> allVideos;
+  const _VideoCard({required this.video, required this.index, required this.allVideos});
 
   @override
   Widget build(BuildContext context) {
     final isPremium = context.watch<SubscriptionProvider>().isPremium;
     final isLocked = !isPremium && index >= 1;
+    final themeProvider = context.watch<ThemeProvider>();
+    final isLight = !themeProvider.isDarkMode;
+
+    final textP = isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary;
 
     return GestureDetector(
       onTap: () {
@@ -188,7 +221,7 @@ class _VideoCard extends StatelessWidget {
         } else {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => VideoPlayerScreen(video: video)),
+            MaterialPageRoute(builder: (_) => VideoPlayerScreen(video: video, playlist: allVideos, startIndex: index)),
           );
         }
       },
@@ -196,8 +229,8 @@ class _VideoCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Full-size immersive thumbnail ──
-          Expanded(
-            flex: 6,
+          AspectRatio(
+            aspectRatio: 16 / 9,
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
@@ -243,21 +276,21 @@ class _VideoCard extends StatelessWidget {
                     Center(
                       child: isLocked
                           ? Container(
-                              padding: const EdgeInsets.all(8),
+                              padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
                                 color: Colors.black.withValues(alpha: 0.55),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.lock_rounded, color: AppTheme.primaryGold, size: 24),
+                              child: const Icon(Icons.lock_rounded, color: AppTheme.primaryGold, size: 36),
                             )
                           : Container(
-                              padding: const EdgeInsets.all(8),
+                              padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
                                 color: Colors.black.withValues(alpha: 0.3),
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white54, width: 1.5),
+                                border: Border.all(color: Colors.white54, width: 2.0),
                               ),
-                              child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26),
+                              child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 40),
                             ),
                     ),
                   ],
@@ -266,37 +299,34 @@ class _VideoCard extends StatelessWidget {
             ),
           ),
           // ── Text below thumbnail ──
-          Expanded(
-            flex: 4,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(2, 8, 2, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 12, 4, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  video.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: textP,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    height: 1.3,
+                  ),
+                ),
+                if (video.tags.isNotEmpty) ...[
+                  const SizedBox(height: 6),
                   Text(
-                    video.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    video.tags.join(' · '),
                     style: const TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontWeight: FontWeight.w700,
+                      color: AppTheme.primaryIndigo,
                       fontSize: 13,
-                      height: 1.3,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                  if (video.tags.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      video.tags.take(2).join(' · '),
-                      style: const TextStyle(
-                        color: AppTheme.primaryIndigo,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
           ),
         ],

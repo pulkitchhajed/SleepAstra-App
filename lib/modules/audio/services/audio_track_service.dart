@@ -15,7 +15,15 @@ class AudioTrackService {
   }
 
   Future<void> addAudioTrack(AudioTrackModel track) async {
-    await _firestore.collection('audio_tracks').add(track.toJson());
+    if (track.id.isNotEmpty) {
+      await _firestore.collection('audio_tracks').doc(track.id).set(track.toJson());
+    } else {
+      await _firestore.collection('audio_tracks').add(track.toJson());
+    }
+  }
+
+  Future<void> updateAudioTrack(AudioTrackModel track) async {
+    await _firestore.collection('audio_tracks').doc(track.id).set(track.toJson(), SetOptions(merge: true));
   }
 
   Future<void> deleteAudioTrack(String id) async {

@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:snore_clinics/core/theme/app_theme.dart';
 import '../../videos/models/video_model.dart';
 import '../../videos/services/video_service.dart';
+import '../models/wellness_zone_model.dart';
+import '../services/wellness_zone_service.dart';
 
 class UploadVideoScreen extends StatefulWidget {
   final VideoModel? existingVideo;
@@ -17,18 +21,24 @@ class UploadVideoScreen extends StatefulWidget {
 class _UploadVideoScreenState extends State<UploadVideoScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _categoryController = TextEditingController();
   final _tagsController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  File? _pickedFile;
+  PlatformFile? _pickedFile;
   String? _pickedFileName;
+  PlatformFile? _pickedThumbnailFile;
+  String? _pickedThumbnailFileName;
+
   bool _isUploading = false;
   bool _isLinkMode = false;
   double _uploadProgress = 0.0;
   String? _errorMessage;
   final _linkUrlController = TextEditingController();
   final _thumbnailUrlController = TextEditingController();
+
+  List<WellnessZoneModel> _zones = [];
+  StreamSubscription<List<WellnessZoneModel>>? _zonesSub;
+  String? _selectedZone;
 
   bool get _isEditMode => widget.existingVideo != null;
 
@@ -43,38 +53,81 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
       _isLinkMode = true; // For editing, we usually treat existing media as a link so we don't re-upload by default
       _linkUrlController.text = v.videoUrl;
       _thumbnailUrlController.text = v.thumbnailUrl;
-      _categoryController.text = v.category;
+      _selectedZone = v.category;
     } else if (widget.defaultCategory != null) {
-      _categoryController.text = widget.defaultCategory!;
+      _selectedZone = widget.defaultCategory!;
     }
+
+    _zonesSub = WellnessZoneService.watchZones().listen((zones) {
+      if (mounted) {
+        setState(() {
+          _zones = zones;
+          if (_selectedZone == null && zones.isNotEmpty) {
+            _selectedZone = zones.first.name;
+          }
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
+    _zonesSub?.cancel();
     _titleController.dispose();
     _descriptionController.dispose();
-    _categoryController.dispose();
     _tagsController.dispose();
     _linkUrlController.dispose();
     _thumbnailUrlController.dispose();
     super.dispose();
   }
 
+  Future<void> _pickThumbnail() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: kIsWeb,
+    );
+    if (result != null && result.files.isNotEmpty) {
+      final file = result.files.single;
+      double fileSizeInMb = 0;
+      if (kIsWeb && file.bytes != null) {
+        fileSizeInMb = file.bytes!.length / (1024 * 1024);
+      } else if (file.path != null) {
+        fileSizeInMb = await File(file.path!).length() / (1024 * 1024);
+      }
+      if (fileSizeInMb > 15) {
+        setState(() => _errorMessage = 'Thumbnail is too large. Pick an image under 15MB.');
+        return;
+      }
+      setState(() {
+        _pickedThumbnailFile = file;
+        _pickedThumbnailFileName = file.name;
+        _errorMessage = null;
+      });
+    }
+  }
+
   Future<void> _pickVideo() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.video,
       allowMultiple: false,
+      withData: kIsWeb,
     );
-    if (result != null && result.files.single.path != null) {
-      final file = File(result.files.single.path!);
-      final fileSizeInMb = await file.length() / (1024 * 1024);
+    if (result != null && result.files.isNotEmpty) {
+      final file = result.files.single;
+      double fileSizeInMb = 0;
+      if (kIsWeb && file.bytes != null) {
+        fileSizeInMb = file.bytes!.length / (1024 * 1024);
+      } else if (file.path != null) {
+        fileSizeInMb = await File(file.path!).length() / (1024 * 1024);
+      }
       if (fileSizeInMb > 200) {
         setState(() => _errorMessage = 'File is too large. Please pick a video under 200MB.');
         return;
       }
       setState(() {
         _pickedFile = file;
-        _pickedFileName = result.files.single.name;
+        _pickedFileName = file.name;
         _errorMessage = null;
       });
     }
@@ -96,7 +149,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
 
     try {
       String finalVideoUrl;
-      String finalThumbUrl;
+      String finalThumbUrl = '';
 
       if (_isLinkMode) {
         finalVideoUrl = _linkUrlController.text.trim();
@@ -106,11 +159,23 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
         }
       } else {
         final urls = await VideoService.uploadVideoToCloudinary(
-          _pickedFile!,
-          onProgress: (p) => setState(() => _uploadProgress = p),
+          videoFile: kIsWeb ? null : File(_pickedFile!.path!),
+          videoBytes: kIsWeb ? _pickedFile!.bytes : null,
+          filename: _pickedFile!.name,
+          onProgress: (p) => setState(() => _uploadProgress = p * 0.7),
         );
         finalVideoUrl = urls['videoUrl']!;
         finalThumbUrl = urls['thumbnailUrl']!;
+      }
+
+      if (_pickedThumbnailFile != null) {
+        final customThumb = await VideoService.uploadImageToCloudinary(
+          imageFile: kIsWeb ? null : File(_pickedThumbnailFile!.path!),
+          imageBytes: kIsWeb ? _pickedThumbnailFile!.bytes : null,
+          filename: _pickedThumbnailFile!.name,
+          onProgress: (p) => setState(() => _uploadProgress = 0.7 + (p * 0.3)),
+        );
+        finalThumbUrl = customThumb;
       }
 
       final tags = _tagsController.text
@@ -119,6 +184,8 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
           .where((t) => t.isNotEmpty)
           .toList();
 
+      final category = _selectedZone ?? 'Wellness Videos';
+
       if (_isEditMode) {
         await VideoService.updateVideo(
           id: widget.existingVideo!.id,
@@ -126,7 +193,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
           description: _descriptionController.text.trim(),
           videoUrl: finalVideoUrl,
           thumbnailUrl: finalThumbUrl,
-          category: _categoryController.text.trim(),
+          category: category,
           tags: tags,
         );
       } else {
@@ -135,7 +202,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
           description: _descriptionController.text.trim(),
           videoUrl: finalVideoUrl,
           thumbnailUrl: finalThumbUrl,
-          category: _categoryController.text.trim(),
+          category: category,
           tags: tags,
         );
       }
@@ -318,6 +385,102 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
               ],
               const SizedBox(height: 24),
 
+              // ── Custom Thumbnail Picker ──────────────────────────────
+              _SectionLabel(label: 'Thumbnail Image (Optional)'),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: _isUploading ? null : _pickThumbnail,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceElevated,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _pickedThumbnailFile != null ? AppTheme.primaryIndigo : AppTheme.cardBorder,
+                      width: _pickedThumbnailFile != null ? 2 : 1,
+                    ),
+                  ),
+                  child: _pickedThumbnailFile != null
+                      ? Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: kIsWeb && _pickedThumbnailFile!.bytes != null
+                                  ? Image.memory(
+                                      _pickedThumbnailFile!.bytes!,
+                                      width: 70,
+                                      height: 50,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Image.file(
+                                      File(_pickedThumbnailFile!.path!),
+                                      width: 70,
+                                      height: 50,
+                                      fit: BoxFit.cover,
+                                    ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _pickedThumbnailFileName ?? 'Custom Thumbnail',
+                                    style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600, fontSize: 14),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text('Custom thumbnail selected', style: TextStyle(color: AppTheme.success, fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, color: AppTheme.error),
+                              onPressed: () => setState(() {
+                                _pickedThumbnailFile = null;
+                                _pickedThumbnailFileName = null;
+                              }),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryIndigo.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.image_rounded, color: AppTheme.primaryIndigo, size: 24),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Upload Custom Thumbnail',
+                                    style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600, fontSize: 14),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _isLinkMode
+                                        ? 'Pick an image file or enter URL above'
+                                        : 'Leave empty to auto-generate from video',
+                                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.add_photo_alternate_outlined, color: AppTheme.primaryIndigo),
+                          ],
+                        ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
               // ── Title ────────────────────────────────────────────────
               _SectionLabel(label: 'Title'),
               const SizedBox(height: 10),
@@ -341,24 +504,51 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
               ),
               const SizedBox(height: 20),
 
-              // ── Category ─────────────────────────────────────────────────
-              _SectionLabel(label: 'Category / Zone'),
+              // ── Category / Zone Dropdown ──────────────────────────────
+              _SectionLabel(label: 'Zone'),
               const SizedBox(height: 10),
-              TextFormField(
-                controller: _categoryController,
-                readOnly: widget.defaultCategory != null,
-                style: TextStyle(
-                  color: widget.defaultCategory != null ? AppTheme.textSecondary : AppTheme.textPrimary,
-                  fontSize: 15,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'e.g. Wellness Videos',
-                  hintStyle: const TextStyle(color: AppTheme.textSecondary, fontSize: 15),
-                  filled: true,
-                  fillColor: AppTheme.surfaceElevated,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                ),
-                validator: (v) => v == null || v.trim().isEmpty ? 'Category is required' : null,
+              Builder(
+                builder: (context) {
+                  final defaultVideoZones = [
+                    'Wellness Videos',
+                    'Meditation',
+                    'Sleep Sounds',
+                    'Breathwork',
+                    'Music',
+                    'Yoga',
+                    'Sleep Tips',
+                    'Wellness',
+                    'Stories',
+                    'Research',
+                    'Nutrition',
+                    'Exercise',
+                  ];
+                  final zoneNames = {
+                    ...defaultVideoZones,
+                    ..._zones.map((z) => z.name),
+                    if (_selectedZone != null) _selectedZone!,
+                  }.toList();
+                  final currentValue = zoneNames.contains(_selectedZone) ? _selectedZone : zoneNames.first;
+
+                  return DropdownButtonFormField<String>(
+                    value: currentValue,
+                    dropdownColor: AppTheme.surfaceElevated,
+                    style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppTheme.surfaceElevated,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppTheme.cardBorder)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppTheme.cardBorder)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppTheme.primaryIndigo, width: 2)),
+                    ),
+                    items: zoneNames.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
+                    onChanged: (val) {
+                      if (val != null) setState(() => _selectedZone = val);
+                    },
+                    validator: (v) => v == null || v.isEmpty ? 'Zone is required' : null,
+                  );
+                },
               ),
               const SizedBox(height: 20),
 

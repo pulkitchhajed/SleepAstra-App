@@ -8,6 +8,7 @@ class AudioTrackModel {
   final String thumbnailUrl;
   final String duration;
   final String category;
+  final bool loop;
   final DateTime createdAt;
   final String uploadedBy;
 
@@ -19,6 +20,7 @@ class AudioTrackModel {
     required this.thumbnailUrl,
     required this.duration,
     required this.category,
+    this.loop = true,
     required this.createdAt,
     required this.uploadedBy,
   });
@@ -32,6 +34,7 @@ class AudioTrackModel {
       thumbnailUrl: data['thumbnailUrl'] as String? ?? '',
       duration: data['duration'] as String? ?? '0:00',
       category: data['category'] as String? ?? 'Sleep Sounds',
+      loop: data['loop'] as bool? ?? true,
       createdAt: data['createdAt'] is Timestamp
           ? (data['createdAt'] as Timestamp).toDate()
           : DateTime.now(),
@@ -46,6 +49,7 @@ class AudioTrackModel {
         'thumbnailUrl': thumbnailUrl,
         'duration': duration,
         'category': category,
+        'loop': loop,
         'createdAt': FieldValue.serverTimestamp(),
         'uploadedBy': uploadedBy,
       };
