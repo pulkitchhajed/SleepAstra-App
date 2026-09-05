@@ -43,6 +43,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             onPressed: () => Navigator.pop(context),
           ),
           bottom: const TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             indicatorColor: AppTheme.primaryIndigo,
             labelColor: AppTheme.primaryIndigo,
             unselectedLabelColor: AppTheme.textSecondary,
