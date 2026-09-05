@@ -50,10 +50,34 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // ── Admin Notifications ───────────────────────────────────────────────────
+    // ── Audio Tracks ──────────────────────────────────────────────────────────
+    match /audio_tracks/{audioId} {
+      // Every authenticated user can read audio tracks.
+      allow read: if isAuthenticated();
+
+      // Only admins can create, update, or delete audio tracks.
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ── Wellness Zones ────────────────────────────────────────────────────────
+    match /wellness_zones/{zoneId} {
+      // Every authenticated user can read wellness zones.
+      allow read: if isAuthenticated();
+
+      // Only admins can create, update, or delete wellness zones.
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 🚀🚀 Admin Notifications 🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀
     match /scheduled_notifications/{docId} {
       // Only admins can schedule notifications
       allow read, write: if isAdmin();
+    }
+
+    // 🚀🚀 Quick Access 🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀
+    match /quick_access/{accessId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
     }
   }
 }

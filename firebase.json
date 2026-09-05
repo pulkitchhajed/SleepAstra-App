@@ -3,34 +3,46 @@
     "platforms": {
       "android": {
         "default": {
-          "projectId": "snoreclinics-ai",
-          "appId": "1:840529050371:android:bf133a452279cd64b84736",
+          "projectId": "snoreastra",
+          "appId": "1:469010978794:android:775070c4d7db47f91e0493",
           "fileOutput": "android/app/google-services.json"
         }
       },
       "dart": {
         "lib/firebase_options.dart": {
-          "projectId": "snoreclinics-ai",
+          "projectId": "snoreastra",
           "configurations": {
-            "android": "1:840529050371:android:bf133a452279cd64b84736",
-            "ios": "1:840529050371:ios:b9265959d446e913b84736",
-            "macos": "1:840529050371:ios:36e61a2cfbdec00db84736",
-            "web": "1:840529050371:web:a7eed996b70ee998b84736",
-            "windows": "1:840529050371:web:2cf306148e9197e5b84736"
+            "android": "1:469010978794:android:775070c4d7db47f91e0493"
           }
         }
       }
     }
   },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
   "storage": {
     "rules": "storage.rules"
   },
   "hosting": {
+    "site": "snoreastra",
     "public": "build/web",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      }
     ],
     "rewrites": [
       {

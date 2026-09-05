@@ -1,95 +1,26 @@
 {
   "project_info": {
-    "project_number": "840529050371",
-    "project_id": "snoreclinics-ai",
-    "storage_bucket": "snoreclinics-ai.firebasestorage.app"
+    "project_number": "469010978794",
+    "project_id": "snoreastra",
+    "storage_bucket": "snoreastra.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:840529050371:android:0f29726ad41e9c51b84736",
-        "android_client_info": {
-          "package_name": "com.example.sleep_analyzer"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "840529050371-2t4t19negsugnto158og4t51p4bjmc62.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.sleep_analyzer",
-            "certificate_hash": "546fad9ea487e594e28ceea2a9fe039809962116"
-          }
-        },
-        {
-          "client_id": "840529050371-2r0lf2ukmtieqo5r8bfbloeqjaloui6l.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyBpXHSGiU4mObeVgNkVZEuxLm1Qrvyyuj0"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "840529050371-2r0lf2ukmtieqo5r8bfbloeqjaloui6l.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "840529050371-1oujl6tig4490t7jjo059dcaijb4l0p3.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.example.sleepAnalyzer"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:840529050371:android:bf133a452279cd64b84736",
+        "mobilesdk_app_id": "1:469010978794:android:775070c4d7db47f91e0493",
         "android_client_info": {
           "package_name": "com.snoreclinics.ai"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "840529050371-msckqe6s6np4l339u9987hsnn2eem6qf.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.snoreclinics.ai",
-            "certificate_hash": "546fad9ea487e594e28ceea2a9fe039809962116"
-          }
-        },
-        {
-          "client_id": "840529050371-2r0lf2ukmtieqo5r8bfbloeqjaloui6l.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBpXHSGiU4mObeVgNkVZEuxLm1Qrvyyuj0"
+          "current_key": "AIzaSyD_XZMuF7Feexi38qvtvNo92OWdb88lso0"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "840529050371-2r0lf2ukmtieqo5r8bfbloeqjaloui6l.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "840529050371-1oujl6tig4490t7jjo059dcaijb4l0p3.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.example.sleepAnalyzer"
-              }
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }

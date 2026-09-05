@@ -14,6 +14,7 @@ import '../services/wellness_zone_service.dart';
 import 'zone_details_screen.dart';
 import '../models/quick_access_model.dart';
 import '../services/quick_access_service.dart';
+import 'upload_quick_access_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -122,7 +123,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const SizedBox(height: 12),
             FloatingActionButton.extended(
               heroTag: 'create_quick_access',
-              onPressed: () => _showCreateQuickAccessDialog(context),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const UploadQuickAccessScreen()),
+              ),
               backgroundColor: AppTheme.primaryIndigo,
               icon: const Icon(Icons.bolt_rounded, color: Colors.white),
               label: const Text(
@@ -213,114 +217,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  void _showCreateQuickAccessDialog(BuildContext context) {
-    final titleCtrl = TextEditingController();
-    final targetCtrl = TextEditingController();
-    final thumbCtrl = TextEditingController();
-    String selectedRoute = 'custom';
 
-    final builtInRoutes = {
-      'custom': 'Custom URL / Other',
-      '/sleep-history': 'Sleep Diary',
-      'route:/wellness': 'Wellness Hub (Yoga)',
-      '/relaxation': 'Meditation',
-      'route:/snore_track': 'Snore Track',
-      'route:/sleep_stages': 'Sleep Stages',
-      '/journal': 'Journal List',
-      '/insights': 'Nidra AI Insights',
-      '/daily_sleep_goal': 'Daily Sleep Goal',
-    };
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: AppTheme.surfaceElevated,
-              title: const Text('Add Quick Access', style: TextStyle(color: AppTheme.textPrimary)),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: titleCtrl,
-                      style: const TextStyle(color: AppTheme.textPrimary),
-                      decoration: const InputDecoration(
-                        labelText: 'Title',
-                        labelStyle: TextStyle(color: AppTheme.textSecondary),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: selectedRoute,
-                      dropdownColor: AppTheme.surfaceElevated,
-                      style: const TextStyle(color: AppTheme.textPrimary),
-                      decoration: const InputDecoration(
-                        labelText: 'Target Type / Route',
-                        labelStyle: TextStyle(color: AppTheme.textSecondary),
-                      ),
-                      items: builtInRoutes.entries
-                          .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
-                          .toList(),
-                      onChanged: (v) {
-                        setState(() {
-                          selectedRoute = v ?? 'custom';
-                          if (selectedRoute != 'custom') {
-                            targetCtrl.text = selectedRoute;
-                          } else {
-                            targetCtrl.clear();
-                          }
-                        });
-                      },
-                    ),
-                    if (selectedRoute == 'custom') ...[
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: targetCtrl,
-                        style: const TextStyle(color: AppTheme.textPrimary),
-                        decoration: const InputDecoration(
-                          labelText: 'Custom Target URL or Route',
-                          labelStyle: TextStyle(color: AppTheme.textSecondary),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: thumbCtrl,
-                      style: const TextStyle(color: AppTheme.textPrimary),
-                      decoration: const InputDecoration(
-                        labelText: 'Thumbnail URL',
-                        labelStyle: TextStyle(color: AppTheme.textSecondary),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    if (titleCtrl.text.trim().isEmpty || targetCtrl.text.trim().isEmpty) return;
-                    await QuickAccessService.createItem(
-                      title: titleCtrl.text.trim(),
-                      target: targetCtrl.text.trim(),
-                      thumbnailUrl: thumbCtrl.text.trim(),
-                    );
-                    if (ctx.mounted) Navigator.pop(ctx);
-                  },
-                  child: const Text('Create', style: TextStyle(color: AppTheme.primaryIndigo)),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
 }
 
 class _AdminZonesTab extends StatelessWidget {
@@ -1029,6 +926,15 @@ class _AdminQuickAccessTab extends StatelessWidget {
                           children: [
                             const Icon(Icons.drag_handle_rounded, color: AppTheme.textSecondary),
                             const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, color: AppTheme.primaryIndigo),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => UploadQuickAccessScreen(existingItem: item)),
+                                );
+                              },
+                            ),
                             IconButton(
                               icon: const Icon(Icons.delete_outline, color: AppTheme.error),
                               onPressed: () async {
