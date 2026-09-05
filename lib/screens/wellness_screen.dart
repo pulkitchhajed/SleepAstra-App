@@ -429,24 +429,20 @@ class _WellnessScreenState extends State<WellnessScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title, bool isLight) {
+  Widget _buildSectionTitle(String title, bool isLight, {VoidCallback? onSeeAll}) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
               Container(
-                width: 3,
-                height: 18,
+                width: 4,
+                height: 24,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
-                  ),
-                  borderRadius: BorderRadius.circular(2),
+                  color: AppTheme.primaryIndigo,
+                  borderRadius: BorderRadius.circular(4),
                 ),
               ),
               const SizedBox(width: 8),
@@ -462,7 +458,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
           ),
           if (title != 'Recommended for you')
             GestureDetector(
-              onTap: () {
+              onTap: onSeeAll ?? () {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('See all $title coming soon!'),
@@ -737,7 +733,21 @@ class _WellnessScreenState extends State<WellnessScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionTitle(zone.name, isLight).animate().fadeIn(delay: 100.ms, duration: 300.ms),
+            _buildSectionTitle(
+              zone.name,
+              isLight,
+              onSeeAll: () {
+                if (zone.contentTypes.contains('video')) {
+                  Navigator.pushNamed(context, AppRouter.videoLibrary);
+                } else if (zone.contentTypes.contains('blog')) {
+                  // If we had a router for BlogListScreen, we'd use it here.
+                  // For now, videoLibrary is the main entry for Admin access.
+                  Navigator.pushNamed(context, AppRouter.videoLibrary);
+                } else {
+                  Navigator.pushNamed(context, AppRouter.videoLibrary);
+                }
+              },
+            ).animate().fadeIn(delay: 100.ms, duration: 300.ms),
             SizedBox(
               height: 295,
               child: ListView.builder(
