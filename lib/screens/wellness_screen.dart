@@ -202,9 +202,6 @@ class _WellnessScreenState extends State<WellnessScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (_selectedCategoryIndex == 0) ...[
-                          _buildVideoHubSection(isLight).animate().fadeIn(delay: 100.ms, duration: 350.ms),
-                          const SizedBox(height: 32),
-
                           BlogHubWidget(isLight: isLight).animate().fadeIn(delay: 150.ms, duration: 350.ms),
                           const SizedBox(height: 32),
 
