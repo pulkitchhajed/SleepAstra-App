@@ -231,20 +231,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHeader(String name, bool isLight, Color textPrimary, Color textSec, ThemeProvider tp) {
     final h = DateTime.now().hour;
     String greeting = '';
-    String subtext = '';
 
     if (h >= 5 && h < 12) {
       greeting = 'Good Morning';
-      subtext = 'Fresh start, motivation';
     } else if (h >= 12 && h < 17) {
       greeting = 'Good Afternoon';
-      subtext = 'Energy dip, consistency';
     } else if (h >= 17 && h < 21) {
       greeting = 'Good Evening';
-      subtext = 'Workout time, stress relief';
     } else {
       greeting = 'Good Night';
-      subtext = 'Wind down, recovery';
     }
 
     return Row(
@@ -266,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
-              Text(subtext, style: TextStyle(fontSize: 14, color: textSec)),
+
             ],
           ),
         ),
@@ -1206,7 +1201,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _quickItemCard(QuickAccessModel item, Color textPrimary, Color textSec, Color cardBg, Color cardBorder) {
     return GestureDetector(
       onTap: () {
-        if (item.target.startsWith('route:')) {
+        if (item.target.startsWith('zone:')) {
+          // Navigate to Wellness tab where all zones are presented
+          Navigator.pushNamedAndRemoveUntil(context, AppRouter.mainNav, (r) => false, arguments: 1);
+        } else if (item.target.startsWith('route:')) {
           if (item.target == 'route:/wellness') {
             Navigator.pushNamedAndRemoveUntil(context, AppRouter.mainNav, (r) => false, arguments: 1);
           } else if (item.target == 'route:/snore_track') {
@@ -1217,7 +1215,7 @@ class _HomeScreenState extends State<HomeScreen> {
         } else if (item.target.startsWith('/')) {
           Navigator.pushNamed(context, item.target);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('External links not supported yet: ${item.target}')));
+          Navigator.pushNamedAndRemoveUntil(context, AppRouter.mainNav, (r) => false, arguments: 1);
         }
       },
       child: Container(
@@ -1244,15 +1242,26 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: BoxDecoration(
                 color: AppTheme.primaryIndigo.withValues(alpha: 0.1),
               ),
-              child: item.thumbnailUrl.isNotEmpty
-                  ? Image.network(
-                      item.thumbnailUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (c, e, s) => const Icon(Icons.image_not_supported_rounded, color: AppTheme.textSecondary),
-                    )
-                  : const Center(
-                      child: Icon(Icons.bolt_rounded, size: 40, color: AppTheme.primaryIndigo),
-                    ),
+              child: () {
+                if (item.thumbnailUrl.isNotEmpty) {
+                  return Image.network(
+                    item.thumbnailUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (c, e, s) => const Icon(Icons.image_not_supported_rounded, color: AppTheme.textSecondary),
+                  );
+                }
+                final lower = item.title.toLowerCase();
+                if (lower.contains('journal') || lower.contains('diary')) {
+                  return Image.asset('assets/images/quick_journal.jpg', fit: BoxFit.cover);
+                } else if (lower.contains('sound') || lower.contains('audio') || lower.contains('music')) {
+                  return Image.asset('assets/images/quick_sounds.jpg', fit: BoxFit.cover);
+                } else if (lower.contains('breath')) {
+                  return Image.asset('assets/images/quick_breathe.jpg', fit: BoxFit.cover);
+                }
+                return const Center(
+                  child: Icon(Icons.bolt_rounded, size: 40, color: AppTheme.primaryIndigo),
+                );
+              }(),
             ),
             Padding(
               padding: const EdgeInsets.all(12),

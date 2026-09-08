@@ -1,4 +1,4 @@
-import 'dart:math';
+﻿import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -29,6 +29,17 @@ class DailySleepGoalScreen extends StatelessWidget {
     final todayMinutes = today?.totalDuration.inMinutes ?? 0;
     
     final progress = (todayMinutes / goalMinutes).clamp(0.0, 1.0);
+    final percent = (progress * 100).round();
+
+    // Dynamic color coding: 1-30% red, 31-60% orange, 61-100% green
+    final Color goalColor;
+    if (percent <= 30) {
+      goalColor = const Color(0xFFEF4444); // Red
+    } else if (percent <= 60) {
+      goalColor = const Color(0xFFF97316); // Orange
+    } else {
+      goalColor = const Color(0xFF10B981); // Green
+    }
 
     return Scaffold(
       backgroundColor: bg,
@@ -48,68 +59,75 @@ class DailySleepGoalScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Circular Progress
-            SizedBox(
-              height: 240,
-              width: 240,
-              child: Stack(
-                fit: StackFit.expand,
+      body: SafeArea(
+        bottom: true,
+        child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Circular Progress
+              SizedBox(
+                height: 170,
+                width: 170,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CustomPaint(
+                      painter: _LargeGoalProgressPainter(
+                        progress: progress,
+                        isLight: isLight,
+                        color: goalColor,
+                      ),
+                    ),
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${todayMinutes ~/ 60}h ${todayMinutes % 60}m',
+                            style: GoogleFonts.outfit(fontSize: 34, fontWeight: FontWeight.w800, color: textPrimary, height: 1.1),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'of ${goalMinutes ~/ 60}h goal',
+                            style: TextStyle(fontSize: 13, color: textSec, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Stats Row
+              Row(
                 children: [
-                  CustomPaint(
-                    painter: _LargeGoalProgressPainter(
-                      progress: progress,
-                      isLight: isLight,
-                      color: AppTheme.primaryIndigo,
-                    ),
-                  ),
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${todayMinutes ~/ 60}h ${todayMinutes % 60}m',
-                          style: GoogleFonts.outfit(fontSize: 48, fontWeight: FontWeight.w800, color: textPrimary, height: 1.1),
-                        ),
-                        Text(
-                          'of ${goalMinutes ~/ 60}h goal',
-                          style: TextStyle(fontSize: 16, color: textSec, fontWeight: FontWeight.w500),
-                        ),
-                      ],
-                    ),
-                  ),
+                  Expanded(child: _buildStatCard('Avg Duration (7d)', _calculateAvgDuration(recent7), Icons.timelapse_rounded, isLight, textPrimary, textSec)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _buildStatCard('Goal Hit Rate', _calculateHitRate(recent7, goalMinutes), Icons.flag_rounded, isLight, textPrimary, textSec)),
                 ],
               ),
-            ),
-            const SizedBox(height: 32),
-            
-            // Stats Row
-            Row(
-              children: [
-                Expanded(child: _buildStatCard('Avg Duration (7d)', _calculateAvgDuration(recent7), Icons.timelapse_rounded, isLight, textPrimary, textSec)),
-                const SizedBox(width: 16),
-                Expanded(child: _buildStatCard('Goal Hit Rate', _calculateHitRate(recent7, goalMinutes), Icons.flag_rounded, isLight, textPrimary, textSec)),
-              ],
-            ),
-            const SizedBox(height: 32),
-            
-            // 7-Day Trend Chart
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text('7-Day Trend', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w700, color: textPrimary)),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              height: 220,
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-              decoration: AppTheme.glassDecoration(borderRadius: BorderRadius.circular(20), isLightMode: isLight),
-              child: _buildBarChart(recent7, goalMinutes, isLight, textSec),
-            ),
-          ],
+              const SizedBox(height: 12),
+              
+              // 7-Day Trend Chart
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('7-Day Trend', style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.w700, color: textPrimary)),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                height: 165,
+                clipBehavior: Clip.antiAlias,
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+                decoration: AppTheme.glassDecoration(borderRadius: BorderRadius.circular(18), isLightMode: isLight),
+                child: _buildBarChart(recent7, goalMinutes, isLight, textSec),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
         ),
       ),
     );
@@ -117,14 +135,14 @@ class DailySleepGoalScreen extends StatelessWidget {
 
   Widget _buildStatCard(String title, String value, IconData icon, bool isLight, Color textPrimary, Color textSec) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: AppTheme.glassDecoration(borderRadius: BorderRadius.circular(16), isLightMode: isLight),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppTheme.primaryIndigo, size: 24),
-          const SizedBox(height: 12),
-          Text(value, style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: textPrimary)),
+          Icon(icon, color: AppTheme.primaryIndigo, size: 22),
+          const SizedBox(height: 8),
+          Text(value, style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: textPrimary)),
           const SizedBox(height: 4),
           Text(title, style: TextStyle(fontSize: 12, color: textSec, fontWeight: FontWeight.w500)),
         ],
@@ -169,23 +187,25 @@ class DailySleepGoalScreen extends StatelessWidget {
     });
 
     final goalHours = goalMinutes / 60.0;
+    final maxScore = scores.isEmpty ? 0.0 : scores.reduce(max);
+    final chartMaxY = max(10.0, max(goalHours, maxScore) * 1.15);
     
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
-        maxY: max(10, (scores.isEmpty ? 10 : scores.reduce(max)) * 1.2),
+        maxY: chartMaxY,
         minY: 0,
         extraLinesData: ExtraLinesData(
           horizontalLines: [
             HorizontalLine(
               y: goalHours,
-              color: AppTheme.accentTeal.withValues(alpha: 0.5),
-              strokeWidth: 2,
-              dashArray: [5, 5],
+              color: AppTheme.accentTeal.withValues(alpha: 0.6),
+              strokeWidth: 1.5,
+              dashArray: [5, 4],
               label: HorizontalLineLabel(
                 show: true,
                 alignment: Alignment.topRight,
-                padding: const EdgeInsets.only(right: 5, bottom: 5),
+                padding: const EdgeInsets.only(right: 4, bottom: 2),
                 style: const TextStyle(fontSize: 10, color: AppTheme.accentTeal, fontWeight: FontWeight.bold),
                 labelResolver: (line) => 'Goal',
               ),
@@ -197,12 +217,20 @@ class DailySleepGoalScreen extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              reservedSize: 22,
               getTitlesWidget: (value, meta) {
                 final dayIndex = value.toInt();
                 final text = (dayIndex >= 0 && dayIndex < dayLabels.length) ? dayLabels[dayIndex] : '';
                 return Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Text(text, style: TextStyle(fontSize: 10, color: textSec)),
+                  padding: const EdgeInsets.only(top: 6.0),
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: dayIndex == 6 ? FontWeight.bold : FontWeight.normal,
+                      color: textSec,
+                    ),
+                  ),
                 );
               },
             ),
@@ -215,19 +243,28 @@ class DailySleepGoalScreen extends StatelessWidget {
         borderData: FlBorderData(show: false),
         barGroups: List.generate(7, (index) {
           final score = scores[index];
-          final color = score >= goalHours ? AppTheme.accentTeal : AppTheme.primaryIndigo;
+          final dayPercent = ((score / goalHours) * 100).round();
+          final Color barColor;
+          if (dayPercent <= 30) {
+            barColor = const Color(0xFFEF4444); // 1-30%: Red
+          } else if (dayPercent <= 60) {
+            barColor = const Color(0xFFF97316); // 31-60%: Orange
+          } else {
+            barColor = const Color(0xFF10B981); // 61-100%: Green
+          }
+
           return BarChartGroupData(
             x: index,
             barRods: [
               BarChartRodData(
-                toY: score,
-                color: score == 0 ? Colors.transparent : color,
-                width: 16,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                toY: score.clamp(0.0, chartMaxY),
+                color: score == 0 ? Colors.transparent : barColor,
+                width: 14,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
                 backDrawRodData: BackgroundBarChartRodData(
                   show: true,
-                  toY: max(10, goalHours * 1.5),
-                  color: isLight ? Colors.black.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.05),
+                  toY: chartMaxY,
+                  color: isLight ? Colors.black.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.05),
                 ),
               ),
             ],
@@ -248,14 +285,14 @@ class _LargeGoalProgressPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = min(size.width / 2, size.height / 2) - 10;
+    final radius = min(size.width / 2, size.height / 2) - 8;
     final rect = Rect.fromCircle(center: center, radius: radius);
 
     // Background track
     final bgPaint = Paint()
       ..color = isLight ? Colors.black.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.05)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 16
+      ..strokeWidth = 14
       ..strokeCap = StrokeCap.round;
 
     canvas.drawArc(rect, -pi / 2, 2 * pi, false, bgPaint);
@@ -263,25 +300,25 @@ class _LargeGoalProgressPainter extends CustomPainter {
     if (progress > 0) {
       // Glow
       final glowPaint = Paint()
-        ..color = color.withValues(alpha: 0.3)
+        ..color = color.withValues(alpha: 0.35)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 24
+        ..strokeWidth = 18
         ..strokeCap = StrokeCap.round
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
       
       canvas.drawArc(rect, -pi / 2, 2 * pi * progress, false, glowPaint);
 
       // Progress arc
       final progressPaint = Paint()
         ..shader = SweepGradient(
-          colors: [color.withValues(alpha: 0.5), color, AppTheme.accentTeal],
-          stops: const [0.0, 0.5, 1.0],
+          colors: [color.withValues(alpha: 0.6), color],
+          stops: const [0.0, 1.0],
           startAngle: -pi / 2,
           endAngle: -pi / 2 + 2 * pi * progress,
           transform: GradientRotation(-pi / 2),
         ).createShader(rect)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 16
+        ..strokeWidth = 14
         ..strokeCap = StrokeCap.round;
 
       canvas.drawArc(rect, -pi / 2, 2 * pi * progress, false, progressPaint);

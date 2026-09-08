@@ -289,59 +289,33 @@ class _WellnessScreenState extends State<WellnessScreen> {
   // ── Header Widget ────────────────────────────────────────────────────────
   Widget _buildHeader(bool isLight) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      width: double.infinity,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            const Color(0xFF6366F1).withValues(alpha: isLight ? 0.15 : 0.25),
-            const Color(0xFF2DD4BF).withValues(alpha: isLight ? 0.15 : 0.25),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: Colors.white.withValues(alpha: isLight ? 0.6 : 0.1),
+          color: Colors.white.withValues(alpha: isLight ? 0.6 : 0.12),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+            color: isLight
+                ? const Color(0xFF6366F1).withValues(alpha: 0.12)
+                : Colors.black.withValues(alpha: 0.35),
             blurRadius: 20,
-            offset: const Offset(0, 10),
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Wellness Hub',
-                    style: GoogleFonts.outfit(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary)),
-                const SizedBox(height: 6),
-                Text('Find your calm before bed',
-                    style: TextStyle(
-                        color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500)),
-              ],
-            ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22.5),
+        child: AspectRatio(
+          aspectRatio: 3.0,
+          child: Image.asset(
+            'assets/images/wellness_hub_banner.png',
+            fit: BoxFit.cover,
           ),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: isLight ? 0.5 : 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.self_improvement_rounded, color: AppTheme.primaryIndigo, size: 36),
-          ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(begin: const Offset(1, 1), end: const Offset(1.05, 1.05), duration: 2.seconds),
-        ],
+        ),
       ),
     );
   }

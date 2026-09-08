@@ -7,6 +7,8 @@ import 'package:snore_clinics/core/theme/app_theme.dart';
 import '../models/quick_access_model.dart';
 import '../services/quick_access_service.dart';
 import '../../videos/services/video_service.dart';
+import '../models/wellness_zone_model.dart';
+import '../services/wellness_zone_service.dart';
 
 class UploadQuickAccessScreen extends StatefulWidget {
   final QuickAccessModel? existingItem;
@@ -30,6 +32,8 @@ class _UploadQuickAccessScreenState extends State<UploadQuickAccessScreen> {
   final _thumbnailUrlController = TextEditingController();
 
   String _selectedRoute = 'custom';
+  List<WellnessZoneModel> _zones = [];
+  StreamSubscription? _zoneSub;
 
   final Map<String, String> _builtInRoutes = {
     'custom': 'Custom URL / Other',
@@ -48,6 +52,11 @@ class _UploadQuickAccessScreenState extends State<UploadQuickAccessScreen> {
   @override
   void initState() {
     super.initState();
+    _zoneSub = WellnessZoneService.watchZones().listen((zones) {
+      if (mounted) {
+        setState(() => _zones = zones);
+      }
+    });
     if (_isEditMode) {
       final item = widget.existingItem!;
       _titleController.text = item.title;
@@ -65,6 +74,7 @@ class _UploadQuickAccessScreenState extends State<UploadQuickAccessScreen> {
 
   @override
   void dispose() {
+    _zoneSub?.cancel();
     _titleController.dispose();
     _targetController.dispose();
     _thumbnailUrlController.dispose();
@@ -198,15 +208,33 @@ class _UploadQuickAccessScreenState extends State<UploadQuickAccessScreen> {
                   dropdownColor: AppTheme.surfaceElevated,
                   style: const TextStyle(color: AppTheme.textPrimary),
                   decoration: const InputDecoration(
-                    labelText: 'Target Type / Route',
+                    labelText: 'Target Type / Route / Zone',
                   ),
-                  items: _builtInRoutes.entries
-                      .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
-                      .toList(),
+                  items: [
+                    ..._builtInRoutes.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))),
+                    if (_zones.isNotEmpty)
+                      ..._zones.map((z) => DropdownMenuItem(
+                            value: 'zone:${z.id}',
+                            child: Row(
+                              children: [
+                                const Icon(Icons.eco_rounded, size: 16, color: AppTheme.accentTeal),
+                                const SizedBox(width: 8),
+                                Text('Zone: ${z.name}', style: const TextStyle(color: AppTheme.accentTeal, fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                          )),
+                  ],
                   onChanged: (v) {
                     setState(() {
                       _selectedRoute = v ?? 'custom';
-                      if (_selectedRoute != 'custom') {
+                      if (_selectedRoute.startsWith('zone:')) {
+                        final zoneId = _selectedRoute.substring('zone:'.length);
+                        final matched = _zones.firstWhere((z) => z.id == zoneId, orElse: () => _zones.first);
+                        _targetController.text = _selectedRoute;
+                        if (_titleController.text.trim().isEmpty || _zones.any((z) => z.name == _titleController.text.trim())) {
+                          _titleController.text = matched.name;
+                        }
+                      } else if (_selectedRoute != 'custom') {
                         _targetController.text = _selectedRoute;
                       } else {
                         _targetController.clear();

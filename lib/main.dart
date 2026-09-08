@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fba;
@@ -85,6 +86,7 @@ class _AppGate extends StatefulWidget {
 class _AppGateState extends State<_AppGate> {
   bool _ready = false;
   bool _authError = false;
+  bool _hasSeenSplash = false;
   bool _splashComplete = false;
   String? _lastUid = 'INITIAL_BOOT';
   int _lastSessionKey = -1;
@@ -106,6 +108,11 @@ class _AppGateState extends State<_AppGate> {
   /// then loads the profile. This prevents a WelcomeScreen flash on cold start.
   Future<void> _waitForAuthAndLoad() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      _hasSeenSplash = prefs.getBool('has_seen_splash') ?? false;
+      if (_hasSeenSplash) {
+        _splashComplete = true;
+      }
       await fba.FirebaseAuth.instance.authStateChanges().first.timeout(const Duration(seconds: 10));
       if (mounted) setState(() => _ready = true);
     } catch (e) {
@@ -206,9 +213,18 @@ class _AppGateState extends State<_AppGate> {
       );
     }
 
-    if (!_splashComplete) {
+    if (!_hasSeenSplash && !_splashComplete) {
       return SplashScreen(
-        onFinish: () => setState(() => _splashComplete = true),
+        onFinish: () async {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('has_seen_splash', true);
+          if (mounted) {
+            setState(() {
+              _hasSeenSplash = true;
+              _splashComplete = true;
+            });
+          }
+        },
       );
     }
 

@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/theme_provider.dart';
-import 'completion_step_screen.dart';
+import 'setup_completed_screen.dart';
 
 class PermissionsScreen extends StatefulWidget {
   const PermissionsScreen({super.key});
@@ -121,7 +121,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
   }
 
   void _finish() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const CompletionStepScreen()));
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const SetupCompletedScreen()));
   }
 
   Widget _permissionTile(String title, String body,
