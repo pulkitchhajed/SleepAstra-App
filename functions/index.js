@@ -9,7 +9,7 @@ exports.processScheduledNotifications = functions.pubsub.schedule('every 1 minut
   const nowTime = now.getTime();
   
   const querySnapshot = await db.collection('scheduled_notifications')
-    .where('status', '==', 'pending')
+    .where('status', 'in', ['pending', 'recurring'])
     .get();
 
   const promises = [];
@@ -18,7 +18,38 @@ exports.processScheduledNotifications = functions.pubsub.schedule('every 1 minut
     const data = doc.data();
     let shouldSend = false;
 
-    if (data.scheduleType === 'now') {
+    if (data.status === 'recurring' && data.recurringWeekdays && data.recurringWeekdays.length > 0 && data.scheduledTimeOfDay) {
+      // Calculate local time using client offset
+      const offsetMs = (data.clientTimezoneOffset || 0) * 60 * 1000;
+      const localNow = new Date(nowTime + offsetMs);
+      
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const currentDayName = dayNames[localNow.getUTCDay()];
+      
+      if (data.recurringWeekdays.includes(currentDayName)) {
+        const [hourStr, minStr] = data.scheduledTimeOfDay.split(':');
+        const hour = parseInt(hourStr, 10);
+        const min = parseInt(minStr, 10);
+        
+        // Time window of 1 minute
+        if (localNow.getUTCHours() === hour && localNow.getUTCMinutes() === min) {
+          let lastSentMs = 0;
+          if (data.lastSentAt) {
+            lastSentMs = data.lastSentAt.toDate().getTime();
+          }
+          // Prevent multiple sends in the same minute
+          if (nowTime - lastSentMs > 5 * 60 * 1000) {
+            shouldSend = true;
+          }
+        }
+      }
+    } else if (data.scheduledTime) {
+      // New Admin Dashboard format
+      const scheduledTimeMs = data.scheduledTime.toDate().getTime();
+      if (nowTime >= scheduledTimeMs) {
+        shouldSend = true;
+      }
+    } else if (data.scheduleType === 'now') {
       shouldSend = true;
     } else if (data.scheduleType === 'timer') {
       const createdTime = data.createdAt ? data.createdAt.toDate().getTime() : 0;
@@ -46,6 +77,9 @@ exports.processScheduledNotifications = functions.pubsub.schedule('every 1 minut
       } else {
         shouldSend = true; // Fallback
       }
+    } else if (data.status === 'pending' && (!data.recurringWeekdays || data.recurringWeekdays.length === 0)) {
+      // Fallback for "Send now" notifications from older cached web clients that omitted scheduledTime
+      shouldSend = true;
     }
 
     if (shouldSend) {
@@ -71,13 +105,34 @@ async function sendNotification(docId, data) {
       }
     };
 
-    if (data.targetUid === 'all') {
+    // Attach banner image if present
+    if (data.bannerImageUrl) {
+      message.notification.image = data.bannerImageUrl;
+    }
+    
+    // Attach custom payload data
+    if (data.onTapAction) {
+      message.data.onTapAction = data.onTapAction;
+    }
+
+    if (data.targetAudience) {
+      // New admin dashboard targeting
+      if (data.targetAudience === 'Premium users only') {
+        message.topic = 'premium_users';
+      } else if (data.targetAudience === 'Unsubscribed users') {
+        message.topic = 'unsubscribed_users';
+      } else {
+        message.topic = 'all_users';
+      }
+      await admin.messaging().send(message);
+    } else if (data.targetUid === 'all') {
+      // Legacy targeting
       message.topic = 'all_users';
       await admin.messaging().send(message);
     } else if (data.fcmToken) {
       message.token = data.fcmToken;
       await admin.messaging().send(message);
-    } else {
+    } else if (data.targetUid) {
       const userDoc = await db.collection('users').doc(data.targetUid).get();
       if (userDoc.exists && userDoc.data().fcmToken) {
         message.token = userDoc.data().fcmToken;
@@ -85,12 +140,21 @@ async function sendNotification(docId, data) {
       } else {
         throw new Error('No FCM Token found for user');
       }
+    } else {
+      throw new Error('No target specified for notification');
     }
 
-    await db.collection('scheduled_notifications').doc(docId).update({
-      status: 'sent',
-      sentAt: admin.firestore.FieldValue.serverTimestamp()
-    });
+    const isRecurring = data.status === 'recurring';
+    if (isRecurring) {
+      await db.collection('scheduled_notifications').doc(docId).update({
+        lastSentAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      await db.collection('scheduled_notifications').doc(docId).update({
+        status: 'sent',
+        sentAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
     console.log(`Notification sent for doc: ${docId}`);
   } catch (error) {
     console.error(`Error sending notification ${docId}:`, error);

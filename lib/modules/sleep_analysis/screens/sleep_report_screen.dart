@@ -116,7 +116,7 @@ class _SleepReportScreenState extends State<SleepReportScreen>
                     const SizedBox(height: 16),
                     if (widget.report.snoreAudioClips.isNotEmpty) ...[
                       // ── Section 1: Snore Recordings + Insights ──
-                      FadeTransition(
+                      /*FadeTransition(
                         opacity: _section1Fade,
                         child: SlideTransition(
                           position: _section1Slide,
@@ -153,7 +153,7 @@ class _SleepReportScreenState extends State<SleepReportScreen>
                             ],
                           ),
                         ),
-                      ),
+                      ),*/
                     ],
                     FadeTransition(
                       opacity: _section1Fade,
@@ -655,6 +655,8 @@ class _SleepReportScreenState extends State<SleepReportScreen>
 
   // ─── Snore Audio Clips Card ──────────────────────────────────
   Widget _buildAudioClipsCard(Color cardBg, Color cardBorder, Color textPrimary, Color textSec) {
+    return const SizedBox.shrink();
+    /*
     return GestureDetector(
       onTap: () {
         Navigator.pushNamed(
@@ -706,6 +708,7 @@ class _SleepReportScreenState extends State<SleepReportScreen>
         ),
       ),
     );
+    */
   }
 
   // ─── Insights ──────────────────────────────────────────────────

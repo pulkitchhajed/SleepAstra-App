@@ -24,6 +24,28 @@ import 'core/services/notification_service.dart';
 import 'core/widgets/animated_sleep_background.dart';
 import 'screens/splash_screen.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+String? _getRouteFromMessage(RemoteMessage message) {
+  final action = message.data['onTapAction'];
+  if (action == null) return null;
+  switch (action) {
+    case 'Settings': return AppRouter.settings;
+    case 'Sleep Analysis': return AppRouter.sleepAnalysis;
+    case 'Sleep History': return AppRouter.sleepHistory;
+    case 'Morning Journal': return AppRouter.morningJournal;
+    case 'Evening Journal': return AppRouter.eveningJournal;
+    case 'Insights': return AppRouter.insights;
+    case 'Nidra Chat': return AppRouter.nidraChat;
+    case 'Breathing': return AppRouter.breathing;
+    case 'Relaxation': return AppRouter.relaxation;
+    case 'Video Library': return AppRouter.videoLibrary;
+    case 'Daily Sleep Goal': return AppRouter.dailySleepGoal;
+    case 'App home': return AppRouter.mainNav;
+    default: return AppRouter.mainNav;
+  }
+}
+
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -52,6 +74,28 @@ void main() async {
   }).catchError((e) {
     debugPrint('FCM Init Error: $e');
   });
+  
+  // Handle notification tap when app is in background
+  FirebaseMessaging.onMessageOpenedApp.listen((message) {
+    final route = _getRouteFromMessage(message);
+    if (route != null && navigatorKey.currentState != null) {
+      navigatorKey.currentState!.pushNamed(route);
+    }
+  });
+
+  // Handle notification tap when app is terminated
+  final initialMsg = await FirebaseMessaging.instance.getInitialMessage();
+  if (initialMsg != null) {
+    final route = _getRouteFromMessage(initialMsg);
+    if (route != null) {
+      // Delay push to allow navigator to mount
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (navigatorKey.currentState != null) {
+          navigatorKey.currentState!.pushNamed(route);
+        }
+      });
+    }
+  }
   
   runApp(const SleepAstraApp());
 }
@@ -125,33 +169,42 @@ class _AppGateState extends State<_AppGate> {
     }
   }
 
+  bool _isSyncing = false;
+
   void _syncSession(BuildContext context, AuthProvider auth) {
     if (_lastUid == auth.uid && _lastSessionKey == auth.sessionKey) return;
     _lastUid = auth.uid;
     _lastSessionKey = auth.sessionKey;
 
-    // 1. INSTANT SYNCHRONOUS RESET:
-    // Wipe all local memory immediately to prevent User A data
-    // from being saved into User B's account during the loading window.
-    context.read<OnboardingProvider>().reset();
-    context.read<JournalProvider>().clear();
-    context.read<SleepAnalysisProvider>().reset();
-    context.read<RewardsProvider>().reset();
+    _isSyncing = true;
 
-    // 2. TRIGGER ASYNC LOAD:
+    // 1. ASYNC RESET AND LOAD
     Future.microtask(() async {
       if (!mounted) return;
       
+      // Wipe all local memory to prevent User A data
+      // from being saved into User B's account during the loading window.
+      context.read<OnboardingProvider>().reset();
+      context.read<JournalProvider>().clear();
+      context.read<SleepAnalysisProvider>().reset();
+      context.read<RewardsProvider>().reset();
+
       // Determine effective UID: Authenticated ID or Guest Device ID
       final effectiveUid = auth.uid ?? await FirestoreService.deviceUid;
       final email = auth.user?.email;
       
       if (!context.mounted) return;
-      context.read<OnboardingProvider>().loadProfile(effectiveUid, userEmail: email);
+      await context.read<OnboardingProvider>().loadProfile(effectiveUid, userEmail: email);
       context.read<JournalProvider>().loadEntries(effectiveUid);
       context.read<SleepAnalysisProvider>().loadHistory(effectiveUid);
       context.read<RewardsProvider>().init(effectiveUid);
       context.read<SubscriptionProvider>().init(effectiveUid);
+
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
     });
   }
 
@@ -165,6 +218,7 @@ class _AppGateState extends State<_AppGate> {
     // by changing the Key whenever the auth state changes.
     // This effectively wipes the Navigator stack and all local UI state.
     return MaterialApp(
+      navigatorKey: navigatorKey,
       key: ValueKey('app_gate_${auth.uid}_${auth.sessionKey}'),
       title: 'Sleep Astra',
       debugShowCheckedModeBanner: false,
@@ -204,7 +258,7 @@ class _AppGateState extends State<_AppGate> {
       );
     }
 
-    if (!_ready || !onboarding.isInitialized) {
+    if (!_ready || _isSyncing || !onboarding.isInitialized) {
       return const Scaffold(
         backgroundColor: AppTheme.background,
         body: Center(

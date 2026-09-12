@@ -30,6 +30,14 @@
           }
         },
         {
+          "client_id": "469010978794-q4dc0dsr9lepuf4gs2mod6r3bhqed0ai.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.snoreclinics.ai",
+            "certificate_hash": "362b93071f523dfa680138a0e1347ef9fb8b8f32"
+          }
+        },
+        {
           "client_id": "469010978794-bi4qbl7qloba5r7ooaknv8u02do5874n.apps.googleusercontent.com",
           "client_type": 3
         }

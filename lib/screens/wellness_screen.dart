@@ -311,9 +311,52 @@ class _WellnessScreenState extends State<WellnessScreen> {
         borderRadius: BorderRadius.circular(22.5),
         child: AspectRatio(
           aspectRatio: 3.0,
-          child: Image.asset(
-            'assets/images/wellness_hub_banner.png',
-            fit: BoxFit.cover,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(
+                'assets/images/wellness_hub_banner.png',
+                fit: BoxFit.cover,
+              ),
+              Positioned(
+                left: 20,
+                top: 0,
+                bottom: 0,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.spa_rounded, color: Color(0xFF8B5CF6), size: 24),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Wellness Hub',
+                          style: GoogleFonts.outfit(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF1E1B4B),
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 32),
+                      child: Text(
+                        'Your guide to a calmer, healthier you',
+                        style: GoogleFonts.outfit(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF4338CA),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

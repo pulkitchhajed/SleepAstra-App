@@ -48,7 +48,32 @@ class RewardsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
-        child: Stack(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.hourglass_empty_rounded, size: 64, color: AppTheme.primaryIndigo),
+              const SizedBox(height: 16),
+              Text(
+                'Coming Soon',
+                style: GoogleFonts.outfit(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Exciting rewards are on the way!',
+                style: GoogleFonts.outfit(
+                  fontSize: 16,
+                  color: textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        /* child: Stack(
           children: [
             RefreshIndicator(
               onRefresh: rewards.refreshWallet,
@@ -421,7 +446,7 @@ class RewardsScreen extends StatelessWidget {
                 ),
               ),
           ],
-        ),
+        ), */
       ),
     );
   }

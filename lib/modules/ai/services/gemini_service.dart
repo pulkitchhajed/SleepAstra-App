@@ -25,7 +25,7 @@ class GeminiService {
         requiredProperties: ['summary', 'riskLevel', 'recommendation'],
       );
       final model = GenerativeModel(
-        model: 'gemini-flash-latest',
+        model: 'gemini-3.6-flash',
         apiKey: _apiKey,
         generationConfig: GenerationConfig(responseMimeType: 'application/json', responseSchema: schema),
       );
@@ -57,7 +57,7 @@ class GeminiService {
       );
 
       final model = GenerativeModel(
-        model: 'gemini-flash-latest',
+        model: 'gemini-3.6-flash',
         apiKey: _apiKey,
         generationConfig: GenerationConfig(
           responseMimeType: 'application/json',
@@ -102,7 +102,7 @@ class GeminiService {
       );
 
       final model = GenerativeModel(
-        model: 'gemini-flash-latest',
+        model: 'gemini-3.6-flash',
         apiKey: _apiKey,
         generationConfig: GenerationConfig(
           responseMimeType: 'application/json',
@@ -279,7 +279,7 @@ CRITICAL RULE: You must append the following exact sentence to the very end of y
 "*I am an AI, please consult a doctor for a professional diagnosis.*"''';
 
       final model = GenerativeModel(
-        model: 'gemini-flash-latest',
+        model: 'gemini-3.6-flash',
         apiKey: _apiKey,
         systemInstruction: Content.system(systemInstruction),
       );
@@ -501,7 +501,7 @@ Notes: ${entry.notes}
 ''';
 
     try {
-      final model = GenerativeModel(model: 'gemini-2.0-flash', apiKey: _apiKey);
+      final model = GenerativeModel(model: 'gemini-3.6-flash', apiKey: _apiKey);
       final response = await model.generateContent([Content.text(prompt)]);
       return response.text ?? "Looks like a standard night ahead! Sleep well.";
     } catch (e) {
