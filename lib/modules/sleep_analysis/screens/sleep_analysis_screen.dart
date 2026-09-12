@@ -478,7 +478,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
           context: context,
           barrierDismissible: false,
           builder: (context) => AlertDialog(
-            backgroundColor: Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surfaceElevated,
+            backgroundColor: Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surface,
             title: Text('🔋 CRITICAL: Allow Overnight Recording',
                 style: const TextStyle(fontWeight: FontWeight.bold)),
             content: Text(
@@ -1120,7 +1120,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
         return Container(
           padding: EdgeInsets.fromLTRB(32, 32, 32, 24 + bottomPad),
           decoration: BoxDecoration(
-            color: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surfaceElevated),
+            color: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surface),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
             boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20)],
           ),
@@ -1369,7 +1369,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
         builder: (ctx) => Container(
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
-            color: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surfaceElevated),
+            color: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surface),
             borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
             boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 20)],
           ),
@@ -2542,7 +2542,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
         builder: (context, setSheetState) => Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surfaceElevated),
+            color: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surface),
             borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
             boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 20)],
           ),
