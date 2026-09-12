@@ -230,11 +230,11 @@ class _AppGateState extends State<_AppGate> {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       onGenerateRoute: AppRouter.generateRoute,
-      home: _buildHome(onboarding),
+      home: _buildHome(auth, onboarding),
     );
   }
 
-  Widget _buildHome(OnboardingProvider onboarding) {
+  Widget _buildHome(AuthProvider auth, OnboardingProvider onboarding) {
     if (_authError) {
       return Scaffold(
         backgroundColor: AppTheme.background,
@@ -262,7 +262,23 @@ class _AppGateState extends State<_AppGate> {
       );
     }
 
-    if (!_ready || _isSyncing || !onboarding.isInitialized) {
+    // Wait for Firebase Auth to resolve on cold start
+    if (!_ready) {
+      return const Scaffold(
+        backgroundColor: AppTheme.background,
+        body: Center(
+          child: CircularProgressIndicator(color: AppTheme.primaryIndigo),
+        ),
+      );
+    }
+
+    // STATE 1: Not authenticated → show login screen IMMEDIATELY.
+    // This check MUST come before _isSyncing so that logout redirects
+    // to AuthScreen right away instead of waiting for a guest profile load.
+    if (!auth.isAuthenticated) return const AuthScreen();
+
+    // Still loading the authenticated user's profile
+    if (_isSyncing || !onboarding.isInitialized) {
       return const Scaffold(
         backgroundColor: AppTheme.background,
         body: Center(
@@ -286,9 +302,6 @@ class _AppGateState extends State<_AppGate> {
       );
     }
 
-    final auth = context.read<AuthProvider>();
-    // STATE 1: Not authenticated → show login screen
-    if (!auth.isAuthenticated) return const AuthScreen();
     // STATE 2: Authenticated but profile incomplete → start onboarding
     if (!onboarding.isComplete) return const SetupFlowScreen();
     // STATE 3: Authenticated + complete profile → main app
