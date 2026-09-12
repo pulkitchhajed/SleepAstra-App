@@ -64,7 +64,8 @@ class _BlogDetailScreenState extends State<BlogDetailScreen> {
   static String _convertToMarkdown(String raw) {
     if (raw.trim().isEmpty) return raw;
 
-    String text = raw;
+    // Fix mojibake first (garbled characters from Word/PDF copy-paste)
+    String text = _fixEncoding(raw);
 
     // Step 1: Normalize all bullet variants (•, ·, ▪, ●, etc.) surrounded by
     // optional whitespace into a newline + markdown list marker.
@@ -87,7 +88,7 @@ class _BlogDetailScreenState extends State<BlogDetailScreen> {
     //   - Is ≤ 80 characters
     //   - Starts with a capital letter
     //   - Does NOT end with . , ; or )
-    //   - Is not a list item
+    //   - Is not a list item or numbered list entry
     //   - Has a blank line before or after it (common heading pattern)
     final lines = text.split('\n');
     final out = <String>[];
@@ -102,6 +103,12 @@ class _BlogDetailScreenState extends State<BlogDetailScreen> {
 
       if (line.startsWith('- ')) {
         // Already a list item — keep as-is
+        out.add(line);
+        continue;
+      }
+
+      // Numbered list items like "7." or "7)" or "7. Some text" — never headings
+      if (RegExp(r'^\d+[.)]\s*').hasMatch(line)) {
         out.add(line);
         continue;
       }
@@ -134,6 +141,29 @@ class _BlogDetailScreenState extends State<BlogDetailScreen> {
     }
 
     return collapsed.join('\n');
+  }
+
+  /// Fixes mojibake from Windows-1252 / Latin-1 text pasted into UTF-8 storage.
+  /// e.g. "tomorrowâ€™s" → "tomorrow's"
+  static String _fixEncoding(String text) {
+    return text
+      // Curly apostrophe / right single quote  '
+      .replaceAll('â€™', '\u2019')
+      // Left double quote  "
+      .replaceAll('â€œ', '\u201C')
+      // Right double quote  "
+      .replaceAll('â€\u009d', '\u201D')
+      .replaceAll('â€', '\u201D')
+      // En dash  –
+      .replaceAll('â€"', '\u2013')
+      // Em dash  —
+      .replaceAll('â\u0080\u0094', '\u2014')
+      // Ellipsis  …
+      .replaceAll('â€¦', '\u2026')
+      // Left single quote  '
+      .replaceAll('â€˜', '\u2018')
+      // Non-breaking space → regular space
+      .replaceAll('\u00a0', ' ');
   }
 
 

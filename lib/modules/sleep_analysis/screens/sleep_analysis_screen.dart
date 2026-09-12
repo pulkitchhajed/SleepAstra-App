@@ -170,165 +170,171 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       isDismissible: true,
       isScrollControlled: true,
       builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) => Container(
-          padding: const EdgeInsets.fromLTRB(28, 20, 28, 36),
-          decoration: const BoxDecoration(
-            color: Color(0xFF151728),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-            boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 24)],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle bar
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: (Theme.of(context).brightness == Brightness.light ? AppTheme.cardBorderLight : AppTheme.cardBorder),
-                    borderRadius: BorderRadius.circular(2),
+        builder: (context, setSheetState) {
+          final isLight = Theme.of(context).brightness == Brightness.light;
+          final sheetBg = isLight ? AppTheme.surfaceLight : const Color(0xFF151728);
+          final textPrimary = isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary;
+          final textSecondary = isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary;
+          final borderColor = isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder;
+          final iconBg = isLight ? Colors.white : AppTheme.surfaceElevated;
+          final bottomPad = MediaQuery.of(context).padding.bottom;
+          return Container(
+            padding: EdgeInsets.fromLTRB(28, 20, 28, 24 + bottomPad),
+            decoration: BoxDecoration(
+              color: sheetBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 24)],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Handle bar
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: borderColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              // Icon + Title
-              Row(
-                children: [
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppTheme.primaryIndigo.withValues(alpha: 0.18),
-                      border: Border.all(
-                        color: AppTheme.primaryIndigo.withValues(alpha: 0.4),
-                        width: 1.2,
-                      ),
-                    ),
-                    child: const Center(child: Text('💡', style: TextStyle(fontSize: 22))),
-                  ),
-                  const SizedBox(width: 14),
-                  Text(
-                    'Recording Tips',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textPrimaryLight : AppTheme.textPrimary),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              // Tips list
-              ...[
-                (Icons.phone_android_rounded, 'Place phone face-down', 'Lay it beside your pillow for the best microphone pickup.'),
-                (Icons.bolt_rounded, 'Keep it plugged in', 'An overnight recording needs your device charged throughout.'),
-                (Icons.notifications_off_rounded, 'Silence notifications', 'Avoid interruptions for more accurate sleep analysis.'),
-              ].map((tip) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 24),
+                // Icon + Title
+                Row(
                   children: [
                     Container(
-                      width: 38,
-                      height: 38,
+                      width: 46,
+                      height: 46,
                       decoration: BoxDecoration(
-                        color: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surfaceElevated),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.cardBorderLight : AppTheme.cardBorder)),
-                      ),
-                      child: Icon(tip.$1, color: AppTheme.accentTeal, size: 20),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            tip.$2,
-                            style: TextStyle(
-                              color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textPrimaryLight : AppTheme.textPrimary),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            tip.$3,
-                            style: TextStyle(
-                              color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary),
-                              fontSize: 13,
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              )),
-              const SizedBox(height: 8),
-              // Don't show again
-              GestureDetector(
-                onTap: () => setSheetState(() => dontShowAgain = !dontShowAgain),
-                child: Row(
-                  children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6),
-                        color: dontShowAgain
-                            ? AppTheme.primaryIndigo
-                            : Colors.transparent,
+                        shape: BoxShape.circle,
+                        color: AppTheme.primaryIndigo.withValues(alpha: 0.18),
                         border: Border.all(
-                          color: dontShowAgain
-                              ? AppTheme.primaryIndigo
-                              : (Theme.of(context).brightness == Brightness.light ? AppTheme.cardBorderLight : AppTheme.cardBorder),
-                          width: 1.5,
+                          color: AppTheme.primaryIndigo.withValues(alpha: 0.4),
+                          width: 1.2,
                         ),
                       ),
-                      child: dontShowAgain
-                          ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
-                          : null,
+                      child: const Center(child: Text('💡', style: TextStyle(fontSize: 22))),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 14),
                     Text(
-                      "Don't show again",
-                      style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary), fontSize: 13),
+                      'Recording Tips',
+                      style: TextStyle(
+                        color: textPrimary,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 24),
-              // Got it button
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (dontShowAgain) prefs.setBool('hideRecordingTips', true);
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.accentTeal,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 0,
+                const SizedBox(height: 24),
+                // Tips list
+                ...[
+                  (Icons.phone_android_rounded, 'Place phone face-down', 'Lay it beside your pillow for the best microphone pickup.'),
+                  (Icons.bolt_rounded, 'Keep it plugged in', 'An overnight recording needs your device charged throughout.'),
+                  (Icons.notifications_off_rounded, 'Silence notifications', 'Avoid interruptions for more accurate sleep analysis.'),
+                ].map((tip) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: iconBg,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: Icon(tip.$1, color: AppTheme.accentTeal, size: 20),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              tip.$2,
+                              style: TextStyle(
+                                color: textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              tip.$3,
+                              style: TextStyle(
+                                color: textSecondary,
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  child: const Text(
-                    'Got it!',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                )),
+                const SizedBox(height: 8),
+                // Don't show again
+                GestureDetector(
+                  onTap: () => setSheetState(() => dontShowAgain = !dontShowAgain),
+                  child: Row(
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(6),
+                          color: dontShowAgain ? AppTheme.primaryIndigo : Colors.transparent,
+                          border: Border.all(
+                            color: dontShowAgain ? AppTheme.primaryIndigo : borderColor,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: dontShowAgain
+                            ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                            : null,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        "Don't show again",
+                        style: TextStyle(color: textSecondary, fontSize: 13),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
+                const SizedBox(height: 24),
+                // Got it button
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (dontShowAgain) prefs.setBool('hideRecordingTips', true);
+                      Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.accentTeal,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'Got it!',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -1002,8 +1008,8 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       return;
     }
 
-    if (provider.recordingDuration.inSeconds < 30) {
-      RecordingLogger().warning('Recording too short (<30s), discarding file: $stoppedPath');
+    if (provider.recordingDuration.inMinutes < 30) {
+      RecordingLogger().warning('Recording too short (<30 min), discarding file: $stoppedPath');
       if (!context.mounted) {
         if (!kIsWeb) await PlatformFileReader.deleteFile(stoppedPath);
         return;
@@ -1109,45 +1115,48 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surfaceElevated),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-          boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 20)],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('🥱', style: TextStyle(fontSize: 64)),
-            const SizedBox(height: 16),
-            Text(
-              'Recording too short',
-              style: Theme.of(context).textTheme.displaySmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Recording should be more than 30s to provide accurate analysis. Please go back to sleep and try again later!',
-              style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary), fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryIndigo,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: const Text('Back to Sleep', style: TextStyle(fontSize: 18)),
+      builder: (context) {
+        final bottomPad = MediaQuery.of(context).padding.bottom;
+        return Container(
+          padding: EdgeInsets.fromLTRB(32, 32, 32, 24 + bottomPad),
+          decoration: BoxDecoration(
+            color: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surfaceElevated),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20)],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🥱', style: TextStyle(fontSize: 64)),
+              const SizedBox(height: 16),
+              Text(
+                'Recording too short',
+                style: Theme.of(context).textTheme.displaySmall,
+                textAlign: TextAlign.center,
               ),
-            ),
-          ],
-        ),
-      ),
+              const SizedBox(height: 12),
+              Text(
+                'Recording should be at least 30 minutes to provide accurate analysis. Please go back to sleep and try again later!',
+                style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary), fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryIndigo,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: const Text('Back to Sleep', style: TextStyle(fontSize: 18)),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
