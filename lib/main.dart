@@ -105,6 +105,8 @@ class SleepAstraApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+    
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
@@ -115,7 +117,21 @@ class SleepAstraApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: const _AppGate(),
+      child: Builder(
+        builder: (context) {
+          final themeProvider = context.watch<ThemeProvider>();
+          return MaterialApp(
+            navigatorKey: navigatorKey,
+            title: 'Sleep Astra',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            onGenerateRoute: AppRouter.generateRoute,
+            home: const _AppGate(),
+          );
+        },
+      ),
     );
   }
 }
@@ -216,22 +232,8 @@ class _AppGateState extends State<_AppGate> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final onboarding = context.watch<OnboardingProvider>();
-    final themeProvider = context.watch<ThemeProvider>();
     
-    // We wrap everything in MaterialApp HERE so we can force a hard reset
-    // by changing the Key whenever the auth state changes.
-    // This effectively wipes the Navigator stack and all local UI state.
-    return MaterialApp(
-      navigatorKey: navigatorKey,
-      key: ValueKey('app_gate_${auth.uid}_${auth.sessionKey}'),
-      title: 'Sleep Astra',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      onGenerateRoute: AppRouter.generateRoute,
-      home: _buildHome(auth, onboarding),
-    );
+    return _buildHome(auth, onboarding);
   }
 
   Widget _buildHome(AuthProvider auth, OnboardingProvider onboarding) {
