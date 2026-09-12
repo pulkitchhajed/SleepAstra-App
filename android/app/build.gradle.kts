@@ -28,9 +28,8 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
+
+
 
     defaultConfig {
         applicationId = "com.snoreclinics.ai"
@@ -97,4 +96,9 @@ configurations.all {
         force("androidx.core:core-ktx:1.15.0")
         force("androidx.browser:browser:1.8.0")
     }
+}
+
+
+kotlin {
+    jvmToolchain(17)
 }
