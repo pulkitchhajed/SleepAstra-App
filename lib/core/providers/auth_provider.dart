@@ -235,6 +235,7 @@ class AuthProvider extends ChangeNotifier {
     // Clear the cached device UID so the next login starts fresh
     await FirestoreService.clearCache();
     await _authService.signOut();
+    _user = null; // Explicitly set to null to avoid waiting for stream
     _sessionKey++; // Force a sync even if uid is still null (e.g. guest sign out)
     if (!_isDisposed) notifyListeners();
     _setLoading(false);

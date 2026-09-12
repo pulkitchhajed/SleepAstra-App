@@ -180,30 +180,34 @@ class _AppGateState extends State<_AppGate> {
 
     // 1. ASYNC RESET AND LOAD
     Future.microtask(() async {
-      if (!mounted) return;
-      
-      // Wipe all local memory to prevent User A data
-      // from being saved into User B's account during the loading window.
-      context.read<OnboardingProvider>().reset();
-      context.read<JournalProvider>().clear();
-      context.read<SleepAnalysisProvider>().reset();
-      context.read<RewardsProvider>().reset();
+      try {
+        if (!mounted) return;
+        
+        // Wipe all local memory to prevent User A data
+        // from being saved into User B's account during the loading window.
+        context.read<OnboardingProvider>().reset();
+        context.read<JournalProvider>().clear();
+        context.read<SleepAnalysisProvider>().reset();
+        context.read<RewardsProvider>().reset();
 
-      // Determine effective UID: Authenticated ID or Guest Device ID
-      final effectiveUid = auth.uid ?? await FirestoreService.deviceUid;
-      final email = auth.user?.email;
-      
-      if (!context.mounted) return;
-      await context.read<OnboardingProvider>().loadProfile(effectiveUid, userEmail: email);
-      context.read<JournalProvider>().loadEntries(effectiveUid);
-      context.read<SleepAnalysisProvider>().loadHistory(effectiveUid);
-      context.read<RewardsProvider>().init(effectiveUid);
-      context.read<SubscriptionProvider>().init(effectiveUid);
-
-      if (mounted) {
-        setState(() {
-          _isSyncing = false;
-        });
+        // Determine effective UID: Authenticated ID or Guest Device ID
+        final effectiveUid = auth.uid ?? await FirestoreService.deviceUid;
+        final email = auth.user?.email;
+        
+        if (!context.mounted) return;
+        await context.read<OnboardingProvider>().loadProfile(effectiveUid, userEmail: email);
+        context.read<JournalProvider>().loadEntries(effectiveUid);
+        context.read<SleepAnalysisProvider>().loadHistory(effectiveUid);
+        context.read<RewardsProvider>().init(effectiveUid);
+        context.read<SubscriptionProvider>().init(effectiveUid);
+      } catch (e) {
+        debugPrint("Error syncing session: $e");
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isSyncing = false;
+          });
+        }
       }
     });
   }
