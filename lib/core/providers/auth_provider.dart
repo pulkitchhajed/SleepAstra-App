@@ -29,11 +29,14 @@ class AuthProvider extends ChangeNotifier {
     // Listen to auth changes for future updates.
     _authSubscription = _authService.userChanges.listen((User? user) async {
       _user = user;
+      // Notify immediately so the UI redirects without waiting for Firestore.
+      if (!_isDisposed) notifyListeners();
       await _fetchRole();
       if (user != null) {
         _triggerSeedOnce();
         _updateFcmToken(user.uid);
       }
+      // Notify again so the role update is reflected (e.g. admin features).
       if (!_isDisposed) notifyListeners();
     });
   }
