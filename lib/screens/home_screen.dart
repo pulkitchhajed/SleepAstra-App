@@ -550,8 +550,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
                             foreground: Paint()
-                              ..shader = const LinearGradient(
-                                colors: [Color(0xFFB483F6), Color(0xFF6D28D9)],
+                              ..shader = LinearGradient(
+                                colors: isLight 
+                                    ? [const Color(0xFF4338CA), const Color(0xFF1E1B4B)]
+                                    : [const Color(0xFFB483F6), const Color(0xFF6D28D9)],
                               ).createShader(const Rect.fromLTWH(0, 0, 130, 30)),
                             height: 1.2,
                           ),
@@ -1338,7 +1340,7 @@ class _GoalProgressPainter extends CustomPainter {
 }
 
 
-// ── 2-Step Sleep Flow Bottom Sheet ────────────────────────────────────
+// ── 1-Step Sleep Flow Bottom Sheet ────────────────────────────────────
 class _SleepFlowSheet extends StatefulWidget {
   final Function(TimeOfDay? alarmTime) onStart;
   const _SleepFlowSheet({required this.onStart});
@@ -1347,24 +1349,7 @@ class _SleepFlowSheet extends StatefulWidget {
 }
 
 class _SleepFlowSheetState extends State<_SleepFlowSheet> {
-  late final PageController _pageController;
-  int _step = 0;
   int? _mood;
-  TimeOfDay _alarm = const TimeOfDay(hour: 7, minute: 0);
-  bool _vibration = true;
-  bool _soundAlarm = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _pageController = PageController();
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1391,31 +1376,13 @@ class _SleepFlowSheetState extends State<_SleepFlowSheet> {
             children: [
               IconButton(
                 icon: Icon(Icons.arrow_back_rounded, color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary),
-                onPressed: _step > 0
-                    ? () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut)
-                    : () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(context),
               ),
-              Row(children: List.generate(2, (i) => AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: i == _step ? 24 : 8, height: 8,
-                decoration: BoxDecoration(
-                  color: i == _step ? AppTheme.primaryIndigo : border,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ))),
-              const SizedBox(width: 48),
+              const SizedBox(width: 48), // Balance for the back button
             ],
           ),
-          const SizedBox(height: 24),
-          Expanded(
-            child: PageView(
-              controller: _pageController,
-              physics: const NeverScrollableScrollPhysics(),
-              onPageChanged: (page) => setState(() => _step = page),
-              children: [_moodStep(isLight), _alarmStep(isLight)],
-            ),
-          ),
+          const SizedBox(height: 12),
+          Expanded(child: _moodStep(isLight)),
         ],
       ),
     );
@@ -1468,57 +1435,11 @@ class _SleepFlowSheetState extends State<_SleepFlowSheet> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-          child: _nextBtn('Next →', _mood != null
-              ? () => _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut)
+          child: _nextBtn('🌙  Start Sleep Session', _mood != null
+              ? () => widget.onStart(null)
               : null),
         ),
       ],
-    );
-  }
-
-  Widget _alarmStep(bool isLight) {
-    final textP = isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary;
-    final textS = isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary;
-    final border = isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder;
-
-    return SingleChildScrollView(
-      key: const ValueKey(1),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(children: [
-        Text('Set Your Alarm', style: GoogleFonts.outfit(fontSize: 26, fontWeight: FontWeight.w700, color: textP)),
-        const SizedBox(height: 8),
-        Text('When do you want to wake up?', style: TextStyle(color: textS)),
-        const SizedBox(height: 32),
-        AnimatedOpacity(
-          opacity: _soundAlarm ? 1.0 : 0.3,
-          duration: const Duration(milliseconds: 200),
-          child: GestureDetector(
-            onTap: _soundAlarm ? () async {
-              final t = await showTimePicker(context: context, initialTime: _alarm,
-                  builder: (ctx, child) => Theme(data: ThemeData.dark().copyWith(
-                    colorScheme: const ColorScheme.dark(primary: AppTheme.primaryIndigo, surface: AppTheme.surface),
-                  ), child: child!));
-              if (t != null) setState(() => _alarm = t);
-            } : null,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryIndigo.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTheme.primaryIndigo.withValues(alpha: 0.3)),
-              ),
-              child: Text(_alarm.format(context),
-                  style: GoogleFonts.outfit(fontSize: 52, fontWeight: FontWeight.w800, color: textP)),
-            ),
-          ),
-        ),
-        const SizedBox(height: 28),
-        _toggleRow('Vibration', _vibration, (v) => setState(() => _vibration = v), isLight, textP, border),
-        const SizedBox(height: 12),
-        _toggleRow('Enable Alarm', _soundAlarm, (v) => setState(() => _soundAlarm = v), isLight, textP, border),
-        const SizedBox(height: 40),
-        _nextBtn('🌙  Start Sleep Session', () => widget.onStart(_soundAlarm ? _alarm : null)),
-      ]),
     );
   }
 
@@ -1539,25 +1460,6 @@ class _SleepFlowSheetState extends State<_SleepFlowSheet> {
       ),
     ),
   );
-
-  Widget _toggleRow(String label, bool val, ValueChanged<bool> onChange, bool isLight, Color textP, Color border) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: border),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(color: textP, fontWeight: FontWeight.w500)),
-          Switch(value: val, onChanged: onChange,
-              activeThumbColor: AppTheme.primaryIndigo, inactiveTrackColor: border),
-        ],
-      ),
-    );
-  }
 }
 
 // Custom painter for the Sleep Score card — soft wave/landscape background

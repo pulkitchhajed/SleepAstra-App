@@ -178,127 +178,129 @@ class _BlogListCard extends StatelessWidget {
           );
         }
       },
-      child: Container(
-        height: 130,
-        decoration: BoxDecoration(
-          color: surfaceElevated,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: cardBorder),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isLight ? 0.08 : 0.25),
-              blurRadius: 16,
-              spreadRadius: 0,
-              offset: const Offset(0, 6),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isLight ? 0.04 : 0.12),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Cover Image
-            ClipRRect(
-              borderRadius: const BorderRadius.horizontal(left: Radius.circular(15)),
-              child: Stack(
-                children: [
-                  SizedBox(
-                    width: 120,
-                    height: double.infinity,
-                    child: blog.coverImageUrl.isNotEmpty
-                        ? Image.network(
-                            blog.coverImageUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _thumbPlaceholder(),
-                          )
-                        : _thumbPlaceholder(),
-                  ),
-                  if (isLocked)
-                    Positioned.fill(
-                      child: Container(
-                        color: Colors.black54,
-                        child: Center(
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: const BoxDecoration(
-                              color: Colors.black54,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.lock_rounded, color: AppTheme.primaryGold, size: 24),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+      child: IntrinsicHeight(
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 130),
+          decoration: BoxDecoration(
+            color: surfaceElevated,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: cardBorder),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isLight ? 0.08 : 0.25),
+                blurRadius: 16,
+                spreadRadius: 0,
+                offset: const Offset(0, 6),
               ),
-            ),
-            
-            // Content
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isLight ? 0.04 : 0.12),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Cover Image
+              SizedBox(
+                width: 120,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(15)),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      blog.coverImageUrl.isNotEmpty
+                          ? Image.network(
+                              blog.coverImageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _thumbPlaceholder(),
+                            )
+                          : _thumbPlaceholder(),
+                      if (isLocked)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryIndigo.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            blog.category.toUpperCase(),
-                            style: const TextStyle(
-                              color: AppTheme.primaryIndigo,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
+                          color: Colors.black54,
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.lock_rounded, color: AppTheme.primaryGold, size: 24),
                             ),
                           ),
                         ),
-                        Text(
-                          '${blog.readTimeMinutes} min read',
-                          style: TextStyle(
-                            color: textSecondary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      blog.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      blog.summary,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: textSecondary,
-                        fontSize: 12,
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+              
+              // Content
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryIndigo.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              blog.category.toUpperCase(),
+                              style: const TextStyle(
+                                color: AppTheme.primaryIndigo,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${blog.readTimeMinutes} min read',
+                            style: TextStyle(
+                              color: textSecondary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        blog.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        blog.summary,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: textSecondary,
+                          fontSize: 12,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

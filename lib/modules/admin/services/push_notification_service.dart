@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/push_notification_model.dart';
@@ -22,7 +23,7 @@ class PushNotificationService {
       final uploadTask = await ref.putData(imageBytes, SettableMetadata(contentType: 'image/jpeg')).timeout(const Duration(seconds: 15));
       return await uploadTask.ref.getDownloadURL();
     } catch (e) {
-      print('Error uploading banner image: $e');
+      debugPrint('Error uploading banner image: $e');
       return null;
     }
   }

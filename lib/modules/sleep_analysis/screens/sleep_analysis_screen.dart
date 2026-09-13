@@ -1654,13 +1654,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  IconButton(
-                    icon: Icon(
-                      _alarmTime == null ? Icons.alarm_rounded : Icons.alarm_on_rounded, 
-                      color: _alarmTime == null ? AppTheme.textPrimary : AppTheme.accentTeal,
-                    ),
-                    onPressed: _showAlarmSheet,
-                  ),
+                  const SizedBox(width: 48), // Hidden alarm icon
                   Row(
                     children: [
                       const Icon(Icons.mic, color: AppTheme.error, size: 20),
@@ -2032,7 +2026,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
         'Place your phone face-down beside your pillow and drift off to sleep.',
       ),
       (
-        Icons.alarm_on_rounded,
+        Icons.wb_sunny_rounded,
         const Color(0xFF10B981),
         'Wake Up & Hold to Stop',
         'In the morning, hold the "Hold To Wake Up" button for 2 seconds to stop and analyse.',

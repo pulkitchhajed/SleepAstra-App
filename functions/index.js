@@ -23,7 +23,7 @@ exports.processScheduledNotifications = functions.pubsub.schedule('every 1 minut
       const offsetMs = (data.clientTimezoneOffset || 0) * 60 * 1000;
       const localNow = new Date(nowTime + offsetMs);
       
-      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const currentDayName = dayNames[localNow.getUTCDay()];
       
       if (data.recurringWeekdays.includes(currentDayName)) {
@@ -107,7 +107,24 @@ async function sendNotification(docId, data) {
 
     // Attach banner image if present
     if (data.bannerImageUrl) {
-      message.notification.image = data.bannerImageUrl;
+      message.notification.imageUrl = data.bannerImageUrl;
+      
+      message.android = {
+        notification: {
+          imageUrl: data.bannerImageUrl
+        }
+      };
+      
+      message.apns = {
+        payload: {
+          aps: {
+            'mutable-content': 1
+          }
+        },
+        fcm_options: {
+          image: data.bannerImageUrl
+        }
+      };
     }
     
     // Attach custom payload data

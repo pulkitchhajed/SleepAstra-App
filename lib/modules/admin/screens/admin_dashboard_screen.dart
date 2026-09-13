@@ -115,6 +115,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               label: Text(_tabs[index]),
             );
           }),
+          trailing: Expanded(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 24.0),
+                child: IconButton(
+                  icon: const Icon(Icons.logout_rounded),
+                  color: AppTheme.error,
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ),
+          ),
         ),
         const VerticalDivider(thickness: 1, width: 1),
         Expanded(
@@ -1612,7 +1625,7 @@ class _AdminNotificationsTabState extends State<_AdminNotificationsTab> with Sin
                   children: [
                     Text(notif.body, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary)),
                     const SizedBox(height: 4),
-                    Text('Status: ${notif.status} • Scheduled: ${notif.scheduledTime != null ? DateFormat('MMM dd, hh:mm a').format(notif.scheduledTime!) : (notif.recurringWeekdays?.join(", ") ?? "") + " at " + (notif.scheduledTimeOfDay ?? "")}', style: TextStyle(fontSize: 12, color: AppTheme.primaryIndigo)),
+                    Text('Status: ${notif.status} • Scheduled: ${notif.scheduledTime != null ? DateFormat('MMM dd, hh:mm a').format(notif.scheduledTime!) : (notif.recurringWeekdays != null && notif.recurringWeekdays!.isNotEmpty ? (notif.recurringWeekdays!.join(", ") + " at " + (notif.scheduledTimeOfDay ?? "")) : DateFormat('MMM dd, hh:mm a').format(notif.createdAt))}', style: TextStyle(fontSize: 12, color: AppTheme.primaryIndigo)),
                   ],
                 ),
                 trailing: IconButton(

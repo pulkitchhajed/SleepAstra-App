@@ -349,7 +349,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
                         style: GoogleFonts.outfit(
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
-                          color: const Color(0xFF4338CA),
+                          color: isLight ? const Color(0xFF1E1B4B) : const Color(0xFF4338CA),
                         ),
                       ),
                     ),
@@ -756,10 +756,16 @@ class _WellnessScreenState extends State<WellnessScreen> {
               onSeeAll: () {
                 if (zone.contentTypes.contains('video')) {
                   Navigator.pushNamed(context, AppRouter.videoLibrary);
+                } else if (zone.contentTypes.contains('audio')) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Audio Library coming soon')),
+                  );
                 } else if (zone.contentTypes.contains('blog')) {
                   // If we had a router for BlogListScreen, we'd use it here.
                   // For now, videoLibrary is the main entry for Admin access.
-                  Navigator.pushNamed(context, AppRouter.videoLibrary);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Blog Hub coming soon')),
+                  );
                 } else {
                   Navigator.pushNamed(context, AppRouter.videoLibrary);
                 }
@@ -806,6 +812,22 @@ class _WellnessScreenState extends State<WellnessScreen> {
                             startIndex: startIdx < 0 ? 0 : startIdx,
                           )),
                         );
+                      } else if (type == 'audio' && item['data'] is AudioTrackModel) {
+                        // Implement inline audio playback via existing `_tracks` mapping
+                        // Since `_playTrack` expects an index to `_tracks`, and this is a dynamic track,
+                        // we can manually tell just_audio to play this track.
+                        final tappedAudio = item['data'] as AudioTrackModel;
+                        try {
+                          _audioPlayer.setAudioSource(AudioSource.uri(Uri.parse(tappedAudio.audioUrl)));
+                          _audioPlayer.play();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Playing ${tappedAudio.title}...')),
+                          );
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Failed to play audio.')),
+                          );
+                        }
                       }
                     },
                     child: SizedBox(

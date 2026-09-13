@@ -144,24 +144,25 @@ class _BlogDetailScreenState extends State<BlogDetailScreen> {
   }
 
   /// Fixes mojibake from Windows-1252 / Latin-1 text pasted into UTF-8 storage.
-  /// e.g. "tomorrowâ€™s" → "tomorrow's"
+  /// Also replaces unicode smart quotes and dashes with standard ASCII equivalents
+  /// to prevent font-fallback issues where the font changes mid-word.
   static String _fixEncoding(String text) {
     return text
-      // Curly apostrophe / right single quote  '
-      .replaceAll('â€™', '\u2019')
+      // Smart apostrophe / right single quote  '
+      .replaceAll('â€™', "'").replaceAll('\u2019', "'")
       // Left double quote  "
-      .replaceAll('â€œ', '\u201C')
+      .replaceAll('â€œ', '"').replaceAll('\u201C', '"')
       // Right double quote  "
-      .replaceAll('â€\u009d', '\u201D')
-      .replaceAll('â€', '\u201D')
-      // En dash  –
-      .replaceAll('â€"', '\u2013')
-      // Em dash  —
-      .replaceAll('â\u0080\u0094', '\u2014')
-      // Ellipsis  …
-      .replaceAll('â€¦', '\u2026')
+      .replaceAll('â€\u009d', '"').replaceAll('\u201D', '"')
+      .replaceAll('â€', '"')
+      // En dash  -
+      .replaceAll('â€"', '-').replaceAll('\u2013', '-')
+      // Em dash  -
+      .replaceAll('â\u0080\u0094', '-').replaceAll('\u2014', '-')
+      // Ellipsis  ...
+      .replaceAll('â€¦', '...').replaceAll('\u2026', '...')
       // Left single quote  '
-      .replaceAll('â€˜', '\u2018')
+      .replaceAll('â€˜', "'").replaceAll('\u2018', "'")
       // Non-breaking space → regular space
       .replaceAll('\u00a0', ' ');
   }
@@ -377,28 +378,31 @@ class _BlogDetailScreenState extends State<BlogDetailScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-        decoration: BoxDecoration(
-          color: surfaceElevated,
-          border: Border(top: BorderSide(color: cardBorder)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _ReactionButton(
-              icon: isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              label: '$likesCount',
-              color: isLiked ? Colors.redAccent : textSecondary,
-              onTap: () => _toggleReaction('likes'),
-            ),
-            _ReactionButton(
-              icon: isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-              label: '$bookmarksCount',
-              color: isBookmarked ? AppTheme.primaryIndigo : textSecondary,
-              onTap: () => _toggleReaction('bookmarks'),
-            ),
-          ],
+      bottomNavigationBar: SafeArea(
+        bottom: true,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          decoration: BoxDecoration(
+            color: surfaceElevated,
+            border: Border(top: BorderSide(color: cardBorder)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _ReactionButton(
+                icon: isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                label: '$likesCount',
+                color: isLiked ? Colors.redAccent : textSecondary,
+                onTap: () => _toggleReaction('likes'),
+              ),
+              _ReactionButton(
+                icon: isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                label: '$bookmarksCount',
+                color: isBookmarked ? AppTheme.primaryIndigo : textSecondary,
+                onTap: () => _toggleReaction('bookmarks'),
+              ),
+            ],
+          ),
         ),
       ),
     );
