@@ -28,7 +28,7 @@ class WellnessScreen extends StatefulWidget {
 }
 
 class _WellnessScreenState extends State<WellnessScreen> {
-  int? _activeTrackIndex;
+  AudioTrackModel? _activeAudio;
   bool _isPlaying = false;
   bool _isLoading = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -36,32 +36,12 @@ class _WellnessScreenState extends State<WellnessScreen> {
   int _selectedCategoryIndex = 0;
   List<String> get _categories => ['All Zones', ..._zones.map((z) => z.name)];
 
-  // Tracks are a combination of local tracks and Firebase tracks
-  List<SleepTrack> _tracks = [];
-  StreamSubscription? _audioSub;
   List<WellnessZoneModel> _zones = [];
   StreamSubscription? _zonesSub;
 
   @override
   void initState() {
     super.initState();
-    _audioSub = AudioTrackService().getAudioTracks().listen((cloudTracks) {
-      if (mounted) {
-        setState(() {
-          // Only use cloud tracks
-          _tracks = cloudTracks.map((t) => SleepTrack(
-            name: t.title,
-            category: t.category,
-            duration: t.duration,
-            icon: Icons.audiotrack_rounded,
-            color: AppTheme.primaryIndigo,
-            url: t.audioUrl,
-            type: t.category,
-            loop: t.loop,
-          )).toList();
-        });
-      }
-    });
     _zonesSub = WellnessZoneService.watchZones().listen((zones) {
       if (mounted) setState(() => _zones = zones);
     });
@@ -69,7 +49,6 @@ class _WellnessScreenState extends State<WellnessScreen> {
 
   @override
   void dispose() {
-    _audioSub?.cancel();
     _zonesSub?.cancel();
     _audioPlayer.dispose();
     super.dispose();
@@ -79,13 +58,13 @@ class _WellnessScreenState extends State<WellnessScreen> {
     _audioPlayer.stop();
     setState(() {
       _isPlaying = false;
-      _activeTrackIndex = null;
+      _activeAudio = null;
     });
   }
 
-  void _playTrack(int index) async {
+  void _playTrack(AudioTrackModel track) async {
     if (_isLoading) return;
-    if (_activeTrackIndex == index) {
+    if (_activeAudio?.id == track.id) {
       try {
         if (_isPlaying) {
           _audioPlayer.pause();
@@ -97,26 +76,28 @@ class _WellnessScreenState extends State<WellnessScreen> {
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to play/pause audio.')));
       }
-      setState(() {
-        _activeTrackIndex = index;
-        _isPlaying = true;
-        _isLoading = false; // We let just_audio handle buffering natively without blocking the UI
-      });
+      return;
+    }
+    
+    setState(() {
+      _activeAudio = track;
+      _isPlaying = true;
+      _isLoading = false;
+    });
 
-      final snackbarMessenger = ScaffoldMessenger.of(context);
-      try {
-        final audioSource = AudioSource.uri(Uri.parse(_tracks[index].url));
-        _audioPlayer.setAudioSource(audioSource);
-        _audioPlayer.setLoopMode(_tracks[index].loop ? LoopMode.one : LoopMode.off);
-        _audioPlayer.play();
-      } catch (e) {
-        if (!context.mounted) return;
-        setState(() {
-          _activeTrackIndex = null;
-          _isPlaying = false;
-        });
-        snackbarMessenger.showSnackBar(const SnackBar(content: Text('Failed to load audio. Check your connection.')));
-      }
+    final snackbarMessenger = ScaffoldMessenger.of(context);
+    try {
+      final audioSource = AudioSource.uri(Uri.parse(track.audioUrl));
+      _audioPlayer.setAudioSource(audioSource);
+      _audioPlayer.setLoopMode(track.loop ? LoopMode.one : LoopMode.off);
+      _audioPlayer.play();
+    } catch (e) {
+      if (!context.mounted) return;
+      setState(() {
+        _activeAudio = null;
+        _isPlaying = false;
+      });
+      snackbarMessenger.showSnackBar(const SnackBar(content: Text('Failed to load audio. Check your connection.')));
     }
   }
 
@@ -273,7 +254,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
               bottom: 0,
               child: Column(
                 children: [
-                  if (_activeTrackIndex != null)
+                  if (_activeAudio != null)
                     _buildMiniPlayer(),
                   // _buildSleepTimer(isLight), // Hidden for now
                 ],
@@ -757,9 +738,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
                 if (zone.contentTypes.contains('video')) {
                   Navigator.pushNamed(context, AppRouter.videoLibrary);
                 } else if (zone.contentTypes.contains('audio')) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Audio Library coming soon')),
-                  );
+                  Navigator.pushNamed(context, AppRouter.audioLibrary, arguments: zone.name);
                 } else if (zone.contentTypes.contains('blog')) {
                   // If we had a router for BlogListScreen, we'd use it here.
                   // For now, videoLibrary is the main entry for Admin access.
@@ -813,21 +792,8 @@ class _WellnessScreenState extends State<WellnessScreen> {
                           )),
                         );
                       } else if (type == 'audio' && item['data'] is AudioTrackModel) {
-                        // Implement inline audio playback via existing `_tracks` mapping
-                        // Since `_playTrack` expects an index to `_tracks`, and this is a dynamic track,
-                        // we can manually tell just_audio to play this track.
                         final tappedAudio = item['data'] as AudioTrackModel;
-                        try {
-                          _audioPlayer.setAudioSource(AudioSource.uri(Uri.parse(tappedAudio.audioUrl)));
-                          _audioPlayer.play();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Playing ${tappedAudio.title}...')),
-                          );
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Failed to play audio.')),
-                          );
-                        }
+                        _playTrack(tappedAudio);
                       }
                     },
                     child: SizedBox(
@@ -1115,147 +1081,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
   }
 
 
-  Widget _buildHorizontalList({
-    required List<SleepTrack> tracks,
-    required List<int> indices,
-    required bool isLight,
-    bool isLarge = false,
-  }) {
-    if (tracks.isEmpty) return const SizedBox();
 
-    final textPrimary = isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary;
-    final textSec = isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary;
-
-    return SizedBox(
-      height: isLarge ? 200 : 160,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: tracks.length,
-        itemBuilder: (context, index) {
-          final track = tracks[index];
-          final globalIndex = indices[index];
-          final isActive = _activeTrackIndex == globalIndex;
-          final isPremium = context.read<SubscriptionProvider>().isPremium;
-          final isLocked = !isPremium && globalIndex >= 5;
-
-          return GestureDetector(
-            onTap: () {
-              if (isLocked) {
-                Navigator.pushNamed(context, AppRouter.paywall);
-              } else {
-                _playTrack(globalIndex);
-              }
-            },
-            child: Container(
-              width: isLarge ? 200 : 140,
-              margin: const EdgeInsets.only(right: 16),
-              decoration: BoxDecoration(
-                color: track.color.withValues(alpha: isLight ? 0.10 : 0.18),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isActive
-                      ? AppTheme.primaryIndigo
-                      : track.color.withValues(alpha: 0.25),
-                  width: isActive ? 2 : 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: track.color.withValues(alpha: isLight ? 0.18 : 0.25),
-                    blurRadius: 16,
-                    spreadRadius: 0,
-                    offset: const Offset(0, 6),
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isLight ? 0.06 : 0.2),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  // Center icon + title + subtitle
-                  Center(
-                    child: Opacity(
-                      opacity: isLocked ? 0.4 : 1.0,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(track.icon, color: track.color, size: isLarge ? 48 : 40),
-                          const SizedBox(height: 10),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                            child: Text(
-                              track.name,
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.outfit(
-                                fontSize: isLarge ? 15 : 13,
-                                fontWeight: FontWeight.w700,
-                                color: textPrimary,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(track.category, style: TextStyle(fontSize: 11, color: textSec)),
-                        ],
-                      ),
-                    ),
-                  ),
-                  
-                  if (isLocked)
-                    const Positioned.fill(
-                      child: Center(
-                        child: Icon(Icons.lock_rounded, color: AppTheme.primaryGold, size: 28),
-                      ),
-                    ),
-                  // Duration badge — top right (same as Breathwork)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: track.color.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        track.duration,
-                        style: TextStyle(
-                          fontSize: 9,
-                          color: track.color,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Active play/pause overlay
-                  if (isActive)
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: Center(
-                        child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : Icon(
-                                _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
-                                color: Colors.white,
-                                size: 48,
-                              ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
 
   Widget _buildMiniPlayer() {
     return Container(
@@ -1285,17 +1111,17 @@ class _WellnessScreenState extends State<WellnessScreen> {
           Container(
             width: 44, height: 44,
             decoration: BoxDecoration(
-              color: _tracks[_activeTrackIndex!].color.withValues(alpha: 0.2),
+              color: AppTheme.primaryIndigo.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(_tracks[_activeTrackIndex!].icon, color: _tracks[_activeTrackIndex!].color, size: 24),
+            child: const Icon(Icons.audiotrack_rounded, color: Colors.white, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_tracks[_activeTrackIndex!].name, 
+                Text(_activeAudio!.title, 
                     style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
                 Text('Now Playing', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
               ],

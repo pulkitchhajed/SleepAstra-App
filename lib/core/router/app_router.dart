@@ -17,6 +17,7 @@ import '../../modules/settings/screens/settings_screen.dart';
 import '../../modules/paywall/screens/paywall_screen.dart';
 import '../../modules/paywall/screens/subscription_success_screen.dart';
 import '../../modules/videos/screens/video_list_screen.dart';
+import '../../modules/audio/screens/audio_list_screen.dart';
 import '../../modules/admin/screens/admin_dashboard_screen.dart';
 import '../../screens/daily_sleep_goal_screen.dart';
 
@@ -36,8 +37,9 @@ class AppRouter {
   static const String breathing     = '/breathing';
   static const String relaxation    = '/relaxation';
   static const String settings      = '/settings';
-  // Videos & Admin
+  // Videos, Audio & Admin
   static const String videoLibrary  = '/videos';
+  static const String audioLibrary  = '/audio';
   static const String adminDashboard = '/admin';
   static const String welcome       = '/welcome';
   static const String dailySleepGoal = '/daily_sleep_goal';
@@ -95,6 +97,9 @@ class AppRouter {
         return _slideRoute(const SettingsScreen(), s);
       case videoLibrary:
         return _slideRoute(const VideoListScreen(), s);
+      case audioLibrary:
+        final category = s.arguments as String?;
+        return _slideRoute(AudioListScreen(category: category), s);
       case adminDashboard:
         return _slideRoute(const AdminDashboardScreen(), s);
       case dailySleepGoal:
