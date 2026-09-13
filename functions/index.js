@@ -23,7 +23,7 @@ exports.processScheduledNotifications = functions.pubsub.schedule('every 1 minut
       const offsetMs = (data.clientTimezoneOffset || 0) * 60 * 1000;
       const localNow = new Date(nowTime + offsetMs);
       
-      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const currentDayName = dayNames[localNow.getUTCDay()];
       
       if (data.recurringWeekdays.includes(currentDayName)) {
@@ -122,6 +122,12 @@ async function sendNotification(docId, data) {
           }
         },
         fcm_options: {
+          image: data.bannerImageUrl
+        }
+      };
+
+      message.webpush = {
+        notification: {
           image: data.bannerImageUrl
         }
       };

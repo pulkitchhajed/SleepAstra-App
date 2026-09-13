@@ -8,5 +8,10 @@ service firebase.storage {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Allow public read for notification banners, and authenticated users can write
+    match /notification_banners/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
   }
 }
