@@ -42,10 +42,8 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Environment variables (contains API keys - never commit)
-.env
-# Allow the example template (no real keys inside)
-!.env.example
+# Environment variables
+# .env is tracked since this is a private project
 
 # APK / IPA build outputs
 *.apk
