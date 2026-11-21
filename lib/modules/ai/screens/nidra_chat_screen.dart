@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../sleep_analysis/services/sleep_storage_service.dart';
 import '../../sleep_analysis/models/sleep_report.dart';
+import '../../sleep_analysis/providers/sleep_analysis_provider.dart';
 import '../../journal/models/journal_entry.dart';
 import '../../onboarding/models/user_profile.dart';
 import '../../journal/providers/journal_provider.dart';
@@ -36,7 +37,8 @@ class _Message {
 
 class NidraChatScreen extends StatefulWidget {
   final bool isModal;
-  const NidraChatScreen({super.key, this.isModal = false});
+  final SleepReport? initialReport;
+  const NidraChatScreen({super.key, this.isModal = false, this.initialReport});
   @override
   State<NidraChatScreen> createState() => _NidraChatScreenState();
 }
@@ -69,6 +71,7 @@ class _NidraChatScreenState extends State<NidraChatScreen>
     final authProvider = context.read<AuthProvider>();
     final journalProvider = context.read<JournalProvider>();
     final onboardingProvider = context.read<OnboardingProvider>();
+    final sleepAnalysisProvider = context.read<SleepAnalysisProvider>();
 
     final uid = authProvider.uid ?? await FirestoreService.deviceUid;
 
@@ -82,10 +85,13 @@ class _NidraChatScreenState extends State<NidraChatScreen>
     // Load user profile from provider (already loaded at app start)
     final profile = onboardingProvider.profile;
 
+    final activeReport = widget.initialReport ??
+        (reports.isNotEmpty ? reports.first : sleepAnalysisProvider.latestReport);
+
     if (!mounted) return;
     setState(() {
       _sleepHistory = reports;
-      _latestReport = reports.isEmpty ? null : reports.first;
+      _latestReport = activeReport;
 
       // Latest journal: prefer the most recent evening entry, fall back to any entry
       _latestJournal = journalEntries.isEmpty
@@ -341,10 +347,12 @@ class _NidraChatScreenState extends State<NidraChatScreen>
   Widget _buildSuggestionsRow() {
     final isLightMode = Theme.of(context).brightness == Brightness.light;
     final chips = [
-      ('My sleep score?', Icons.star_rounded),
-      ('Why do I snore?', Icons.help_outline_rounded),
-      ('Sleep tips', Icons.lightbulb_rounded),
-      ('Apnea risk', Icons.favorite_rounded),
+      ('Analyze my sleep', Icons.analytics_rounded),
+      ('Why was deep sleep low?', Icons.waves_rounded),
+      ('Explain my snoring data', Icons.volume_up_rounded),
+      ('What is my apnea risk?', Icons.favorite_rounded),
+      ('How was my sleep score calculated?', Icons.star_rounded),
+      ('Tips to improve tonight', Icons.lightbulb_rounded),
     ];
     return Container(
       decoration: BoxDecoration(

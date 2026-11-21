@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/wellness_zone_model.dart';
+import 'admin_log_service.dart';
 
 class WellnessZoneService {
   static final _db = FirebaseFirestore.instance;
   static final _col = _db.collection('wellness_zones');
-
-  static bool _ensuredDefaults = false;
 
   /// Stream all zones, ordered by the `order` field, then by `createdAt`.
   static Stream<List<WellnessZoneModel>> watchZones() {
@@ -27,6 +27,7 @@ class WellnessZoneService {
     required String name,
     required List<String> contentTypes,
     int order = 0,
+    bool log = true,
   }) async {
     await _col.add({
       'name': name,
@@ -34,11 +35,26 @@ class WellnessZoneService {
       'order': order,
       'createdAt': FieldValue.serverTimestamp(),
     });
+
+    if (log) {
+      final email = FirebaseAuth.instance.currentUser?.email ?? 'Admin';
+      await AdminLogService.logActivity(
+        action: 'Created Zone: $name',
+        email: email,
+        details: 'Supported types: ${contentTypes.join(", ")} (Order: $order)',
+      );
+    }
   }
 
   /// Delete a zone
-  static Future<void> deleteZone(String id) async {
+  static Future<void> deleteZone(String id, {String? zoneName}) async {
     await _col.doc(id).delete();
+    final email = FirebaseAuth.instance.currentUser?.email ?? 'Admin';
+    await AdminLogService.logActivity(
+      action: 'Deleted Zone: ${zoneName ?? id}',
+      email: email,
+      details: 'Zone ID: $id',
+    );
   }
 
   /// Update an existing zone (name, contentTypes)
@@ -51,11 +67,23 @@ class WellnessZoneService {
       'name': name,
       'contentTypes': contentTypes,
     });
+    final email = FirebaseAuth.instance.currentUser?.email ?? 'Admin';
+    await AdminLogService.logActivity(
+      action: 'Updated Zone: $name',
+      email: email,
+      details: 'Supported types: ${contentTypes.join(", ")}',
+    );
   }
 
   /// Update zone order (for drag-and-drop)
   static Future<void> updateZoneOrder(String id, int newOrder) async {
     await _col.doc(id).update({'order': newOrder});
+    final email = FirebaseAuth.instance.currentUser?.email ?? 'Admin';
+    await AdminLogService.logActivity(
+      action: 'Reordered Zone',
+      email: email,
+      details: 'Zone ID: $id -> New order: $newOrder',
+    );
   }
 
   static const List<Map<String, dynamic>> defaultZonesList = [
@@ -89,6 +117,7 @@ class WellnessZoneService {
             name: name,
             contentTypes: List<String>.from(z['types'] as List),
             order: existing.docs.length + i,
+            log: false,
           );
         }
       }
@@ -100,4 +129,3 @@ class WellnessZoneService {
     await ensureDefaultZones();
   }
 }
-

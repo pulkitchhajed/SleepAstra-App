@@ -53,6 +53,11 @@ app.*.map.json
 # Flutter SDK cache (very large binary files)
 /bin/cache/
 
+# Flutter tools Gradle build cache (auto-generated, not source)
+/packages/flutter_tools/gradle/.gradle/
+/packages/flutter_tools/gradle/build/
+/flutter/
+
 # Large test/media files
 test/load_tests/*.wav
 test/load_tests/*.mp3

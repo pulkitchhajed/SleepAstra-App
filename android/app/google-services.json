@@ -7,6 +7,66 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:469010978794:android:36d802d8f81485c11e0493",
+        "android_client_info": {
+          "package_name": "com.sleepastra"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "469010978794-apd96emqlthqpqgb8lom1pt3o9apk9em.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sleepastra",
+            "certificate_hash": "bea003e4d7428a71e0fe1c8b37e592191738b84d"
+          }
+        },
+        {
+          "client_id": "469010978794-guksc5gno3uic1300sgrdu5tpcmk0j7v.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sleepastra",
+            "certificate_hash": "362b93071f523dfa680138a0e1347ef9fb8b8f32"
+          }
+        },
+        {
+          "client_id": "469010978794-u2g70k7em2k1jrpjq9vv29lu5nnu3i60.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sleepastra",
+            "certificate_hash": "b586c2750bbb51bd8b30516ced48f33fe5bd5ffa"
+          }
+        },
+        {
+          "client_id": "469010978794-bi4qbl7qloba5r7ooaknv8u02do5874n.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_XZMuF7Feexi38qvtvNo92OWdb88lso0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "469010978794-bi4qbl7qloba5r7ooaknv8u02do5874n.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "469010978794-jr7536c2s4p8mg0ddsms2ahoq6sk2vfl.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.snoreclinics.ai"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:469010978794:android:775070c4d7db47f91e0493",
         "android_client_info": {
           "package_name": "com.snoreclinics.ai"
@@ -35,6 +95,14 @@
           "android_info": {
             "package_name": "com.snoreclinics.ai",
             "certificate_hash": "362b93071f523dfa680138a0e1347ef9fb8b8f32"
+          }
+        },
+        {
+          "client_id": "469010978794-vaaltafc551edmhf8m6emt3kmso6r154.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.snoreclinics.ai",
+            "certificate_hash": "bea003e4d7428a71e0fe1c8b37e592191738b84d"
           }
         },
         {

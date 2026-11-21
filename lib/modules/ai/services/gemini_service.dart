@@ -25,7 +25,7 @@ class GeminiService {
         requiredProperties: ['summary', 'riskLevel', 'recommendation'],
       );
       final model = GenerativeModel(
-        model: 'gemini-3.6-flash',
+        model: 'gemini-1.5-flash',
         apiKey: _apiKey,
         generationConfig: GenerationConfig(responseMimeType: 'application/json', responseSchema: schema),
       );
@@ -57,7 +57,7 @@ class GeminiService {
       );
 
       final model = GenerativeModel(
-        model: 'gemini-3.6-flash',
+        model: 'gemini-1.5-flash',
         apiKey: _apiKey,
         generationConfig: GenerationConfig(
           responseMimeType: 'application/json',
@@ -279,7 +279,7 @@ CRITICAL RULE: You must append the following exact sentence to the very end of y
 "*I am an AI, please consult a doctor for a professional diagnosis.*"''';
 
       final model = GenerativeModel(
-        model: 'gemini-3.6-flash',
+        model: 'gemini-1.5-flash',
         apiKey: _apiKey,
         systemInstruction: Content.system(systemInstruction),
       );
@@ -392,44 +392,149 @@ CRITICAL RULE: You must append the following exact sentence to the very end of y
   }
 
   Stream<String> _offlineChat(String msg, SleepReport? r) async* {
-    // Smart offline fallback — provides context-aware responses without the API.
-    final lc = msg.toLowerCase();
+    final lc = msg.toLowerCase().trim();
     String response;
 
     if (r != null) {
-      // Personalised responses based on available sleep data.
       final snoreMin = r.snoringDuration.inMinutes;
       final score = r.qualityScore.toInt();
       final risk = r.apneaRiskLevel;
+      final deepPct = (r.deepSleepPercent * 100).toInt();
+      final remPct = (r.remSleepPercent * 100).toInt();
+      final lightPct = (r.lightSleepPercent * 100).toInt();
+      final awakePct = (100 - (deepPct + remPct + lightPct)).clamp(0, 100);
+      final totalHours = r.totalDuration.inHours;
+      final totalMins = r.totalDuration.inMinutes % 60;
+      final events = r.snoringEventCount;
+      final debt = r.sleepDebtHours;
 
-      if (lc.contains('snor') || lc.contains('snore')) {
-        response = snoreMin == 0
-            ? "Great news — your last session showed **no significant snoring**! 🎉 Your airway stayed clear. Keep up whatever you did before bed — it\'s clearly working.\n\nWould you like tips on maintaining this? Or are you curious about what factors usually trigger snoring?"
-            : snoreMin < 20
-                ? "Your last session recorded **mild snoring** ($snoreMin minutes). This is common and not immediately alarming, but it\'s worth monitoring.\n\n**Quick wins for tonight:**\n- Try sleeping on your side\n- Skip alcohol for 4 hours before bed\n- Try a nasal strip if you feel congested\n\nDid you sleep on your back last night? That\'s the most common trigger for mild snoring. 🛌\n\n*I am an AI, please consult a doctor for a professional diagnosis.*"
-                : "Your last session flagged **heavy snoring** ($snoreMin minutes — ${r.snoringPercentage.toStringAsFixed(0)}% of your night). Your Apnea Risk is currently **$risk**.\n\n**I\'d recommend:**\n1. Sleeping strictly on your side\n2. Elevating your head by 4+ inches\n3. Avoiding alcohol entirely on weeknights\n4. Practising throat exercises daily\n\nIf this persists, a professional sleep study is strongly advised. Visit **snoreclinics.org** for expert evaluation.\n\n*I am an AI, please consult a doctor for a professional diagnosis.*";
-      } else if (lc.contains('apnea') || lc.contains('apnoea') || lc.contains('stop breathing')) {
-        response = "Based on your last session, your Apnea Risk is **$risk**.\n\nObstructive Sleep Apnea happens when your airway **completely collapses** during sleep, causing you to stop breathing for 10+ seconds. Warning signs include:\n- Loud snoring with pauses\n- Waking up gasping\n- Extreme daytime fatigue\n- Morning headaches\n\nYour snoring data (${r.snoringEventCount} events in your last session) is a meaningful signal.${risk == 'High' ? ' **Your High risk level warrants a professional evaluation.** Please visit snoreclinics.org.' : ''}\n\nHave you ever woken up gasping for air? 🤔\n\n*I am an AI, please consult a doctor for a professional diagnosis.*";
-      } else if (lc.contains('score') || lc.contains('quality') || lc.contains('how was') || lc.contains('last night')) {
-        final label = score >= 80 ? 'Excellent 🌟' : score >= 60 ? 'Fair 🌙' : 'Poor 😴';
-        response = "Your last sleep session scored **$score/100** — $label\n\n**Breakdown:**\n- Snoring: $snoreMin minutes\n- Apnea Risk: $risk\n- Sleep: ${r.totalDuration.inHours}h ${r.totalDuration.inMinutes % 60}m\n\n${score >= 80 ? 'That\'s a strong recovery night! Would you like to know what drove that great score?' : score >= 60 ? 'A decent night, but there\'s room to improve. The biggest factor was your ${snoreMin > 10 ? "snoring duration" : "sleep staging"}.' : 'This was a rough night. Let\'s work backwards — do you remember anything unusual about yesterday evening?'}";
-      } else if (lc.contains('cpap') || lc.contains('machine') || lc.contains('device')) {
-        response = "**CPAP (Continuous Positive Airway Pressure)** therapy is the gold standard treatment for Obstructive Sleep Apnea. 🏆\n\nHere\'s how it works:\n- A mask worn over your nose/mouth delivers a constant gentle stream of pressurised air.\n- This air acts as a **pneumatic splint**, keeping your airway open all night.\n- Most people see dramatic improvement in snoring, energy, and focus within the first week.\n\n**Common concerns:**\n- 😟 *\'It looks uncomfortable\'* — Modern CPAP masks are lightweight and come in many styles (nasal pillows, full face, nasal cradle).\n- 😟 *\'I can\'t sleep with it on\'* — There\'s a 2–4 week adjustment period. Most people can\'t imagine sleeping without it afterwards.\n\nWould you like to know if CPAP might be right for you based on your snoring data? 🤔\n\n*I am an AI, please consult a doctor for a professional diagnosis.*";
-      } else {
-        response = "Hi! I\'m Nidra, your AI sleep coach. 😊 Your last sleep session gave you a score of **$score/100** with **$snoreMin minutes of snoring**.\n\nI\'m here to help you understand your snoring, improve your sleep, and answer any questions about sleep apnea or sleep hygiene.\n\nWhat would you like to explore? You could ask me:\n- *Why do I snore?*\n- *What does my sleep score mean?*\n- *How can I stop snoring tonight?*\n- *What is sleep apnea?*";
+      // 1. Deep Sleep Questions
+      if (lc.contains('deep sleep') || lc.contains('deep') || lc.contains('slow wave')) {
+        final status = deepPct >= 20 ? 'Optimal 🌟' : deepPct >= 13 ? 'Moderate 🌙' : 'Low ⚠️';
+        response = "Your latest recording registered **$deepPct% Deep Sleep** ($status).\n\n"
+            "Deep sleep (Stage 3 Slow-Wave Sleep) is your body's physical restorative phase: it triggers muscle repair, immune system regeneration, and cellular recovery. A healthy adult typically spends **15% to 25%** of the night in deep sleep.\n\n"
+            "${deepPct < 15 ? '**How to boost your deep sleep tonight:**\n- ❄️ **Cooler bedroom:** Lower temperature to around 18–19°C (65–68°F).\n- ☕ **Early caffeine cutoff:** Zero caffeine within 8 hours of bedtime.\n- 🍷 **Skip alcohol:** Alcohol severely blunts slow-wave sleep cycles.' : 'Your deep sleep architecture looks strong! Maintaining consistent bedtimes will preserve this recovery.'}\n\n"
+            "*I am an AI, please consult a doctor for a professional diagnosis.*";
+      }
+      // 2. REM Sleep Questions
+      else if (lc.contains('rem') || lc.contains('dream') || lc.contains('cognitive') || lc.contains('memory')) {
+        final status = remPct >= 20 ? 'Healthy 🧠' : 'Below Average 🌙';
+        response = "In your last session, you logged **$remPct% REM Sleep** ($status).\n\n"
+            "Rapid Eye Movement (REM) sleep is essential for emotional processing, creative problem solving, and memory consolidation. Most healthy adults average **20% to 25%** REM per night.\n\n"
+            "REM occurs mostly in the second half of the night. If your total sleep duration was shortened (${totalHours}h ${totalMins}m), REM is the first stage compromised.\n\n"
+            "**Key tip:** Giving yourself a full 7.5–8.5 hour sleep opportunity protects your final REM cycles.\n\n"
+            "*I am an AI, please consult a doctor for a professional diagnosis.*";
+      }
+      // 3. Light Sleep / Awake / Sleep Architecture
+      else if (lc.contains('light sleep') || lc.contains('awake') || lc.contains('woke up') || lc.contains('efficiency') || lc.contains('stage')) {
+        response = "Here is your full **Sleep Stages Architecture** from your last session:\n\n"
+            "- 🌊 **Deep Sleep:** $deepPct% (${(r.totalDuration.inMinutes * r.deepSleepPercent).toInt()} mins)\n"
+            "- 🧠 **REM Sleep:** $remPct% (${(r.totalDuration.inMinutes * r.remSleepPercent).toInt()} mins)\n"
+            "- 🍃 **Light Sleep:** $lightPct% (${(r.totalDuration.inMinutes * r.lightSleepPercent).toInt()} mins)\n"
+            "- 👀 **Awake/Restless:** $awakePct% (${(r.totalDuration.inMinutes * (awakePct / 100)).toInt()} mins)\n\n"
+            "${awakePct > 15 ? 'Your awake time was elevated. Frequent micro-awakenings are often caused by airway resistance, room temperature shifts, or late meals.' : 'Your sleep efficiency was high with minimal awakenings!'}\n\n"
+            "*I am an AI, please consult a doctor for a professional diagnosis.*";
+      }
+      // 4. Snoring & Snore Clips
+      else if (lc.contains('snor') || lc.contains('snore') || lc.contains('clip') || lc.contains('noise') || lc.contains('loud')) {
+        final label = snoreMin == 0
+            ? 'Quiet / No Snoring 🎉'
+            : snoreMin < 15
+                ? 'Mild Snoring 🟡'
+                : snoreMin < 35
+                    ? 'Moderate Snoring 🟠'
+                    : 'Heavy Snoring 🔴';
+        response = "Your last sleep session recorded **$snoreMin minutes of snoring** across **$events episodes** (${r.snoringPercentage.toStringAsFixed(1)}% of your night). Classification: **$label**.\n\n"
+            "Snoring occurs when relaxed throat muscles and soft palate tissue vibrate against the airway during inhalation.\n\n"
+            "**Immediate adjustments for tonight:**\n"
+            "1. 🛌 **Positional therapy:** Sleep strictly on your side — back sleeping causes gravity to drop your tongue into the airway.\n"
+            "2. 🛏️ **Elevation:** Elevate your head and torso by 30° or 4–6 inches.\n"
+            "3. 👃 **Nasal patency:** Use a saline rinse or nasal dilator strip if you have any congestion.\n"
+            "4. 🚫 **Evening cutoff:** Zero alcohol or sedative medications within 4 hours of bedtime.\n\n"
+            "${snoreMin >= 20 ? 'Because your snoring duration is significant, having a clinical screening via **snoreclinics.org** is strongly recommended.\n\n' : ''}"
+            "*I am an AI, please consult a doctor for a professional diagnosis.*";
+      }
+      // 5. Apnea Risk & Breathing Interruptions
+      else if (lc.contains('apnea') || lc.contains('apnoea') || lc.contains('ahi') || lc.contains('breath') || lc.contains('chok') || lc.contains('gasp') || lc.contains('oxygen')) {
+        response = "Your analyzed **Sleep Apnea Risk Level is: $risk**.\n\n"
+            "Obstructive Sleep Apnea (OSA) occurs when airway muscles collapse completely, halting airflow for 10 seconds or longer. Key signs include loud cyclic snoring, gasping for air, morning dry mouth, and unrefreshing sleep.\n\n"
+            "In your session, we analyzed ${r.snoringEventCount} acoustic airway resistance events during your ${totalHours}h ${totalMins}m recording.\n\n"
+            "${risk == 'High' ? '🚨 **Priority Recommendation:** A High risk rating means your airway is showing recurrent obstruction patterns. We strongly recommend visiting **snoreclinics.org** to discuss a home sleep apnea test (HST) with a sleep specialist.' : 'Your apnea risk is currently manageable. Continue tracking your sessions to monitor changes over time.'}\n\n"
+            "*I am an AI, please consult a doctor for a professional diagnosis.*";
+      }
+      // 6. Sleep Score / Quality Questions
+      else if (lc.contains('score') || lc.contains('quality') || lc.contains('how did i sleep') || lc.contains('how was my sleep') || lc.contains('last night') || lc.contains('analysis') || lc.contains('report') || lc.contains('summary') || lc.contains('results')) {
+        final label = score >= 85 ? 'Excellent 🌟' : score >= 70 ? 'Good 👍' : score >= 50 ? 'Fair 🌙' : 'Needs Attention 😴';
+        response = "### 🌙 Sleep Analysis Breakdown\n\n"
+            "**Overall Sleep Score: $score/100** ($label)\n\n"
+            "**Session Metrics:**\n"
+            "- ⏱️ **Total Sleep Duration:** ${totalHours}h ${totalMins}m\n"
+            "- 🌊 **Deep Sleep:** $deepPct% (${(r.totalDuration.inMinutes * r.deepSleepPercent).toInt()} min)\n"
+            "- 🧠 **REM Sleep:** $remPct% (${(r.totalDuration.inMinutes * r.remSleepPercent).toInt()} min)\n"
+            "- 🔊 **Snoring Duration:** $snoreMin mins ($events episodes)\n"
+            "- 🫁 **Apnea Risk:** $risk\n"
+            "- 📉 **Sleep Debt:** ${debt.toStringAsFixed(1)} hours behind goal\n\n"
+            "**Primary Takeaway:** "
+            "${score >= 80 ? 'Your sleep architecture is well balanced. Keep maintaining your pre-bed winddown routine!' : snoreMin > 20 ? 'Snoring and airway resistance were the primary factors lowering your score. Focus on side-sleeping tonight.' : 'Increasing total sleep duration will help clear your sleep debt and boost deep restorative sleep.'}\n\n"
+            "*I am an AI, please consult a doctor for a professional diagnosis.*";
+      }
+      // 7. Sleep Debt / Duration / Target Goal
+      else if (lc.contains('debt') || lc.contains('hours') || lc.contains('duration') || lc.contains('goal') || lc.contains('time')) {
+        response = "Your latest recording clocked **$totalHours hours and $totalMins minutes**.\n\n"
+            "Your calculated sleep debt is **${debt.toStringAsFixed(1)} hours** relative to your target sleep goal.\n\n"
+            "**Sleep Debt Recovery Protocol:**\n"
+            "- Avoid massive weekend sleep-ins (which disrupt your circadian clock).\n"
+            "- Instead, go to bed **30–45 minutes earlier** for the next 3 consecutive nights.\n"
+            "- An afternoon 20-minute power nap before 2:00 PM can help restore alertness without harming nighttime sleep pressure.\n\n"
+            "*I am an AI, please consult a doctor for a professional diagnosis.*";
+      }
+      // 8. How to Improve Tonight / Recommendations
+      else if (lc.contains('improve') || lc.contains('tonight') || lc.contains('tip') || lc.contains('better') || lc.contains('help') || lc.contains('advice') || lc.contains('what should i do')) {
+        response = "### 💡 Your Personalized Action Plan for Tonight:\n\n"
+            "Based on your latest session (Score: **$score/100**, Snoring: **${snoreMin}m**, Apnea Risk: **$risk**):\n\n"
+            "1. 🛌 **Lateral Sleeping:** Place a pillow behind your back to prevent rolling onto your spine.\n"
+            "2. 🌬️ **Airway Clearing:** Take a hot shower or use saline spray 15 minutes before bed.\n"
+            "3. 🧊 **Cool Darkness:** Set bedroom to 18–19°C and dim all lights 45 minutes before sleep.\n"
+            "4. 📱 **Digital Wind-Down:** Swap screens for reading or listen to a soothing track in our Wellness Hub.\n\n"
+            "${risk == 'High' ? '⚠️ For ongoing airway concerns, visit **snoreclinics.org** for professional diagnostic guidance.\n\n' : ''}"
+            "*I am an AI, please consult a doctor for a professional diagnosis.*";
+      }
+      // 9. CPAP & Medical Devices
+      else if (lc.contains('cpap') || lc.contains('machine') || lc.contains('device') || lc.contains('mask') || lc.contains('mouthpiece') || lc.contains('oral appliance')) {
+        response = "**Continuous Positive Airway Pressure (CPAP)** is the clinical gold standard for managing snoring and sleep apnea. 🏆\n\n"
+            "- It delivers a gentle, continuous stream of filtered air through a mask to prevent throat tissues from collapsing.\n"
+            "- Mandibular Advancement Devices (oral appliances) are another proven option that hold the lower jaw forward.\n\n"
+            "Given your current Apnea Risk rating of **$risk** with **$snoreMin min of snoring**, consulting a specialist at **snoreclinics.org** can help identify if CPAP or an oral appliance is ideal for you.\n\n"
+            "*I am an AI, please consult a doctor for a professional diagnosis.*";
+      }
+      // 10. Default contextual greeting with analysis metrics
+      else {
+        response = "Hi! I'm Nidra, your AI sleep coach. 🌙\n\n"
+            "I've analyzed your latest session:\n"
+            "- **Score:** $score/100\n"
+            "- **Total Sleep:** ${totalHours}h ${totalMins}m\n"
+            "- **Deep Sleep:** $deepPct% | **REM:** $remPct%\n"
+            "- **Snoring:** $snoreMin mins ($risk Apnea Risk)\n\n"
+            "You can ask me anything about your results:\n"
+            "- *'Why was my deep sleep low?'*\n"
+            "- *'How can I reduce my snoring tonight?'*\n"
+            "- *'What does my apnea risk mean?'*\n"
+            "- *'Explain my sleep score calculation.'*";
       }
     } else {
-      // No sleep data at all.
+      // No report recorded yet
       if (lc.contains('snor')) {
-        response = "Snoring occurs when the soft tissue in your throat **vibrates** as relaxed muscles partially block your airway during sleep.\n\n**Top causes:**\n- Sleeping on your back\n- Alcohol before bed\n- Nasal congestion\n- Excess weight around the neck\n- Airway anatomy\n\nOnce you record your first sleep session, I can give you **personalised** insights based on your actual snoring data! 🎤\n\nWould you like to know how to start your first recording?";
+        response = "Snoring occurs when air flow causes relaxed tissues in the back of your throat to vibrate. Key factors include sleeping position, congestion, alcohol, and airway anatomy.\n\nOnce you record a sleep session in Sleep Astra, I'll analyze your exact snoring minutes and decibel levels! 🎤";
+      } else if (lc.contains('apnea')) {
+        response = "Sleep Apnea is a condition where breathing repeatedly stops during sleep. Warning signs include loud chronic snoring, waking up gasping, and daytime fatigue.\n\nRecord a sleep session tonight and I will calculate your Apnea Risk Score automatically.";
       } else {
-        response = "Hi! I\'m Nidra, your personal AI sleep coach from SnoreClinics. 😊\n\nI can help you understand:\n- 🌙 Your sleep stages and quality\n- 📊 Your snoring patterns and causes\n- 😴 How to treat snoring and sleep apnea\n- 💡 Lifestyle changes that dramatically improve sleep\n\nRecord your first sleep session tonight, and I\'ll give you a full personalised analysis! In the meantime, feel free to ask me anything about snoring or sleep health.";
+        response = "Hi! I'm Nidra, your AI sleep coach from SnoreClinics. 🌙\n\nI can answer questions on your sleep stages, snoring frequency, apnea risk, and sleep debt as soon as you record a session.\n\nStart your first sleep recording tonight from the **Record** tab, and I'll generate a personalized deep-dive analysis for you!";
       }
     }
 
     for (final chunk in response.split(' ')) {
       yield '$chunk ';
-      await Future.delayed(const Duration(milliseconds: 25));
+      await Future.delayed(const Duration(milliseconds: 20));
     }
   }
 

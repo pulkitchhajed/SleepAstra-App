@@ -254,6 +254,54 @@ class SleepReport {
     this.snoreAudioClips = const [],
   });
 
+  SleepReport copyWith({
+    String? fileName,
+    DateTime? recordedAt,
+    Duration? totalDuration,
+    Duration? snoringDuration,
+    int? snoringEventCount,
+    double? qualityScore,
+    SleepQuality? quality,
+    List<SnoringEvent>? snoringEvents,
+    List<AmplitudeSample>? amplitudeTimeline,
+    List<SleepInsight>? insights,
+    double? sleepDebtHours,
+    double? lightSleepPercent,
+    double? deepSleepPercent,
+    double? remSleepPercent,
+    String? apneaRiskLevel,
+    Duration? cpapUsageDuration,
+    List<SuspectedApneaEvent>? detectedApneaEvents,
+    double? apneaHypopneaIndex,
+    List<SleepMotionSample>? motionTimeline,
+    bool? actigraphyAvailable,
+    List<SnoreAudioClip>? snoreAudioClips,
+  }) {
+    return SleepReport(
+      fileName: fileName ?? this.fileName,
+      recordedAt: recordedAt ?? this.recordedAt,
+      totalDuration: totalDuration ?? this.totalDuration,
+      snoringDuration: snoringDuration ?? this.snoringDuration,
+      snoringEventCount: snoringEventCount ?? this.snoringEventCount,
+      qualityScore: qualityScore ?? this.qualityScore,
+      quality: quality ?? this.quality,
+      snoringEvents: snoringEvents ?? this.snoringEvents,
+      amplitudeTimeline: amplitudeTimeline ?? this.amplitudeTimeline,
+      insights: insights ?? this.insights,
+      sleepDebtHours: sleepDebtHours ?? this.sleepDebtHours,
+      lightSleepPercent: lightSleepPercent ?? this.lightSleepPercent,
+      deepSleepPercent: deepSleepPercent ?? this.deepSleepPercent,
+      remSleepPercent: remSleepPercent ?? this.remSleepPercent,
+      apneaRiskLevel: apneaRiskLevel ?? this.apneaRiskLevel,
+      cpapUsageDuration: cpapUsageDuration ?? this.cpapUsageDuration,
+      detectedApneaEvents: detectedApneaEvents ?? this.detectedApneaEvents,
+      apneaHypopneaIndex: apneaHypopneaIndex ?? this.apneaHypopneaIndex,
+      motionTimeline: motionTimeline ?? this.motionTimeline,
+      actigraphyAvailable: actigraphyAvailable ?? this.actigraphyAvailable,
+      snoreAudioClips: snoreAudioClips ?? this.snoreAudioClips,
+    );
+  }
+
   double get snoringPercentage =>
       totalDuration.inSeconds > 0
           ? (snoringDuration.inSeconds / totalDuration.inSeconds) * 100

@@ -1,12 +1,15 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import '../models/video_model.dart';
+import '../../admin/services/admin_log_service.dart';
 
 /// Cloudinary configuration.
 class CloudinaryConfig {
@@ -18,9 +21,10 @@ class VideoService {
   static final _db = FirebaseFirestore.instance;
   static final _videosCol = _db.collection('videos');
 
-  // ─── Cloudinary Upload ────────────────────────────────────────────────────
+  // ─── Video Upload (Firebase Storage) ───────────────────────────────────
 
-  /// Uploads a video file to Cloudinary and returns its public URL.
+  /// Uploads a video file to Firebase Storage and returns its public URL.
+  /// Firebase Storage has no per-file size limit and supports resumable uploads.
   /// Reports progress via [onProgress] callback (0.0 – 1.0).
   static Future<Map<String, String>> uploadVideoToCloudinary({
     File? videoFile,
@@ -28,50 +32,71 @@ class VideoService {
     String? filename,
     void Function(double progress)? onProgress,
   }) async {
-    final url = Uri.parse(
-      'https://api.cloudinary.com/v1_1/${CloudinaryConfig.cloudName}/video/upload',
-    );
+    final storage = FirebaseStorage.instance;
+    final videoId = const Uuid().v4();
+    final safeName = filename ?? 'video.mp4';
+    final ref = storage.ref().child('videos/${videoId}_$safeName');
 
-    final request = http.MultipartRequest('POST', url)
-      ..fields['upload_preset'] = CloudinaryConfig.uploadPreset
-      ..fields['resource_type'] = 'video';
-      
+    // Determine content type from filename
+    String contentType = 'video/mp4';
+    if (safeName.endsWith('.mov')) contentType = 'video/quicktime';
+    if (safeName.endsWith('.avi')) contentType = 'video/x-msvideo';
+    if (safeName.endsWith('.webm')) contentType = 'video/webm';
+
+    debugPrint('[VideoService] Uploading video to Firebase Storage: $safeName');
+
+    // Start upload — Firebase handles chunking/resuming automatically
+    UploadTask uploadTask;
+    final metadata = SettableMetadata(contentType: contentType);
+
     if (kIsWeb && videoBytes != null) {
-      request.files.add(http.MultipartFile.fromBytes('file', videoBytes, filename: filename ?? 'video.mp4'));
+      uploadTask = ref.putData(videoBytes, metadata);
     } else if (videoFile != null) {
-      request.files.add(await http.MultipartFile.fromPath('file', videoFile.path));
+      uploadTask = ref.putFile(videoFile, metadata);
     } else {
       throw Exception('No file provided for upload');
     }
 
-    final streamedResponse = await request.send();
+    // Track real upload progress
+    final completer = Completer<String>();
 
-    // Track upload progress
-    int bytesReceived = 0;
-    final total = streamedResponse.contentLength ?? 1;
-    final responseBytes = <int>[];
+    uploadTask.snapshotEvents.listen(
+      (TaskSnapshot snapshot) {
+        if (snapshot.totalBytes > 0) {
+          final progress = snapshot.bytesTransferred / snapshot.totalBytes;
+          onProgress?.call(progress);
+          debugPrint(
+            '[VideoService] Upload progress: '
+            '${(progress * 100).toStringAsFixed(1)}% '
+            '(${(snapshot.bytesTransferred / (1024 * 1024)).toStringAsFixed(1)} / '
+            '${(snapshot.totalBytes / (1024 * 1024)).toStringAsFixed(1)} MB)',
+          );
+        }
+      },
+      onError: (e) {
+        if (!completer.isCompleted) {
+          completer.completeError(Exception('Video upload failed: $e'));
+        }
+      },
+    );
 
-    await for (final chunk in streamedResponse.stream) {
-      responseBytes.addAll(chunk);
-      bytesReceived += chunk.length;
-      onProgress?.call(bytesReceived / total);
+    // Wait for upload to finish
+    try {
+      await uploadTask;
+      final videoUrl = await ref.getDownloadURL();
+      debugPrint('[VideoService] Upload complete: $videoUrl');
+
+      // Generate thumbnail URL via Cloudinary fetch (remote URL transformation)
+      // This lets Cloudinary generate a thumbnail from the Firebase-hosted video
+      final encodedUrl = Uri.encodeComponent(videoUrl);
+      final thumbnailUrl =
+          'https://res.cloudinary.com/${CloudinaryConfig.cloudName}'
+          '/video/fetch/so_0,w_640,h_360,c_fill,f_jpg/$encodedUrl';
+
+      return {'videoUrl': videoUrl, 'thumbnailUrl': thumbnailUrl};
+    } on FirebaseException catch (e) {
+      throw Exception('Firebase Storage upload failed: ${e.message}');
     }
-
-    final body = json.decode(utf8.decode(responseBytes)) as Map<String, dynamic>;
-
-    if (streamedResponse.statusCode != 200) {
-      throw Exception('Cloudinary upload failed: ${body['error']}');
-    }
-
-    final videoUrl = body['secure_url'] as String;
-    // Generate thumbnail from Cloudinary's automatic thumbnail (replace extension)
-    final thumbnailUrl = videoUrl
-        .replaceAll('/video/upload/', '/video/upload/so_0,w_640,h_360,c_fill/')
-        .replaceAll('.mp4', '.jpg')
-        .replaceAll('.mov', '.jpg')
-        .replaceAll('.avi', '.jpg');
-
-    return {'videoUrl': videoUrl, 'thumbnailUrl': thumbnailUrl};
   }
 
   /// Uploads an image file to Cloudinary and returns its public URL.
@@ -203,6 +228,10 @@ class VideoService {
         'uploadedBy': uid,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      await AdminLogService.logActivity(
+        action: 'Video Uploaded',
+        details: 'Uploaded "$title" in category "$category"',
+      );
     } catch (e) {
       debugPrint('[VideoService] saveVideo error: $e');
       rethrow;
@@ -228,6 +257,10 @@ class VideoService {
         'category': category,
         'tags': tags,
       });
+      await AdminLogService.logActivity(
+        action: 'Video Updated',
+        details: 'Updated "$title" (ID: $id)',
+      );
     } catch (e) {
       debugPrint('[VideoService] updateVideo error: $e');
       rethrow;
@@ -275,6 +308,10 @@ class VideoService {
   static Future<void> deleteVideo(String id) async {
     try {
       await _videosCol.doc(id).delete();
+      await AdminLogService.logActivity(
+        action: 'Video Deleted',
+        details: 'Deleted video ID: $id',
+      );
     } catch (e) {
       debugPrint('[VideoService] deleteVideo error: $e');
       rethrow;

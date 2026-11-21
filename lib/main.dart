@@ -18,11 +18,12 @@ import 'modules/onboarding/screens/auth_screen.dart';
 import 'modules/onboarding/screens/setup_flow_screen.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/theme_provider.dart';
+import 'core/providers/audio_player_provider.dart';
 import 'core/services/firestore_service.dart';
 import 'screens/main_nav_screen.dart';
 import 'core/services/notification_service.dart';
-import 'core/widgets/animated_sleep_background.dart';
 import 'screens/splash_screen.dart';
+import 'core/util/url_strategy/url_strategy.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -54,6 +55,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  configureWebUrlStrategy();
   try {
     await dotenv.load(fileName: ".env");
   } catch (_) {
@@ -114,6 +116,7 @@ class SleepAstraApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => RewardsProvider()),
         ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => AudioPlayerProvider()),
       ],
       child: Builder(
         builder: (context) {

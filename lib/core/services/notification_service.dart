@@ -142,6 +142,40 @@ class NotificationService {
     );
   }
 
+  Future<void> showAnalysisCompleteNotification({
+    required int score,
+    required String quality,
+  }) async {
+    if (kIsWeb) return;
+    try {
+      await requestPermissions();
+      const androidDetails = AndroidNotificationDetails(
+        'sleep_analysis_complete',
+        'Sleep Analysis Results',
+        channelDescription: 'Notifications shown when sleep analysis finishes',
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: true,
+        enableVibration: true,
+      );
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+      const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+      await _notifications.show(
+        205,
+        '🌙 Sleep Analysis Done: Score $score ($quality)',
+        'Your sleep report is ready! Tap to view full breakdown.',
+        details,
+        payload: 'open_sleep_report',
+      );
+    } catch (e) {
+      debugPrint('[NotificationService] showAnalysisCompleteNotification error: $e');
+    }
+  }
+
   Future<void> cancelBackupAlarm() async {
     if (kIsWeb) return;
     await _notifications.cancel(103);

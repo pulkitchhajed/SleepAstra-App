@@ -17,23 +17,61 @@ const MOODS = [
 ];
 
 export default function HomeTab({ onNavigate }) {
-  const { profile, sleepSessions, breathingStreak, breathingProgress, setActiveTab, setNidraOpen } = useApp();
+  const { profile, sleepSessions, breathingStreak, breathingProgress, setActiveTab, setNidraOpen, setActiveSleepConfig } = useApp();
   const [showSleepFlow, setShowSleepFlow] = useState(false);
   const [sleepStep, setSleepStep] = useState(0); // 0=mood, 1=alarm, 2=sound
-  const [mood, setMood] = useState(null);
+  const [mood, setMood] = useState('good');
   const [alarmTime, setAlarmTime] = useState('07:00');
   const [vibration, setVibration] = useState(true);
   const [soundAlarm, setSoundAlarm] = useState(true);
-  const [selectedSound, setSelectedSound] = useState(null);
+  const [selectedSound, setSelectedSound] = useState('rain');
 
   const lastSession = sleepSessions[0];
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
+  // 7-day rolling sleep pattern calculation
+  const rollingDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    const dayName = i === 6 ? 'Today' : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+    const dateNum = d.getDate();
+    const sessionOnDay = sleepSessions.find(s => {
+      const sDate = s.date ? new Date(s.date) : null;
+      return sDate && sDate.getDate() === dateNum && sDate.getMonth() === d.getMonth();
+    });
+    return {
+      date: d,
+      dayName,
+      dateNum,
+      session: sessionOnDay,
+      score: sessionOnDay ? sessionOnDay.score : null,
+      duration: sessionOnDay ? `${sessionOnDay.durationHours || 7.5}h` : null,
+    };
+  });
+
+  const recordedCount = rollingDays.filter(d => d.session).length;
+  const avgScore = recordedCount > 0
+    ? Math.round(rollingDays.filter(d => d.session).reduce((acc, d) => acc + (d.score || 80), 0) / recordedCount)
+    : 0;
+
   const startSleep = () => {
     if (sleepStep < 2) { setSleepStep(s => s + 1); }
-    else { onNavigate('sleep-session'); }
+    else {
+      if (setActiveSleepConfig) {
+        setActiveSleepConfig({
+          mood: mood || 'good',
+          alarmTime,
+          vibration,
+          soundAlarm,
+          soundUsed: selectedSound || 'rain',
+        });
+      }
+      setShowSleepFlow(false);
+      setSleepStep(0);
+      onNavigate('sleep-session');
+    }
   };
 
   if (showSleepFlow) {
@@ -209,6 +247,74 @@ export default function HomeTab({ onNavigate }) {
           <p style={{fontSize:'0.85rem', color:'#6b7280', marginTop:6}}>Start your first sleep session tonight to unlock your personalized insights.</p>
         </div>
       )}
+
+      {/* 7-Day Rolling Sleep Pattern Calendar Strip */}
+      <div style={{ margin: '0 20px', padding: '18px 16px', background: 'rgba(26,29,58,0.65)', border: '1px solid rgba(99,102,241,0.22)', borderRadius: 24, backdropFilter: 'blur(10px)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: '1.1rem' }}>📅</span>
+              <h4 style={{ fontFamily: 'Outfit', fontSize: '1.05rem', fontWeight: 700, color: '#f0f0ff' }}>7-Day Sleep Pattern</h4>
+            </div>
+            <p style={{ color: '#a5b4fc', fontSize: '0.78rem', marginTop: 2 }}>
+              {recordedCount > 0 ? `Avg Score: ${avgScore} • ${recordedCount}/7 Days Recorded` : 'Rolling pattern for the last 7 days'}
+            </p>
+          </div>
+          <span style={{ padding: '4px 10px', background: recordedCount >= 5 ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)', border: `1px solid ${recordedCount >= 5 ? '#10b981' : '#f59e0b'}`, borderRadius: 12, color: recordedCount >= 5 ? '#34d399' : '#fbbf24', fontSize: '0.72rem', fontWeight: 700 }}>
+            {recordedCount}/7 Days
+          </span>
+        </div>
+
+        {/* 7 Days Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+          {rollingDays.map((d, i) => {
+            const hasData = !!d.session;
+            const dotColor = hasData ? (d.score >= 80 ? '#10b981' : d.score >= 65 ? '#3b82f6' : d.score >= 50 ? '#f59e0b' : '#ef4444') : 'rgba(165,180,252,0.2)';
+            const isToday = i === 6;
+            return (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  padding: '10px 2px',
+                  background: isToday ? 'rgba(99,102,241,0.15)' : (hasData ? 'rgba(255,255,255,0.04)' : 'transparent'),
+                  border: `1px solid ${isToday ? '#6366f1' : (hasData ? `${dotColor}44` : 'rgba(255,255,255,0.06)')}`,
+                  borderRadius: 14,
+                  cursor: hasData ? 'pointer' : 'default',
+                }}
+              >
+                <span style={{ fontSize: '0.68rem', fontWeight: isToday ? 800 : 600, color: isToday ? '#818cf8' : '#a5b4fc' }}>
+                  {d.dayName}
+                </span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: isToday ? '#ffffff' : '#f0f0ff', margin: '4px 0' }}>
+                  {d.dateNum}
+                </span>
+                <div style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: '50%',
+                  background: hasData ? `${dotColor}22` : 'rgba(255,255,255,0.04)',
+                  border: `1.5px solid ${dotColor}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.65rem',
+                  fontWeight: 800,
+                  color: hasData ? dotColor : '#6b7280',
+                  margin: '4px 0',
+                }}>
+                  {hasData ? d.score : '--'}
+                </div>
+                <span style={{ fontSize: '0.65rem', color: '#a5b4fc' }}>
+                  {hasData ? d.duration : '-'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* AI Sleep Insight */}
       <div className="glow-card" style={{margin:'0 20px'}}>

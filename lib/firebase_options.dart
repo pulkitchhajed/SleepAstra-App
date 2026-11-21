@@ -64,7 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '469010978794',
     projectId: 'snoreastra',
     storageBucket: 'snoreastra.firebasestorage.app',
-    iosBundleId: 'com.snoreclinics.ai',
+    iosBundleId: 'com.sleepastra',
     iosClientId: '469010978794-jr7536c2s4p8mg0ddsms2ahoq6sk2vfl.apps.googleusercontent.com',
   );
 

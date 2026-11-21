@@ -19,6 +19,7 @@ import '../../modules/paywall/screens/subscription_success_screen.dart';
 import '../../modules/videos/screens/video_list_screen.dart';
 import '../../modules/audio/screens/audio_list_screen.dart';
 import '../../modules/admin/screens/admin_dashboard_screen.dart';
+import '../../modules/admin/screens/admin_gate_screen.dart';
 import '../../screens/daily_sleep_goal_screen.dart';
 
 class AppRouter {
@@ -48,7 +49,16 @@ class AppRouter {
   static const String subscriptionSuccess = '/subscription-success';
 
   static Route<dynamic> generateRoute(RouteSettings s) {
-    switch (s.name) {
+    final rawName = s.name ?? '/';
+    // Normalize trailing slashes (e.g. /admin/ -> /admin)
+    final cleanName = rawName.length > 1 ? rawName.replaceAll(RegExp(r'/+$'), '') : rawName;
+
+    // Explicit Admin Route Catchers for web URLs
+    if (cleanName == adminDashboard || cleanName == '/admin/index.html') {
+      return _fadeRoute(const AdminGateScreen(), s);
+    }
+
+    switch (cleanName) {
       case home:
         return _fadeRoute(const MainNavScreen(), s);
       case mainNav:
@@ -101,7 +111,7 @@ class AppRouter {
         final category = s.arguments as String?;
         return _slideRoute(AudioListScreen(category: category), s);
       case adminDashboard:
-        return _slideRoute(const AdminDashboardScreen(), s);
+        return _fadeRoute(const AdminGateScreen(), s);
       case dailySleepGoal:
         return _slideRoute(const DailySleepGoalScreen(), s);
       case paywall:

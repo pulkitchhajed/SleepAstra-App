@@ -1,7 +1,7 @@
 name: snore_clinics
 description: Sleep Astra — Monitor, analyze & improve your sleep with AI-driven insights.
 publish_to: 'none'
-version: 2.0.0+12
+version: 2.0.3+17
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

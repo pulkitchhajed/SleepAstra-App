@@ -29,14 +29,12 @@ class AuthProvider extends ChangeNotifier {
     // Listen to auth changes for future updates.
     _authSubscription = _authService.userChanges.listen((User? user) async {
       _user = user;
-      // Notify immediately so the UI redirects without waiting for Firestore.
-      if (!_isDisposed) notifyListeners();
+      _role = 'user'; // Immediately reset role to user
       await _fetchRole();
       if (user != null) {
         _triggerSeedOnce();
         _updateFcmToken(user.uid);
       }
-      // Notify again so the role update is reflected (e.g. admin features).
       if (!_isDisposed) notifyListeners();
     });
   }
@@ -66,22 +64,93 @@ class AuthProvider extends ChangeNotifier {
   /// True when the signed-in user has role == 'admin' in Firestore.
   bool get isAdmin => _role == 'admin';
 
-  /// Fetches the role field from the user's Firestore document.
+  /// Whitelisted admin emails with immediate bootstrap access
+  static const List<String> defaultAdmins = [
+    'vennelareddy06@gmail.com',
+    'sureshmereddy76@gmail.com',
+    'sureshmereddy@snoreclinics.org',
+    'pulkitchhajed29@gmail.com',
+    'balchander18@gmail.com',
+    'nadeemfazlullah@gmail.com',
+  ];
+
+  static const List<String> hardcodedAdmins = defaultAdmins;
+
+  /// Ensures all default administrators are seeded in the Firestore /admins collection
+  static Future<void> ensureAllDefaultAdmins() async {
+    try {
+      final adminsCol = FirebaseFirestore.instance.collection('admins');
+      for (final email in defaultAdmins) {
+        final docRef = adminsCol.doc(email);
+        final snap = await docRef.get();
+        if (!snap.exists) {
+          await docRef.set({
+            'email': email,
+            'active': true,
+            'addedAt': FieldValue.serverTimestamp(),
+            'addedBy': 'System',
+          }, SetOptions(merge: true));
+        }
+      }
+    } catch (e) {
+      debugPrint('[AuthProvider] ensureAllDefaultAdmins error: $e');
+    }
+  }
+
+  /// Explicitly re-checks role and returns true if user has admin privileges.
+  Future<bool> verifyAndRefreshAdminStatus() async {
+    await _fetchRole();
+    if (!_isDisposed) notifyListeners();
+    return isAdmin;
+  }
+
+  /// Fetches the role field strictly from default admin whitelist or admins collection only.
   Future<void> _fetchRole() async {
     try {
-      final uid = _user?.uid;
-      if (uid == null) {
+      final email = _user?.email?.toLowerCase().trim();
+      if (_user == null || email == null || email.isEmpty) {
         _role = 'user';
         return;
       }
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
+
+      // 1. Check default admin whitelist
+      if (defaultAdmins.contains(email)) {
+        _role = 'admin';
+        // Auto-seed this admin to /admins collection if not yet present
+        _ensureAdminDocExists(email);
+        return;
+      }
+
+      // 2. Strict Whitelist in /admins collection (must exist and have active == true)
+      final adminSnap = await FirebaseFirestore.instance
+          .collection('admins')
+          .doc(email)
           .get();
-      _role = (snap.data()?['role'] as String?) ?? 'user';
+      if (adminSnap.exists && adminSnap.data()?['active'] == true) {
+        _role = 'admin';
+        return;
+      }
+
+      // 3. Any other user is strictly non-admin
+      _role = 'user';
     } catch (_) {
       _role = 'user';
     }
+  }
+
+  static Future<void> _ensureAdminDocExists(String email) async {
+    try {
+      final docRef = FirebaseFirestore.instance.collection('admins').doc(email);
+      final snap = await docRef.get();
+      if (!snap.exists) {
+        await docRef.set({
+          'email': email,
+          'active': true,
+          'addedAt': FieldValue.serverTimestamp(),
+          'addedBy': 'System',
+        }, SetOptions(merge: true));
+      }
+    } catch (_) {}
   }
 
   Future<void> _updateFcmToken(String uid) async {
@@ -239,6 +308,7 @@ class AuthProvider extends ChangeNotifier {
     await FirestoreService.clearCache();
     await _authService.signOut();
     _user = null; // Explicitly set to null to avoid waiting for stream
+    _role = 'user'; // Explicitly reset role to non-admin user
     _sessionKey++; // Force a sync even if uid is still null (e.g. guest sign out)
     if (!_isDisposed) notifyListeners();
     _setLoading(false);

@@ -1,0 +1,167 @@
+{
+  "info": {
+    "name": "Snoreclinics AI – Find User UID by Email",
+    "_postman_id": "snoreclinics-uid-lookup-v1",
+    "description": "Firebase Auth REST API requests to look up a Firebase user's UID using their email address.\n\nHow to use:\n1. Set the `email` variable to the user's email.\n2. Run 'Lookup User by Email' – the UID is in the response under `localId`.\n3. Use the UID in the other requests to view/update their Firestore data.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "FIREBASE_API_KEY",
+      "value": "AIzaSyC1CpT15JA-qVrV1BLqi98g5rMoP6MA3HY",
+      "type": "string",
+      "description": "Firebase Web API Key (from firebaseConfig.js)"
+    },
+    {
+      "key": "PROJECT_ID",
+      "value": "snoreclinics-ai",
+      "type": "string",
+      "description": "Firebase Project ID"
+    },
+    {
+      "key": "email",
+      "value": "user@example.com",
+      "type": "string",
+      "description": "The email address you want to look up"
+    },
+    {
+      "key": "uid",
+      "value": "",
+      "type": "string",
+      "description": "Auto-filled by the Lookup request test script"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Lookup User by Email → get UID",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Auto-save the UID so Requests #2/#3/#4 can use it automatically",
+              "const body = pm.response.json();",
+              "if (body.users && body.users.length > 0) {",
+              "    const user = body.users[0];",
+              "    pm.collectionVariables.set('uid', user.localId);",
+              "    console.log('✅ UID found:', user.localId);",
+              "    pm.test('User found', () => pm.expect(user.localId).to.be.a('string'));",
+              "} else {",
+              "    console.warn('❌ No user found for that email');",
+              "    pm.test('User found', () => { throw new Error('No user found for email: ' + pm.collectionVariables.get('email')); });",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\"\n}"
+        },
+        "url": {
+          "raw": "https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={{FIREBASE_API_KEY}}",
+          "protocol": "https",
+          "host": ["identitytoolkit", "googleapis", "com"],
+          "path": ["v1", "accounts:lookup"],
+          "query": [
+            { "key": "key", "value": "{{FIREBASE_API_KEY}}" }
+          ]
+        },
+        "description": "Firebase Identity Toolkit – accounts:lookup\n\nFinds a Firebase Auth user by email address.\n\nResponse fields:\n- users[0].localId  → the Firebase UID  ← THIS IS WHAT YOU NEED\n- users[0].email    → confirmed email\n- users[0].emailVerified → verification status\n- users[0].createdAt    → account creation timestamp (ms)\n- users[0].lastLoginAt  → last sign-in timestamp (ms)\n\nThe test script automatically saves the UID to the `uid` collection variable for use in the next requests."
+      },
+      "response": [
+        {
+          "name": "Example – User found",
+          "status": "OK",
+          "code": 200,
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"kind\": \"identitytoolkit#GetAccountInfoResponse\",\n  \"users\": [\n    {\n      \"localId\": \"ABC123xyz789\",\n      \"email\": \"user@example.com\",\n      \"emailVerified\": true,\n      \"displayName\": \"John Doe\",\n      \"createdAt\": \"1700000000000\",\n      \"lastLoginAt\": \"1720000000000\"\n    }\n  ]\n}",
+          "_postman_previewlanguage": "json"
+        }
+      ]
+    },
+    {
+      "name": "2. Get Firestore User Document (check current role)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://firestore.googleapis.com/v1/projects/{{PROJECT_ID}}/databases/(default)/documents/users/{{uid}}?key={{FIREBASE_API_KEY}}",
+          "protocol": "https",
+          "host": ["firestore", "googleapis", "com"],
+          "path": [
+            "v1", "projects", "{{PROJECT_ID}}",
+            "databases", "(default)", "documents", "users", "{{uid}}"
+          ],
+          "query": [
+            { "key": "key", "value": "{{FIREBASE_API_KEY}}" }
+          ]
+        },
+        "description": "Fetches the Firestore `users/{uid}` document.\n\nRun Request #1 first so `uid` is populated.\n\nLook for the `role` field in the response to see if they already have admin access."
+      },
+      "response": []
+    },
+    {
+      "name": "3. Grant Admin Role (set role = admin)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fields\": {\n    \"role\": {\n      \"stringValue\": \"admin\"\n    }\n  }\n}"
+        },
+        "url": {
+          "raw": "https://firestore.googleapis.com/v1/projects/{{PROJECT_ID}}/databases/(default)/documents/users/{{uid}}?updateMask.fieldPaths=role&key={{FIREBASE_API_KEY}}",
+          "protocol": "https",
+          "host": ["firestore", "googleapis", "com"],
+          "path": [
+            "v1", "projects", "{{PROJECT_ID}}",
+            "databases", "(default)", "documents", "users", "{{uid}}"
+          ],
+          "query": [
+            { "key": "updateMask.fieldPaths", "value": "role" },
+            { "key": "key", "value": "{{FIREBASE_API_KEY}}" }
+          ]
+        },
+        "description": "Sets role: \"admin\" on the user's Firestore document.\n\nRun Request #1 first so uid is auto-filled.\n\nNOTE: Only the `role` field is updated; all other fields are untouched (updateMask)."
+      },
+      "response": []
+    },
+    {
+      "name": "4. Revoke Admin Role (set role = user)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fields\": {\n    \"role\": {\n      \"stringValue\": \"user\"\n    }\n  }\n}"
+        },
+        "url": {
+          "raw": "https://firestore.googleapis.com/v1/projects/{{PROJECT_ID}}/databases/(default)/documents/users/{{uid}}?updateMask.fieldPaths=role&key={{FIREBASE_API_KEY}}",
+          "protocol": "https",
+          "host": ["firestore", "googleapis", "com"],
+          "path": [
+            "v1", "projects", "{{PROJECT_ID}}",
+            "databases", "(default)", "documents", "users", "{{uid}}"
+          ],
+          "query": [
+            { "key": "updateMask.fieldPaths", "value": "role" },
+            { "key": "key", "value": "{{FIREBASE_API_KEY}}" }
+          ]
+        },
+        "description": "Revokes admin by setting role: \"user\" on the Firestore document.\n\nRun Request #1 first so uid is auto-filled."
+      },
+      "response": []
+    }
+  ]
+}

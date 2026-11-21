@@ -11,9 +11,39 @@ import './App.css';
 function AppRouter() {
   const { screen } = useApp();
 
-  // Hidden admin route bypasses the main app router
-  if (window.location.pathname === '/admin') {
-    return <AdminDashboard />;
+  const [isAdminRoute, setIsAdminRoute] = useState(() => {
+    const p = window.location.pathname.toLowerCase();
+    const h = window.location.hash.toLowerCase();
+    const s = window.location.search.toLowerCase();
+    return p === '/admin' || p === '/admin/' || p === '/admin-portal' || p.startsWith('/admin') || h === '#/admin' || h.startsWith('#/admin') || s.includes('admin=true');
+  });
+
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const p = window.location.pathname.toLowerCase();
+      const h = window.location.hash.toLowerCase();
+      const s = window.location.search.toLowerCase();
+      setIsAdminRoute(p === '/admin' || p === '/admin/' || p === '/admin-portal' || p.startsWith('/admin') || h === '#/admin' || h.startsWith('#/admin') || s.includes('admin=true'));
+    };
+
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
+  }, []);
+
+  // Admin route bypasses user screens
+  if (isAdminRoute) {
+    return (
+      <AdminDashboard
+        onExit={() => {
+          window.history.pushState({}, '', '/');
+          setIsAdminRoute(false);
+        }}
+      />
+    );
   }
 
   return (

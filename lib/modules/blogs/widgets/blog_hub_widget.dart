@@ -43,34 +43,41 @@ class BlogHubWidget extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 3,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 3,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
+                            ),
+                            borderRadius: BorderRadius.circular(2),
                           ),
-                          borderRadius: BorderRadius.circular(2),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      const Icon(Icons.auto_stories_rounded,
-                          color: AppTheme.primaryIndigo, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Blogs & Stories',
-                        style: GoogleFonts.outfit(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: textPrimary,
+                        const SizedBox(width: 10),
+                        const Icon(Icons.auto_stories_rounded,
+                            color: AppTheme.primaryIndigo, size: 18),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'Blogs & Stories',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.outfit(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: textPrimary,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => Navigator.push(
                       context,

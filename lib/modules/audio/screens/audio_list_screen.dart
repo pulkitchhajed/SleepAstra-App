@@ -214,14 +214,28 @@ class _AudioListScreenState extends State<AudioListScreen> {
                 itemCount: tracks.length,
                 itemBuilder: (context, index) {
                   final track = tracks[index];
-                  // Let's just lock after first 3 for non-premium
-                  final isLocked = !isPremium && index >= 3;
+                  // White noise, ambient sleep sounds, and core tracks are free and never redirect
+                  final isWhiteNoiseOrAmbient = track.title.toLowerCase().contains('white') || 
+                      track.title.toLowerCase().contains('noise') || 
+                      track.title.toLowerCase().contains('rain') || 
+                      track.category.toLowerCase().contains('sleep') || 
+                      track.category.toLowerCase().contains('ambient');
+                  final isLocked = !isPremium && !isWhiteNoiseOrAmbient && index >= 8;
                   final isActive = _activeAudio?.id == track.id;
 
                   return GestureDetector(
                     onTap: () {
                       if (isLocked) {
-                        Navigator.pushNamed(context, AppRouter.paywall);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('"${track.title}" requires Premium.'),
+                            action: SnackBarAction(
+                              label: 'Upgrade',
+                              textColor: AppTheme.accentTeal,
+                              onPressed: () => Navigator.pushNamed(context, AppRouter.paywall),
+                            ),
+                          ),
+                        );
                       } else {
                         _playTrack(track);
                       }

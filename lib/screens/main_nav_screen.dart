@@ -7,6 +7,7 @@ import '../modules/ai/screens/nidra_chat_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/rewards_screen.dart';
 import '../screens/wellness_screen.dart';
+import '../modules/audio/widgets/global_audio_mini_bar.dart';
 import '../core/widgets/animated_sleep_background.dart';
 import '../core/router/app_router.dart';
 import '../modules/sleep_analysis/screens/sleep_history_screen.dart';
@@ -17,6 +18,32 @@ class MainNavScreen extends StatefulWidget {
   final int initialIndex;
   const MainNavScreen({super.key, this.initialIndex = 0});
 
+  static void switchToTab(BuildContext context, int index) {
+    final state = context.findAncestorStateOfType<_MainNavScreenState>();
+    if (state != null) {
+      state.switchTab(index);
+    } else {
+      Navigator.pushNamed(context, AppRouter.mainNav, arguments: index);
+    }
+  }
+
+  /// Switch to the Wellness tab (index 1) and navigate to the zone whose
+  /// name or id matches [zoneTarget].
+  static void switchToWellnessZone(BuildContext context, String zoneTarget) {
+    final state = context.findAncestorStateOfType<_MainNavScreenState>();
+    if (state != null) {
+      state.switchTab(1);
+      // After the tab renders, tell WellnessScreen to select the zone.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        WellnessScreen.navigateToZone(context, zoneTarget);
+      });
+    } else {
+      // Screen not mounted yet — store pending target so WellnessScreen picks it up.
+      WellnessScreen.navigateToZone(context, zoneTarget);
+      Navigator.pushNamed(context, AppRouter.mainNav, arguments: 1);
+    }
+  }
+
   @override
   State<MainNavScreen> createState() => _MainNavScreenState();
 }
@@ -26,6 +53,12 @@ class _MainNavScreenState extends State<MainNavScreen>
   late int _currentIndex;
   late AnimationController _fabPulse;
   late Animation<double> _fabScale;
+
+  void switchTab(int index) {
+    if (mounted) {
+      setState(() => _currentIndex = index);
+    }
+  }
 
   @override
   void initState() {
@@ -76,12 +109,12 @@ class _MainNavScreenState extends State<MainNavScreen>
     super.dispose();
   }
 
-  final List<Widget> _screens = const [
-    HomeScreen(),
-    WellnessScreen(),
-    SleepHistoryScreen(),
-    NidraChatScreen(),
-    RewardsScreen(),
+  final List<Widget> _screens = [
+    const HomeScreen(),
+    WellnessScreen(key: WellnessScreen.globalKey),
+    const SleepHistoryScreen(),
+    const NidraChatScreen(),
+    const RewardsScreen(),
   ];
 
   final List<_NavItem> _items = const [
@@ -128,9 +161,15 @@ class _MainNavScreenState extends State<MainNavScreen>
                 children: _screens,
               ),
             ),
-            bottomNavigationBar: Padding(
-              padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
-              child: _buildNav(isLight),
+            bottomNavigationBar: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const GlobalAudioMiniBar(),
+                Padding(
+                  padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+                  child: _buildNav(isLight),
+                ),
+              ],
             ),
           ),
         ),

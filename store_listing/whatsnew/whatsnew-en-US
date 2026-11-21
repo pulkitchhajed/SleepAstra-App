@@ -1,0 +1,11 @@
+🎵 Audio Player Upgrade
+• Tap any sleep sound to open a beautiful full-screen player with a seek bar, loop toggle, and next/previous track controls
+• Mini-player bar now stays visible at the bottom of every screen while audio plays — no need to stay on the Wellness tab
+• Audio continues playing seamlessly as you switch between tabs
+
+🧭 Navigation Fix
+• Quick-access cards (e.g. "Sleep Sounds") now correctly deep-link to the matching Wellness zone instead of landing at the top
+
+✨ UI Polish
+• Section headers on the Wellness Hub no longer overflow or show redundant labels (e.g. "Sleep Sounds Audio & Sounds" → "Sleep Sounds")
+• "See All" buttons are always fully visible

@@ -86,12 +86,15 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
   // length rather than an inflated wall-clock value.
   final List<String> _recordingSegmentPaths = [];
   Timer? _restartSegmentTimer;
+  Timer? _interruptionWatchdogTimer;
+  bool _isStartingSegment = false;
   
   // ── Analysis stuck-state detection ─────────────────────────────────
   // Tracks how long analysis has been running so we can show the user
   // an escape option if it seems stuck (> 3 minutes).
   final ValueNotifier<int> _analysisElapsedSeconds = ValueNotifier(0);
   Timer? _analysisStuckTimer;
+  final Set<String> _promptedReportFiles = {};
   
   // Sleep sounds are sourced from the shared audio_tracks.dart constant.
   // This avoids duplicating the URL list that wellness_screen.dart also uses.
@@ -388,15 +391,42 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
   }
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _isInterrupted && mounted) {
+    if (state == AppLifecycleState.resumed && mounted) {
       final provider = context.read<SleepAnalysisProvider>();
       if (provider.isRecording) {
-        // App came back to foreground and we were interrupted. Try to resume.
-        RecordingLogger().info('App resumed. Attempting to recover microphone...');
-        _recorder.resume().catchError((e) {
-          RecordingLogger().warning('Failed to resume recording automatically: $e');
-        });
+        RecordingLogger().info('App resumed. Checking recording status...');
+        _checkAndRecoverRecording(provider);
       }
+    }
+  }
+
+  Future<void> _checkAndRecoverRecording(SleepAnalysisProvider provider) async {
+    try {
+      final isPaused = await _recorder.isPaused();
+      final isRec = await _recorder.isRecording();
+      if (_isInterrupted) {
+        if (isRec && !isPaused) {
+          _onRecordingResumed(provider);
+        } else if (isPaused) {
+          RecordingLogger().info('Resuming paused recorder on app resume...');
+          await _recorder.resume();
+          if (!await _recorder.isPaused()) {
+            _onRecordingResumed(provider);
+          }
+        } else if (!isRec) {
+          RecordingLogger().info('Recorder was stopped; starting new segment on app resume...');
+          await _startNewRecordingSegment(provider);
+        }
+      } else {
+        if (isPaused) {
+          _handleInterruptionDetected(provider, 'app_resume_paused');
+        } else if (!isRec) {
+          _handleInterruptionDetected(provider, 'app_resume_stopped');
+          await _startNewRecordingSegment(provider);
+        }
+      }
+    } catch (e) {
+      RecordingLogger().warning('Error in _checkAndRecoverRecording: $e');
     }
   }
 
@@ -407,6 +437,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     _pulseController.dispose();
     _rippleController.dispose();
     _recordingTimer?.cancel();
+    _interruptionWatchdogTimer?.cancel();
     _alarmTimer?.cancel();
     _holdProgressTimer?.cancel();
     _vibrateTimer?.cancel();
@@ -437,6 +468,12 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
         provider.setRecordingActive(true);
         _recordingStartTime = startTime;
         
+        final savedSegments = prefs.getStringList('active_recording_segments');
+        if (savedSegments != null && savedSegments.isNotEmpty) {
+          _recordingSegmentPaths.clear();
+          _recordingSegmentPaths.addAll(savedSegments.where((p) => File(p).existsSync()));
+        }
+
         _recordingTimer?.cancel();
         _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
           if (_recordingStartTime != null && mounted) {
@@ -446,6 +483,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
           }
         });
         _listenToAmplitude(provider);
+        _listenToRecordState(provider);
       }
     }
   }
@@ -582,6 +620,14 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
           autoGain: false,
           echoCancel: false,
           noiseSuppress: false,
+          audioInterruption: AudioInterruptionMode.pauseResume,
+          androidConfig: AndroidRecordConfig(
+            manageBluetooth: true,
+            audioSource: AndroidAudioSource.mic,
+          ),
+          iosConfig: IosRecordConfig(
+            allowHapticsAndSystemSoundsDuringRecording: true,
+          ),
         ),
         path: path,
       );
@@ -600,6 +646,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     if (!kIsWeb) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('active_recording_path', path);
+      await prefs.setStringList('active_recording_segments', [path]);
       await prefs.setInt('active_recording_start_ms', DateTime.now().millisecondsSinceEpoch);
     }
 
@@ -683,6 +730,12 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
   ///
   /// When the state returns to [RecordState.record] (iOS resume after pause),
   /// we hide the banner and accumulate the interruption duration.
+  /// Listens to [RecordState] changes emitted by the platform recorder.
+  ///
+  /// On iOS/Android with [AudioInterruptionMode.pauseResume], phone calls or
+  /// system audio events trigger [RecordState.pause] (or [RecordState.stop] if the OS kills the mic).
+  /// We mark the session as interrupted, pause live indicators, update notifications,
+  /// and start an active watchdog to guarantee automatic resumption.
   void _listenToRecordState(SleepAnalysisProvider provider) {
     _recordStateSubscription?.cancel();
     _recordStateSubscription = _recorder.onStateChanged().listen((state) {
@@ -691,40 +744,11 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       if (state == RecordState.pause || state == RecordState.stop) {
         // Only react if we're supposed to be recording (not a user-initiated stop)
         if (!_isInterrupted && provider.isRecording) {
-          _isInterrupted = true;
-          _interruptionStartTime = DateTime.now();
-          provider.setInterrupted(true);
-          _liveAmplitude.value = 0.0; // freeze the waveform indicator
-          RecordingLogger().warning(
-            'Recording interrupted by external audio event (phone call / other app). '
-            'State: ${state.name}',
-          );
-          _showInterruptionBanner();
-
-          // On Android a hard stop means the recorder is closed.
-          // Schedule a restart to capture audio after the mic is returned.
-          if (state == RecordState.stop) {
-            _restartSegmentTimer?.cancel();
-            _restartSegmentTimer = Timer(const Duration(seconds: 5), () {
-              if (mounted && provider.isRecording) {
-                _startNewRecordingSegment(provider);
-              }
-            });
-          }
+          _handleInterruptionDetected(provider, state.name);
         }
       } else if (state == RecordState.record) {
         if (_isInterrupted) {
-          // Interruption is over (iOS resume path) — accumulate lost time
-          if (_interruptionStartTime != null) {
-            _totalInterruptedDuration += DateTime.now().difference(_interruptionStartTime!);
-          }
-          _isInterrupted = false;
-          _interruptionStartTime = null;
-          RecordingLogger().info(
-            'Recording resumed after interruption. '
-            'Total interrupted so far: ${_totalInterruptedDuration.inSeconds}s',
-          );
-          _hideInterruptionBanner();
+          _onRecordingResumed(provider);
         }
       }
     }, onError: (e) {
@@ -732,24 +756,119 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     });
   }
 
+  void _handleInterruptionDetected(SleepAnalysisProvider provider, String source) {
+    if (_isInterrupted) return;
+    _isInterrupted = true;
+    _interruptionStartTime = DateTime.now();
+    provider.setInterrupted(true);
+    _liveAmplitude.value = 0.0; // freeze waveform
+    RecordingLogger().warning(
+      'Recording interrupted by external audio event (phone call / other app). '
+      'Source: $source',
+    );
+    _showInterruptionBanner();
+
+    if (!kIsWeb) {
+      FlutterForegroundTask.updateService(
+        notificationTitle: 'Recording Paused (In Call)',
+        notificationText: 'Sleep Astra will resume once the call ends.',
+      );
+    }
+
+    _startInterruptionWatchdog(provider);
+  }
+
+  void _startInterruptionWatchdog(SleepAnalysisProvider provider) {
+    _interruptionWatchdogTimer?.cancel();
+    // Poll every 3 seconds to check if mic is released and recording has resumed or can resume
+    _interruptionWatchdogTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      if (!mounted || !provider.isRecording) {
+        timer.cancel();
+        return;
+      }
+
+      try {
+        final isPaused = await _recorder.isPaused();
+        final isRec = await _recorder.isRecording();
+
+        if (isRec && !isPaused) {
+          RecordingLogger().info('[Watchdog] Recorder has resumed active recording.');
+          _onRecordingResumed(provider);
+          return;
+        }
+
+        if (isPaused) {
+          RecordingLogger().info('[Watchdog] Recorder is paused; attempting to resume...');
+          await _recorder.resume();
+          final stillPaused = await _recorder.isPaused();
+          if (!stillPaused) {
+            RecordingLogger().info('[Watchdog] Recorder resumed successfully.');
+            _onRecordingResumed(provider);
+            return;
+          }
+        } else if (!isRec) {
+          RecordingLogger().info('[Watchdog] Recorder stopped; attempting to start new segment...');
+          await _startNewRecordingSegment(provider);
+        }
+      } catch (e) {
+        RecordingLogger().warning('[Watchdog] Auto-resume check failed (mic likely still busy): $e');
+      }
+    });
+  }
+
+  void _onRecordingResumed(SleepAnalysisProvider provider) {
+    if (!_isInterrupted) return;
+    _interruptionWatchdogTimer?.cancel();
+    _restartSegmentTimer?.cancel();
+
+    if (_interruptionStartTime != null) {
+      final pausedDuration = DateTime.now().difference(_interruptionStartTime!);
+      _totalInterruptedDuration += pausedDuration;
+      RecordingLogger().info(
+        'Recording resumed after interruption. Interrupted duration: ${pausedDuration.inSeconds}s, '
+        'Total interrupted so far: ${_totalInterruptedDuration.inSeconds}s',
+      );
+    }
+    _isInterrupted = false;
+    _interruptionStartTime = null;
+    provider.setInterrupted(false);
+    _hideInterruptionBanner();
+
+    if (!kIsWeb) {
+      FlutterForegroundTask.updateService(
+        notificationTitle: 'Recording Sleep...',
+        notificationText: 'Sleep Astra is listening for snoring.',
+      );
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).removeCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('▶️ Sleep recording resumed.'),
+          duration: Duration(seconds: 3),
+          backgroundColor: Color(0xFF10B981), // emerald-500
+        ),
+      );
+    }
+  }
+
   /// Starts a new recording segment after the OS stopped the recorder
   /// (Android interruption). The new segment is added to [_recordingSegmentPaths]
   /// so its audio time is counted during analysis.
   Future<void> _startNewRecordingSegment(SleepAnalysisProvider provider) async {
-    if (kIsWeb || !mounted) return;
+    if (kIsWeb || !mounted || _isStartingSegment || !provider.isRecording) return;
+    _isStartingSegment = true;
     _restartSegmentTimer?.cancel();
 
-    // Check if mic is back (permission still granted)
-    final hasPerm = await _recorder.hasPermission();
-    if (!hasPerm) {
-      RecordingLogger().warning('Mic not yet available — will retry in 5s');
-      _restartSegmentTimer = Timer(const Duration(seconds: 5), () {
-        if (mounted && provider.isRecording) _startNewRecordingSegment(provider);
-      });
-      return;
-    }
-
     try {
+      // Check if mic is back (permission still granted)
+      final hasPerm = await _recorder.hasPermission();
+      if (!hasPerm) {
+        RecordingLogger().warning('Mic permission not available yet');
+        return;
+      }
+
       final dir = await getApplicationDocumentsDirectory();
       final segPath = '${dir.path}/sleep_${DateTime.now().millisecondsSinceEpoch}.pcm';
 
@@ -761,32 +880,36 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
           autoGain: false,
           echoCancel: false,
           noiseSuppress: false,
+          audioInterruption: AudioInterruptionMode.pauseResume,
+          androidConfig: AndroidRecordConfig(
+            manageBluetooth: true,
+            audioSource: AndroidAudioSource.mic,
+          ),
+          iosConfig: IosRecordConfig(
+            allowHapticsAndSystemSoundsDuringRecording: true,
+          ),
         ),
         path: segPath,
       );
 
       _recordingSegmentPaths.add(segPath);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('active_recording_path', segPath);
+      await prefs.setStringList('active_recording_segments', _recordingSegmentPaths);
+
       RecordingLogger().info(
         'New recording segment ${_recordingSegmentPaths.length} started after interruption: $segPath',
       );
 
-      // Accumulate interrupted time and clear interruption flag
-      if (_interruptionStartTime != null) {
-        _totalInterruptedDuration += DateTime.now().difference(_interruptionStartTime!);
-        _interruptionStartTime = null;
-      }
-      _isInterrupted = false;
-      provider.setInterrupted(false);
-      _hideInterruptionBanner();
+      _onRecordingResumed(provider);
 
       // Re-subscribe to record state for the new recorder instance
       _listenToAmplitude(provider);
       _listenToRecordState(provider);
     } catch (e) {
-      RecordingLogger().warning('Segment restart failed — will retry in 10s: $e');
-      _restartSegmentTimer = Timer(const Duration(seconds: 10), () {
-        if (mounted && provider.isRecording) _startNewRecordingSegment(provider);
-      });
+      RecordingLogger().warning('Segment restart failed (mic likely in use by call): $e');
+    } finally {
+      _isStartingSegment = false;
     }
   }
 
@@ -812,11 +935,11 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
                 BoxShadow(color: Colors.black38, blurRadius: 12, offset: Offset(0, 4)),
               ],
             ),
-            child: Row(
+            child: const Row(
               children: [
-                const Text('📵', style: TextStyle(fontSize: 22)),
-                const SizedBox(width: 12),
-                const Expanded(
+                Text('📵', style: TextStyle(fontSize: 22)),
+                SizedBox(width: 12),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -831,7 +954,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
                       ),
                       SizedBox(height: 2),
                       Text(
-                        'Microphone in use by another app. The recording was paused and will be analyzed when you tap Stop.',
+                        'Microphone in use by a call or another app. Sleep Astra will automatically resume recording as soon as the call ends.',
                         style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.3),
                       ),
                     ],
@@ -859,16 +982,16 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     try {
       HapticFeedback.heavyImpact();
       NotificationService().cancelBackupAlarm();
-    _recordingTimer?.cancel();
-    _rippleController.stop();
-    _rippleController.reset();
+      _recordingTimer?.cancel();
+      _interruptionWatchdogTimer?.cancel();
+      _restartSegmentTimer?.cancel();
+      _rippleController.stop();
+      _rippleController.reset();
     await _soundsPlayer.stop();
     await _alarmPlayer.stop();
     _isAlarmRinging = false;
 
     if (!mounted) return;
-    // Capture the navigator and context variables before any async gaps to ensure they're still valid
-    final nav = Navigator.of(context);
     final onboarding = context.read<OnboardingProvider>();
     final goalMinutes = onboarding.profile.goalDurationMinutes;
     final healthEnabled = onboarding.profile.healthIntegrationEnabled;
@@ -906,6 +1029,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('active_recording_path');
       await prefs.remove('active_recording_start_ms');
+      await prefs.remove('active_recording_segments');
 
       await FlutterForegroundTask.stopService();
       RecordingLogger().info('Foreground service stopped');
@@ -942,64 +1066,76 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     }
 
     // ── Compute effective (real audio) recording duration ────────────────
-    // Wall-clock duration (from timer) may include time when the mic was taken
-    // by a phone call or other app. Subtract that dead time so the analyser
-    // receives the duration of audio that was actually written to the file.
-    final wallClockDuration = provider.recordingDuration;
-    Duration effectiveDuration = wallClockDuration - _totalInterruptedDuration;
-    if (effectiveDuration.isNegative || effectiveDuration == Duration.zero) {
-      effectiveDuration = wallClockDuration; // fallback — never send zero
+    // Wall-clock duration accurately reflects the real time the user was recording.
+    final DateTime now = DateTime.now();
+    final Duration wallClockDuration = _recordingStartTime != null
+        ? now.difference(_recordingStartTime!)
+        : provider.recordingDuration;
+
+    // ── Multi-segment duration calculation & byte-rate detection ─────────
+    // If the recording had interruptions that required new segments to be
+    // started, collect all unique existing segments.
+    final allSegments = {
+      ..._recordingSegmentPaths.where((p) => p != stoppedPath && File(p).existsSync()),
+      if (stoppedPath != null && File(stoppedPath).existsSync()) stoppedPath,
+    }.toList();
+
+    if (stoppedPath == null && allSegments.isNotEmpty) {
+      stoppedPath = allSegments.last;
     }
 
-    // ── Multi-segment duration calculation ───────────────────────────────
-    // If the recording had interruptions that required new segments to be
-    // started, compute the total audio duration by summing the file sizes of
-    // ALL segments (not just the first/last file). This ensures that audio
-    // recorded after the interruption is properly counted.
+    int totalPcmBytes = 0;
+    int detectedByteRate = 32000; // default 16kHz 16-bit mono
+
     if (stoppedPath != null && !kIsWeb) {
-      try {
-        const int bytesPerSecond = 32000; // 16-bit mono 16kHz WAV
-        // Ensure the current (last) stopped segment is included
-        final allSegments = [
-          ..._recordingSegmentPaths.where((p) => p != stoppedPath),
-          stoppedPath,
-        ].toSet().toList(); // deduplicate
-
-        int totalPcmBytes = 0;
-        for (final segPath in allSegments) {
-          try {
-            if (File(segPath).existsSync()) {
-              final fSize = File(segPath).lengthSync();
-              final isPcm = segPath.toLowerCase().endsWith('.pcm');
-              final headerBytes = isPcm ? 0 : 44;
-              totalPcmBytes += (fSize - headerBytes).clamp(0, fSize);
+      for (final segPath in allSegments) {
+        try {
+          final f = File(segPath);
+          if (f.existsSync()) {
+            final fSize = f.lengthSync();
+            if (fSize >= 44) {
+              final raf = f.openSync(mode: FileMode.read);
+              final headerBuf = Uint8List(44);
+              raf.readIntoSync(headerBuf);
+              raf.closeSync();
+              int dataOffset = 0;
+              if (headerBuf[0] == 0x52 && headerBuf[1] == 0x49 && // 'RI'
+                  headerBuf[2] == 0x46 && headerBuf[3] == 0x46) { // 'FF'
+                final bd = ByteData.sublistView(headerBuf);
+                final br = bd.getUint32(28, Endian.little);
+                if (br > 0) detectedByteRate = br;
+                dataOffset = 44;
+              }
+              totalPcmBytes += (fSize - dataOffset).clamp(0, fSize);
+            } else if (fSize > 0) {
+              totalPcmBytes += fSize;
             }
-          } catch (_) {}
-        }
-
-        if (totalPcmBytes > 0) {
-          final segmentDuration = Duration(seconds: (totalPcmBytes / bytesPerSecond).floor());
-          RecordingLogger().info(
-            'Segment-based duration: ${segmentDuration.inSeconds}s '
-            'across ${allSegments.length} segment(s). '
-            'Wall-clock: ${wallClockDuration.inSeconds}s, '
-            'Interrupted: ${_totalInterruptedDuration.inSeconds}s',
-          );
-          // Always trust the file-size derived duration — it reflects
-          // what actually got written to disk.
-          effectiveDuration = segmentDuration;
-        }
-      } catch (e) {
-        RecordingLogger().warning('Segment-based duration check failed (non-fatal): $e');
+          }
+        } catch (_) {}
       }
     }
 
-    // Update the provider duration to the corrected value for the analyser
+    final Duration audioDuration = Duration(
+      seconds: (totalPcmBytes / detectedByteRate).floor(),
+    );
+
+    // Compute effective duration:
+    // Subtract true dead time during interruptions, but never drop below zero.
+    final netWallClock = wallClockDuration - _totalInterruptedDuration;
+    final baseDuration = netWallClock > Duration.zero ? netWallClock : wallClockDuration;
+    // Use the maximum of audio duration and wall-clock duration.
+    // This prevents buffer-flush delays, timer ticks, or minor sampling drift
+    // from causing a 30-minute recording to register as 29m55s and fail.
+    final Duration effectiveDuration = audioDuration > Duration.zero
+        ? (audioDuration > baseDuration ? audioDuration : baseDuration)
+        : baseDuration;
+
     provider.updateRecordingDuration(effectiveDuration);
     RecordingLogger().info(
       'Stop: wall-clock=${wallClockDuration.inSeconds}s, '
       'interrupted=${_totalInterruptedDuration.inSeconds}s, '
-      'effective=${effectiveDuration.inSeconds}s',
+      'audio=${audioDuration.inSeconds}s, '
+      'effective=${effectiveDuration.inSeconds}s across ${allSegments.length} segment(s)',
     );
 
     if (stoppedPath == null) {
@@ -1008,53 +1144,61 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
       return;
     }
 
-    if (provider.recordingDuration.inMinutes < 30) {
-      RecordingLogger().warning('Recording too short (<30 min), discarding file: $stoppedPath');
+    // Merge multiple segments into a single cohesive WAV file if interrupted
+    String finalRecordingPath = stoppedPath;
+    if (allSegments.length > 1 && !kIsWeb) {
+      final mergedPath = await _mergeSegmentsIfNeeded(allSegments);
+      if (mergedPath.isNotEmpty) {
+        finalRecordingPath = mergedPath;
+      }
+    }
+
+    // ── 1. Accidental Tap Guard (< 30 seconds) ───────────────────────────
+    // If the recording was under 30 seconds, it was an accidental tap.
+    if (effectiveDuration.inSeconds < 30 && wallClockDuration.inSeconds < 30) {
+      RecordingLogger().warning('Recording too short (<30s), discarding: $finalRecordingPath');
       if (!context.mounted) {
-        if (!kIsWeb) await PlatformFileReader.deleteFile(stoppedPath);
+        if (!kIsWeb) await _cleanupSegments([...allSegments, finalRecordingPath]);
         return;
       }
-      _showMinimumDurationWarning();
+      _showAccidentalTapWarning();
       if (!kIsWeb) {
-        await PlatformFileReader.deleteFile(stoppedPath);
+        await _cleanupSegments([...allSegments, finalRecordingPath]);
       }
       return;
     }
 
-    if (provider.recordingDuration.inMinutes < 10) {
+    // ── 2. Full Session Check (>= 30 minutes, with 1-min tolerance) ──────
+    // A recording of >= 30 minutes (or >= 29 min / 1740s to prevent truncation bugs)
+    // is a full sleep session and proceeds straight to analysis.
+    // If it's shorter (e.g. 10–25 min nap), we inform the user and give them
+    // the option to analyze anyway or discard — NEVER delete without permission!
+    final bool isFullSession = wallClockDuration >= const Duration(minutes: 30) ||
+        effectiveDuration >= const Duration(minutes: 30) ||
+        wallClockDuration.inSeconds >= 1740 ||
+        effectiveDuration.inSeconds >= 1740;
+
+    if (!isFullSession) {
       if (!mounted) return;
-      final bool? shouldSave = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Short Recording'),
-          content: const Text('This recording is under 10 minutes. A full sleep cycle usually takes over an hour. Do you still want to save and analyze it?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Discard'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Analyze Anyway'),
-            ),
-          ],
-        ),
-      );
-      if (shouldSave != true) {
+      final int recordedMins = max(1, (effectiveDuration.inSeconds / 60).round());
+      final bool? shouldAnalyze = await _showShortRecordingDialog(recordedMins);
+      if (shouldAnalyze != true) {
+        RecordingLogger().info('User discarded short recording ($recordedMins min).');
         if (!kIsWeb) {
-          await PlatformFileReader.deleteFile(stoppedPath);
+          await _cleanupSegments([...allSegments, finalRecordingPath]);
         }
         return;
       }
+      RecordingLogger().info('User opted to analyze short recording anyway ($recordedMins min).');
     }
 
-    final name = stoppedPath.split('/').last.split('\\').last;
+    final name = finalRecordingPath.split('/').last.split('\\').last;
 
     if (kIsWeb) {
       _showError('Web platform does not support real audio analysis. Please use the Android app.');
       return;
     } else {
-      provider.setRecordedFile(stoppedPath, name);
+      provider.setRecordedFile(finalRecordingPath, name);
       // Always pass the precise recording start time so that charts
       // show the correct clock-based X-axis labels (not an approximation).
       if (_recordingStartTime != null) {
@@ -1079,9 +1223,12 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
 
         // ── Automated Cleanup (only on success — preserve file if analysis failed) ──
         if (!kIsWeb) {
-          await PlatformFileReader.deleteFile(stoppedPath);
+          await _cleanupSegments([...allSegments, finalRecordingPath]);
         }
-        nav.pushNamed(AppRouter.sleepReport, arguments: report);
+        _promptedReportFiles.add(report.fileName);
+        if (mounted) {
+          await _showAnalysisCompletePrompt(context, report);
+        }
       } else if (provider.state == AnalysisState.error) {
         _showError('Analysis failed: ${provider.errorMessage ?? 'Unknown error'}');
       }
@@ -1093,6 +1240,274 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     if (mounted) setState(() => _isProcessing = false);
   }
 }
+
+  String _getAnalysisStepMessage(int elapsed) {
+    if (elapsed < 6) return 'Extracting audio features & sleep stages…';
+    if (elapsed < 14) return 'Filtering ambient noise & detecting snore bursts…';
+    if (elapsed < 22) return 'Evaluating breathing continuity & apnea patterns…';
+    if (elapsed < 35) return 'Synthesizing sleep architecture & calculating quality score…';
+    return 'Finalizing your sleep report & health insights…';
+  }
+
+  Future<void> _showAnalysisCompletePrompt(BuildContext context, SleepReport report) async {
+    if (!mounted) return;
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final durationHours = report.totalDuration.inHours;
+    final durationMins = report.totalDuration.inMinutes % 60;
+    final durationText = '${durationHours}h ${durationMins}m';
+    final snoreMins = report.snoringDuration.inMinutes;
+
+    Color scoreColor;
+    if (report.qualityScore >= 80) {
+      scoreColor = AppTheme.accentTeal;
+    } else if (report.qualityScore >= 65) {
+      scoreColor = const Color(0xFF3B82F6);
+    } else if (report.qualityScore >= 50) {
+      scoreColor = AppTheme.primaryGold;
+    } else {
+      scoreColor = AppTheme.error;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          decoration: BoxDecoration(
+            color: isLight ? AppTheme.surfaceLight : const Color(0xFF151728),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 25)],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle pill
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Success badge & Title
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentTeal.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.check_circle_rounded, color: AppTheme.accentTeal, size: 26),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Analysis Complete!',
+                    style: TextStyle(
+                      color: isLight ? AppTheme.textPrimaryLight : Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Your recorded sleep session has been processed successfully.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Score & Quality Card
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                decoration: BoxDecoration(
+                  color: isLight ? Colors.white : AppTheme.surfaceElevated,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    // Score Circle
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: scoreColor.withValues(alpha: 0.15),
+                        border: Border.all(color: scoreColor, width: 2.5),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '${report.qualityScore.toInt()}',
+                        style: TextStyle(
+                          color: scoreColor,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                '${report.qualityLabel} Sleep',
+                                style: TextStyle(
+                                  color: isLight ? AppTheme.textPrimaryLight : Colors.white,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(report.qualityEmoji, style: const TextStyle(fontSize: 18)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Score: ${report.qualityScore.toInt()}/100 • ${report.recordedAt.day}/${report.recordedAt.month}/${report.recordedAt.year}',
+                            style: TextStyle(
+                              color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // 3-Metric stats strip
+              Row(
+                children: [
+                  _buildPromptStatTile(
+                    label: 'Sleep Duration',
+                    value: durationText,
+                    icon: Icons.access_time_rounded,
+                    isLight: isLight,
+                  ),
+                  const SizedBox(width: 10),
+                  _buildPromptStatTile(
+                    label: 'Snoring',
+                    value: snoreMins > 0 ? '${snoreMins}m' : 'None',
+                    icon: Icons.graphic_eq_rounded,
+                    isLight: isLight,
+                  ),
+                  const SizedBox(width: 10),
+                  _buildPromptStatTile(
+                    label: 'Apnea Risk',
+                    value: report.apneaRiskLevel,
+                    icon: Icons.favorite_border_rounded,
+                    isLight: isLight,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 28),
+              // Buttons
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushNamed(context, AppRouter.sleepReport, arguments: report);
+                  },
+                  icon: const Icon(Icons.insights_rounded, size: 20),
+                  label: const Text(
+                    'View Full Report',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryIndigo,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(
+                    'Done',
+                    style: TextStyle(
+                      color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPromptStatTile({
+    required String label,
+    required String value,
+    required IconData icon,
+    required bool isLight,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isLight ? const Color(0xFFF3F4F6) : AppTheme.surfaceElevated,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 18, color: AppTheme.accentTeal),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: TextStyle(
+                color: isLight ? AppTheme.textPrimaryLight : Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                fontSize: 11,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
 
 
@@ -1111,47 +1526,244 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
     ));
   }
 
-  void _showMinimumDurationWarning() {
+  Future<void> _cleanupSegments(List<String> paths, {String? keepPath}) async {
+    for (final p in paths.toSet()) {
+      if (p != keepPath && p.isNotEmpty) {
+        try {
+          await PlatformFileReader.deleteFile(p);
+        } catch (_) {}
+      }
+    }
+  }
+
+  /// Merges multiple PCM/WAV segments into a single cohesive WAV file.
+  Future<String> _mergeSegmentsIfNeeded(List<String> segmentPaths) async {
+    final validSegments = segmentPaths.where((p) => File(p).existsSync() && File(p).lengthSync() > 0).toList();
+    if (validSegments.isEmpty) return '';
+    if (validSegments.length == 1) return validSegments.first;
+
+    try {
+      RecordingLogger().info('Merging ${validSegments.length} audio segments into a single file...');
+      final dir = await getApplicationDocumentsDirectory();
+      final mergedPath = '${dir.path}/sleep_merged_${DateTime.now().millisecondsSinceEpoch}.wav';
+      final mergedFile = File(mergedPath);
+      final sink = mergedFile.openSync(mode: FileMode.write);
+
+      // Reserve 44 bytes for WAV header
+      sink.writeFromSync(Uint8List(44));
+
+      int totalPayloadBytes = 0;
+      int sampleRate = 16000;
+      int numChannels = 1;
+      int bitsPerSample = 16;
+
+      for (int i = 0; i < validSegments.length; i++) {
+        final segPath = validSegments[i];
+        final file = File(segPath);
+        final raf = file.openSync(mode: FileMode.read);
+        final fileLen = raf.lengthSync();
+
+        int dataOffset = 0;
+        if (fileLen >= 44) {
+          final headerBuf = Uint8List(44);
+          raf.readIntoSync(headerBuf);
+          if (headerBuf[0] == 0x52 && headerBuf[1] == 0x49 && // 'RI'
+              headerBuf[2] == 0x46 && headerBuf[3] == 0x46) { // 'FF'
+            final bd = ByteData.sublistView(headerBuf);
+            if (i == 0) {
+              numChannels = bd.getUint16(22, Endian.little);
+              sampleRate = bd.getUint32(24, Endian.little);
+              bitsPerSample = bd.getUint16(34, Endian.little);
+            }
+            dataOffset = 44;
+          }
+        }
+
+        raf.setPositionSync(dataOffset);
+        final payloadSize = fileLen - dataOffset;
+        if (payloadSize > 0) {
+          const chunkSize = 64 * 1024;
+          final buf = Uint8List(chunkSize);
+          int remaining = payloadSize;
+          while (remaining > 0) {
+            final toRead = min(chunkSize, remaining);
+            final read = raf.readIntoSync(buf, 0, toRead);
+            if (read <= 0) break;
+            sink.writeFromSync(buf, 0, read);
+            remaining -= read;
+            totalPayloadBytes += read;
+          }
+        }
+        raf.closeSync();
+      }
+
+      // Write true 44-byte WAV header at offset 0
+      final byteRate = sampleRate * numChannels * (bitsPerSample ~/ 8);
+      final blockAlign = numChannels * (bitsPerSample ~/ 8);
+      final headerBytes = Uint8List(44);
+      final bd = ByteData.sublistView(headerBytes);
+
+      headerBytes[0] = 0x52; // 'R'
+      headerBytes[1] = 0x49; // 'I'
+      headerBytes[2] = 0x46; // 'F'
+      headerBytes[3] = 0x46; // 'F'
+      bd.setUint32(4, 36 + totalPayloadBytes, Endian.little);
+      headerBytes[8] = 0x57; // 'W'
+      headerBytes[9] = 0x41; // 'A'
+      headerBytes[10] = 0x56; // 'V'
+      headerBytes[11] = 0x45; // 'E'
+
+      headerBytes[12] = 0x66; // 'f'
+      headerBytes[13] = 0x6D; // 'm'
+      headerBytes[14] = 0x74; // 't'
+      headerBytes[15] = 0x20; // ' '
+      bd.setUint32(16, 16, Endian.little);
+      bd.setUint16(20, 1, Endian.little);
+      bd.setUint16(22, numChannels, Endian.little);
+      bd.setUint32(24, sampleRate, Endian.little);
+      bd.setUint32(28, byteRate, Endian.little);
+      bd.setUint16(32, blockAlign, Endian.little);
+      bd.setUint16(34, bitsPerSample, Endian.little);
+
+      headerBytes[36] = 0x64; // 'd'
+      headerBytes[37] = 0x61; // 'a'
+      headerBytes[38] = 0x74; // 't'
+      headerBytes[39] = 0x61; // 'a'
+      bd.setUint32(40, totalPayloadBytes, Endian.little);
+
+      sink.setPositionSync(0);
+      sink.writeFromSync(headerBytes);
+      sink.closeSync();
+
+      RecordingLogger().info('Successfully merged ${validSegments.length} segments into $mergedPath (total: $totalPayloadBytes bytes)');
+      return mergedPath;
+    } catch (e) {
+      RecordingLogger().error('Failed to merge segments: $e');
+      return validSegments.last;
+    }
+  }
+
+  void _showAccidentalTapWarning() {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
         final bottomPad = MediaQuery.of(context).padding.bottom;
+        final isLight = Theme.of(context).brightness == Brightness.light;
         return Container(
           padding: EdgeInsets.fromLTRB(32, 32, 32, 24 + bottomPad),
           decoration: BoxDecoration(
-            color: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surface),
+            color: isLight ? AppTheme.surfaceLight : AppTheme.surfaceElevated,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
             boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20)],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('🥱', style: TextStyle(fontSize: 64)),
+              const Text('⏱️', style: TextStyle(fontSize: 56)),
               const SizedBox(height: 16),
               Text(
-                'Recording too short',
+                'Recording Too Short',
                 style: Theme.of(context).textTheme.displaySmall,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
               Text(
-                'Recording should be at least 30 minutes to provide accurate analysis. Please go back to sleep and try again later!',
-                style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary), fontSize: 16),
+                'Recording was under 30 seconds. Sleep analysis requires sufficient audio to detect sleep cycles and breathing patterns. Please tap Record when you are ready to sleep.',
+                style: TextStyle(
+                  color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                  fontSize: 15,
+                  height: 1.4,
+                ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
               SizedBox(
                 width: double.infinity,
-                height: 56,
+                height: 54,
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryIndigo,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: const Text('Back to Sleep', style: TextStyle(fontSize: 18)),
+                  child: const Text('Got it', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool?> _showShortRecordingDialog(int recordedMinutes) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      builder: (context) {
+        final bottomPad = MediaQuery.of(context).padding.bottom;
+        final isLight = Theme.of(context).brightness == Brightness.light;
+        final textColor = isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary;
+        final textSec = isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary;
+        return Container(
+          padding: EdgeInsets.fromLTRB(28, 28, 28, 20 + bottomPad),
+          decoration: BoxDecoration(
+            color: isLight ? AppTheme.surfaceLight : AppTheme.surfaceElevated,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20)],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🥱', style: TextStyle(fontSize: 56)),
+              const SizedBox(height: 14),
+              Text(
+                'Short Sleep Session (~$recordedMinutes min)',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Sleep cycles typically take 90 minutes, and sessions over 30 minutes give the most accurate snoring, apnea, and sleep stage insights.\n\nWould you like to analyze this recording anyway?',
+                style: TextStyle(
+                  color: textSec,
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: textSec.withValues(alpha: 0.4)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text('Discard', style: TextStyle(color: textSec, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryIndigo,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text('Analyze Anyway', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1197,6 +1809,11 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
           provider.setRecordingActive(true);
           // Also restore _recordingStartTime so the 1-second timer displays correctly
           _recordingStartTime = startTime;
+          final savedSegments = prefs.getStringList('active_recording_segments');
+          if (savedSegments != null && savedSegments.isNotEmpty) {
+            _recordingSegmentPaths.clear();
+            _recordingSegmentPaths.addAll(savedSegments.where((p) => File(p).existsSync()));
+          }
           _recordingTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
             if (_recordingStartTime != null) {
               provider.updateRecordingDuration(
@@ -1204,6 +1821,8 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
               );
             }
           });
+          _listenToAmplitude(provider);
+          _listenToRecordState(provider);
         }
         _isCheckingOrphan = false;
         return;
@@ -1359,7 +1978,6 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
         _isCheckingOrphan = false;
         return;
       }
-      final nav = Navigator.of(context);
       // Keep _isCheckingOrphan = true for the ENTIRE duration of the bottom sheet
       // so that widget rebuilds don't trigger a second orphan popup.
       await showModalBottomSheet<void>(
@@ -1439,8 +2057,9 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
                         if (!mounted) return;
                         if (report != null) {
                           try { await file.delete(); } catch (_) {}
-                          if (!context.mounted) return;
-                          nav.pushNamed(AppRouter.sleepReport, arguments: report);
+                          if (!mounted) return;
+                          _promptedReportFiles.add(report.fileName);
+                          await _showAnalysisCompletePrompt(context, report);
                         } else {
                           try { await file.delete(); } catch (_) {}
                           _showError('Analysis failed: ${provider.errorMessage ?? 'Unknown error'}');
@@ -1488,6 +2107,17 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
         }
         if (provider.state == AnalysisState.analysing) {
           return _buildAnalysingView();
+        }
+        if (provider.state == AnalysisState.done &&
+            provider.report != null &&
+            !_promptedReportFiles.contains(provider.report!.fileName)) {
+          final doneReport = provider.report!;
+          _promptedReportFiles.add(doneReport.fileName);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _showAnalysisCompletePrompt(context, doneReport);
+            }
+          });
         }
         // Analysis done/error/idle — stop the timer
         _analysisStuckTimer?.cancel();
@@ -1557,7 +2187,7 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
                 ),
               ),
               const SizedBox(height: 32),
-              // Show elapsed time and escape option after analysis runs long
+              // Show elapsed time and dynamic progress feedback
               ValueListenableBuilder<int>(
                 valueListenable: _analysisElapsedSeconds,
                 builder: (_, elapsed, __) {
@@ -1568,6 +2198,23 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
                   return Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: (isLight ? AppTheme.primaryIndigo : AppTheme.accentTeal).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _getAnalysisStepMessage(elapsed),
+                          style: TextStyle(
+                            color: isLight ? AppTheme.primaryIndigo : AppTheme.accentTeal,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       Text(
                         'Processing... $timeStr',
                         style: TextStyle(
@@ -1576,14 +2223,30 @@ class _SleepAnalysisScreenState extends State<SleepAnalysisScreen>
                         ),
                       ),
                       if (elapsed > 30) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Text(
                           elapsed < 180
-                            ? 'Long recordings take more time.'
+                            ? 'Long recordings take more time to analyze.'
                             : 'This is taking unusually long.',
                           style: TextStyle(
                             color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
                             fontSize: 12,
+                          ),
+                        ),
+                      ],
+                      if (elapsed >= 60 && !isStuck) ...[
+                        const SizedBox(height: 18),
+                        TextButton.icon(
+                          onPressed: () {
+                            if (Navigator.canPop(context)) {
+                              Navigator.pop(context);
+                            }
+                          },
+                          icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                          label: const Text('Continue in App (We\'ll notify when done)'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: isLight ? AppTheme.primaryIndigo : AppTheme.accentTeal,
+                            textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                           ),
                         ),
                       ],

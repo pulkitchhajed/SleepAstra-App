@@ -533,13 +533,8 @@ class _SetupFlowScreenState extends State<SetupFlowScreen> with TickerProviderSt
         children: [
           _buildStepHeader('What is your height & weight?'),
           
-          // Height
-          _buildMeasurementRow(
-            title: 'HEIGHT',
-            value: _heightCm,
-            unit: 'cm',
-            onChanged: (v) => setState(() => _heightCm = v),
-          ),
+          // Height with cm / ft toggle
+          _buildHeightRow(),
           const SizedBox(height: 32),
           
           // Weight
@@ -590,6 +585,203 @@ class _SetupFlowScreenState extends State<SetupFlowScreen> with TickerProviderSt
     );
   }
 
+  Widget _buildHeightRow() {
+    final isFeet = _heightUnit == 'ft';
+    int feet = _heightCm ~/ 30.48;
+    int inches = ((_heightCm % 30.48) / 2.54).round();
+    if (inches >= 12) {
+      feet += 1;
+      inches = 0;
+    }
+    feet = feet.clamp(3, 7);
+    inches = inches.clamp(0, 11);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('HEIGHT', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white54, letterSpacing: 1)),
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              padding: const EdgeInsets.all(3),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildUnitToggleChip('cm', !isFeet, () {
+                    setState(() => _heightUnit = 'cm');
+                  }),
+                  _buildUnitToggleChip('ft / in', isFeet, () {
+                    setState(() => _heightUnit = 'ft');
+                  }),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (!isFeet) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(_heightCm.toStringAsFixed(0), style: GoogleFonts.inter(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.white)),
+                  const SizedBox(width: 8),
+                  Text('cm', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white54)),
+                  const SizedBox(width: 10),
+                  Text(
+                    '($feet\' $inches")',
+                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.white38),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  _buildRoundBtn(Icons.remove, () {
+                    setState(() => _heightCm = (_heightCm - 1).clamp(90.0, 240.0));
+                  }),
+                  const SizedBox(width: 12),
+                  _buildRoundBtn(Icons.add, () {
+                    setState(() => _heightCm = (_heightCm + 1).clamp(90.0, 240.0));
+                  }),
+                ],
+              )
+            ],
+          ),
+        ] else ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Display feet & inches
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text('$feet', style: GoogleFonts.inter(fontSize: 44, fontWeight: FontWeight.bold, color: Colors.white)),
+                  Text('ft', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white54)),
+                  const SizedBox(width: 8),
+                  Text('$inches', style: GoogleFonts.inter(fontSize: 44, fontWeight: FontWeight.bold, color: Colors.white)),
+                  Text('in', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white54)),
+                  const SizedBox(width: 8),
+                  Text(
+                    '(${_heightCm.round()} cm)',
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white38),
+                  ),
+                ],
+              ),
+              // Steppers for feet and inches
+              Row(
+                children: [
+                  // Feet control
+                  Column(
+                    children: [
+                      Text('FT', style: GoogleFonts.inter(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          _buildRoundBtn(Icons.remove, () {
+                            if (feet > 3) {
+                              setState(() {
+                                final newFeet = feet - 1;
+                                _heightCm = (newFeet * 30.48 + inches * 2.54).clamp(90.0, 240.0);
+                              });
+                            }
+                          }, size: 36),
+                          const SizedBox(width: 6),
+                          _buildRoundBtn(Icons.add, () {
+                            if (feet < 7) {
+                              setState(() {
+                                final newFeet = feet + 1;
+                                _heightCm = (newFeet * 30.48 + inches * 2.54).clamp(90.0, 240.0);
+                              });
+                            }
+                          }, size: 36),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 10),
+                  // Inches control
+                  Column(
+                    children: [
+                      Text('IN', style: GoogleFonts.inter(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          _buildRoundBtn(Icons.remove, () {
+                            setState(() {
+                              int newInches = inches - 1;
+                              int newFeet = feet;
+                              if (newInches < 0) {
+                                if (newFeet > 3) {
+                                  newFeet -= 1;
+                                  newInches = 11;
+                                } else {
+                                  newInches = 0;
+                                }
+                              }
+                              _heightCm = (newFeet * 30.48 + newInches * 2.54).clamp(90.0, 240.0);
+                            });
+                          }, size: 36),
+                          const SizedBox(width: 6),
+                          _buildRoundBtn(Icons.add, () {
+                            setState(() {
+                              int newInches = inches + 1;
+                              int newFeet = feet;
+                              if (newInches > 11) {
+                                if (newFeet < 7) {
+                                  newFeet += 1;
+                                  newInches = 0;
+                                } else {
+                                  newInches = 11;
+                                }
+                              }
+                              _heightCm = (newFeet * 30.48 + newInches * 2.54).clamp(90.0, 240.0);
+                            });
+                          }, size: 36),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildUnitToggleChip(String label, bool isSelected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF6366F1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: isSelected ? Colors.white : Colors.white60,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMeasurementRow({required String title, required double value, required String unit, required Function(double) onChanged}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -621,16 +813,16 @@ class _SetupFlowScreenState extends State<SetupFlowScreen> with TickerProviderSt
     );
   }
 
-  Widget _buildRoundBtn(IconData icon, VoidCallback onTap) {
+  Widget _buildRoundBtn(IconData icon, VoidCallback onTap, {double size = 44}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 44, height: 44,
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
+        width: size, height: size,
+        decoration: const BoxDecoration(
+          color: Color(0xFF1E293B),
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: Colors.white),
+        child: Icon(icon, color: Colors.white, size: size > 40 ? 24 : 18),
       ),
     );
   }

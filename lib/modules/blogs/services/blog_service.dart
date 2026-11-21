@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/blog_model.dart';
+import '../../admin/services/admin_log_service.dart';
 
 class BlogService {
   static final _db = FirebaseFirestore.instance;
@@ -38,6 +39,10 @@ class BlogService {
         'bookmarks': [],
         'createdAt': FieldValue.serverTimestamp(),
       });
+      await AdminLogService.logActivity(
+        action: 'Blog Created',
+        details: 'Published blog: "$title" by $author',
+      );
     } catch (e) {
       debugPrint('[BlogService] saveBlog error: $e');
       rethrow;
@@ -67,6 +72,10 @@ class BlogService {
         'readTimeMinutes': readTimeMinutes,
         'tags': tags,
       });
+      await AdminLogService.logActivity(
+        action: 'Blog Updated',
+        details: 'Updated blog: "$title" (ID: $id)',
+      );
     } catch (e) {
       debugPrint('[BlogService] updateBlog error: $e');
       rethrow;
@@ -110,6 +119,10 @@ class BlogService {
   static Future<void> deleteBlog(String id) async {
     try {
       await _blogsCol.doc(id).delete();
+      await AdminLogService.logActivity(
+        action: 'Blog Deleted',
+        details: 'Deleted blog ID: $id',
+      );
     } catch (e) {
       debugPrint('[BlogService] deleteBlog error: $e');
       rethrow;

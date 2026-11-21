@@ -548,7 +548,10 @@ class AudioAnalyzerService {
     double spectralRolloffHz = 0.0; // Freq below which 85% of energy lies
     double? dominantFreq;
 
-    if (rms >= tracker.noiseFloor + 0.002) {
+    // Snoring produces noticeable acoustic energy above the ambient floor.
+    // Gating at noiseFloor + 0.006 skips expensive 4096-sample FFT calculations
+    // on ~85% of the night that is quiet breathing, speeding up analysis dramatically.
+    if (rms >= tracker.noiseFloor + 0.006) {
       final int fftSize = (sampleCount >= targetFftSize) ? targetFftSize : 1024;
       if (sampleCount >= fftSize) {
         try {
@@ -1181,10 +1184,22 @@ class AudioAnalyzerService {
       }
       sessions.add(currentSession);
       
+      // Cap at top 5 most prominent snoring sessions to prevent disk I/O and upload delays
+      var targetSessions = sessions;
+      if (sessions.length > 5) {
+        sessions.sort((a, b) {
+          final maxA = a.map((e) => e.amplitude).reduce(max);
+          final maxB = b.map((e) => e.amplitude).reduce(max);
+          return maxB.compareTo(maxA);
+        });
+        targetSessions = sessions.take(5).toList();
+        targetSessions.sort((a, b) => a.first.timestamp.compareTo(b.first.timestamp));
+      }
+
       final clips = <SnoreAudioClip>[];
 
-      for (int i = 0; i < sessions.length; i++) {
-        final sessionEvents = sessions[i];
+      for (int i = 0; i < targetSessions.length; i++) {
+        final sessionEvents = targetSessions[i];
         final sessionStart = sessionEvents.first.timestamp;
         
         // Sum up the actual duration of the extracted events (since gaps are skipped)

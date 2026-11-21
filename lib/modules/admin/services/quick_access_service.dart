@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/quick_access_model.dart';
 import '../../../core/router/app_router.dart';
+import 'admin_log_service.dart';
 
 class QuickAccessService {
   static final _db = FirebaseFirestore.instance.collection('quick_access');
@@ -24,6 +25,10 @@ class QuickAccessService {
       'order': count.count ?? 0,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    await AdminLogService.logActivity(
+      action: 'Quick Access Created',
+      details: 'Created shortcut: "$title" -> "$target"',
+    );
   }
 
   static Future<void> updateItem({
@@ -37,14 +42,26 @@ class QuickAccessService {
       'target': target,
       'thumbnailUrl': thumbnailUrl,
     });
+    await AdminLogService.logActivity(
+      action: 'Quick Access Updated',
+      details: 'Updated shortcut: "$title" (ID: $id)',
+    );
   }
 
   static Future<void> updateOrder(String id, int newOrder) async {
     await _db.doc(id).update({'order': newOrder});
+    await AdminLogService.logActivity(
+      action: 'Quick Access Reordered',
+      details: 'Moved shortcut ID: $id to position $newOrder',
+    );
   }
 
   static Future<void> deleteItem(String id) async {
     await _db.doc(id).delete();
+    await AdminLogService.logActivity(
+      action: 'Quick Access Deleted',
+      details: 'Deleted shortcut ID: $id',
+    );
   }
 
   static Future<void> ensureDefaultItems() async {
@@ -68,6 +85,10 @@ class QuickAccessService {
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
+      await AdminLogService.logActivity(
+        action: 'Quick Access Defaults Synced',
+        details: 'Populated 5 default quick access shortcuts',
+      );
     }
   }
 }

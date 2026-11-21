@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:469010978794:android:775070c4d7db47f91e0493",
         "android_client_info": {
-          "package_name": "com.snoreclinics.ai"
+          "package_name": "com.sleepastra"
         }
       },
       "oauth_client": [
@@ -17,7 +17,7 @@
           "client_id": "469010978794-4obrecig4rgt2a61e7ml06mcsrqb3p05.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.snoreclinics.ai",
+            "package_name": "com.sleepastra",
             "certificate_hash": "b586c2750bbb51bd8b30516ced48f33fe5bd5ffa"
           }
         },
@@ -25,7 +25,7 @@
           "client_id": "469010978794-iveetlpin3vljfbpvbihdoid83nj7sc0.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.snoreclinics.ai",
+            "package_name": "com.sleepastra",
             "certificate_hash": "950b5f9aca48575868631f87fa618f2ee3384bf9"
           }
         },
@@ -50,7 +50,7 @@
               "client_id": "469010978794-jr7536c2s4p8mg0ddsms2ahoq6sk2vfl.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.snoreclinics.ai"
+                "bundle_id": "com.sleepastra"
               }
             }
           ]

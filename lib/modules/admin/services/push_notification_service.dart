@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/push_notification_model.dart';
+import 'admin_log_service.dart';
 
 class PushNotificationService {
   static final CollectionReference _collection =
@@ -62,9 +63,17 @@ class PushNotificationService {
     }
 
     await _collection.add(map).timeout(const Duration(seconds: 15));
+    await AdminLogService.logActivity(
+      action: isRecurring ? 'Recurring Notification Scheduled' : 'Notification Scheduled',
+      details: 'Scheduled "$title" to $targetAudience ($priority)',
+    );
   }
 
   static Future<void> deleteNotification(String id) async {
     await _collection.doc(id).delete();
+    await AdminLogService.logActivity(
+      action: 'Notification Deleted',
+      details: 'Deleted scheduled notification ID: $id',
+    );
   }
 }

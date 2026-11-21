@@ -18,7 +18,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.snoreclinics.ai"
+    namespace = "com.sleepastra"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -32,7 +32,7 @@ android {
 
 
     defaultConfig {
-        applicationId = "com.snoreclinics.ai"
+        applicationId = "com.sleepastra"
         minSdk = 26
         targetSdk = 36
         versionCode = flutter.versionCode

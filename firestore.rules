@@ -4,10 +4,21 @@ service cloud.firestore {
 
     // ── Helper Functions ───────────────────────────────────────────────────────
     
-    // Returns true if the signed-in user's role field in Firestore equals 'admin'.
+    // Returns true ONLY if the signed-in user's email is in the primary superadmin whitelist
+    // or is explicitly registered in the /admins/ collection with active == true.
     function isAdmin() {
-      return request.auth != null &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return request.auth != null && request.auth.token.email != null && (
+        request.auth.token.email in [
+          'vennelareddy06@gmail.com',
+          'sureshmereddy76@gmail.com',
+          'sureshmereddy@snoreclinics.org',
+          'pulkitchhajed29@gmail.com',
+          'balchander18@gmail.com',
+          'nadeemfazlullah@gmail.com'
+        ] ||
+        (exists(/databases/$(database)/documents/admins/$(request.auth.token.email)) &&
+         get(/databases/$(database)/documents/admins/$(request.auth.token.email)).data.active == true)
+      );
     }
 
     // Returns true if the caller is authenticated (any user including anonymous).
@@ -32,49 +43,58 @@ service cloud.firestore {
       }
     }
 
-    // ── Videos ────────────────────────────────────────────────────────────────
+    // ── Admin Whitelist Collection ─────────────────────────────────────────────
+    match /admins/{adminEmail} {
+      // A user can read their own admin doc to verify status; only admins can list or modify
+      allow get: if isAuthenticated() && (request.auth.token.email == adminEmail || isAdmin());
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // ── Admin Activity Audit Logs ───────────────────────────────────────────────
+    match /admin_logs/{logId} {
+      // Any authenticated user/session can record logs; admins can read all logs.
+      allow create: if isAuthenticated();
+      allow read: if isAdmin();
+      allow update, delete: if false; // Audit logs are strictly immutable
+    }
+
+    // ── Profiles by Email ──────────────────────────────────────────────────────
+    match /profiles_by_email/{email} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // ── Videos ─────────────────────────────────────────────────────────────────
     match /videos/{videoId} {
-      // Every authenticated user can read videos.
       allow read: if isAuthenticated();
-
-      // Only admins can create, update, or delete videos.
       allow create, update, delete: if isAdmin();
     }
 
-    // Blogs
+    // ── Blogs ──────────────────────────────────────────────────────────────────
     match /blogs/{blogId} {
-      // Every authenticated user can read blogs.
       allow read: if isAuthenticated();
-
-      // Only admins can create, update, or delete blogs.
       allow create, update, delete: if isAdmin();
     }
 
-    // ── Audio Tracks ──────────────────────────────────────────────────────────
+    // ── Audio Tracks ───────────────────────────────────────────────────────────
     match /audio_tracks/{audioId} {
-      // Every authenticated user can read audio tracks.
       allow read: if isAuthenticated();
-
-      // Only admins can create, update, or delete audio tracks.
       allow create, update, delete: if isAdmin();
     }
 
-    // ── Wellness Zones ────────────────────────────────────────────────────────
+    // ── Wellness Zones ─────────────────────────────────────────────────────────
     match /wellness_zones/{zoneId} {
-      // Every authenticated user can read wellness zones.
       allow read: if isAuthenticated();
-
-      // Only admins can create, update, or delete wellness zones.
       allow create, update, delete: if isAdmin();
     }
 
-    // 🚀🚀 Admin Notifications 🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀
+    // ── Admin Notifications ────────────────────────────────────────────────────
     match /scheduled_notifications/{docId} {
-      // Only admins can schedule notifications
       allow read, write: if isAdmin();
     }
 
-    // 🚀🚀 Quick Access 🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀
+    // ── Quick Access ───────────────────────────────────────────────────────────
     match /quick_access/{accessId} {
       allow read: if isAuthenticated();
       allow create, update, delete: if isAdmin();

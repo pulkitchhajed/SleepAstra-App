@@ -7,6 +7,8 @@ import 'dart:math';
 
 import '../modules/sleep_analysis/screens/sleep_stages_screen.dart';
 import '../modules/sleep_analysis/screens/snore_tracking_screen.dart';
+import 'main_nav_screen.dart';
+import 'wellness_screen.dart';
 
 
 import '../core/theme/app_theme.dart';
@@ -123,6 +125,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: _buildMetricsRow(profile, isLight, textPrimary, textSec, cardBg, cardBorder),
                     ).animate().fadeIn(delay: 240.ms, duration: 350.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
+                    const SizedBox(height: 20),
+                    // ── 7-Day Rolling Sleep Pattern Calendar Strip ───────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Rolling7DayPatternWidget(reports: sleepProvider.history),
+                    ).animate().fadeIn(delay: 270.ms, duration: 350.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
                     const SizedBox(height: 24),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1204,11 +1212,21 @@ class _HomeScreenState extends State<HomeScreen> {
     return GestureDetector(
       onTap: () {
         if (item.target.startsWith('zone:')) {
-          // Navigate to Wellness tab where all zones are presented
-          Navigator.pushNamedAndRemoveUntil(context, AppRouter.mainNav, (r) => false, arguments: 1);
+          // Extract the zone id (everything after "zone:") and deep-link into
+          // the Wellness tab, selecting that specific zone chip.
+          final zoneId = item.target.substring('zone:'.length).trim();
+          MainNavScreen.switchToWellnessZone(context, zoneId);
         } else if (item.target.startsWith('route:')) {
           if (item.target == 'route:/wellness') {
-            Navigator.pushNamedAndRemoveUntil(context, AppRouter.mainNav, (r) => false, arguments: 1);
+            // Try to deep-link into the matching zone using the card title.
+            // e.g. a "Sleep Sounds" card with target "route:/wellness" will
+            // switch to Wellness tab AND select the Sleep Sounds zone chip.
+            final titleTarget = item.title.trim();
+            if (titleTarget.isNotEmpty) {
+              MainNavScreen.switchToWellnessZone(context, titleTarget);
+            } else {
+              MainNavScreen.switchToTab(context, 1);
+            }
           } else if (item.target == 'route:/snore_track') {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const SnoreTrackingScreen()));
           } else if (item.target == 'route:/sleep_stages') {
@@ -1217,7 +1235,13 @@ class _HomeScreenState extends State<HomeScreen> {
         } else if (item.target.startsWith('/')) {
           Navigator.pushNamed(context, item.target);
         } else {
-          Navigator.pushNamedAndRemoveUntil(context, AppRouter.mainNav, (r) => false, arguments: 1);
+          // Unknown target — fall back to Wellness tab, trying to match title.
+          final titleTarget = item.title.trim();
+          if (titleTarget.isNotEmpty) {
+            MainNavScreen.switchToWellnessZone(context, titleTarget);
+          } else {
+            MainNavScreen.switchToTab(context, 1);
+          }
         }
       },
       child: Container(

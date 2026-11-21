@@ -36,9 +36,9 @@ class BlogListScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: TextButton.icon(
-                    onPressed: () => Navigator.push(
+                    onPressed: () => Navigator.pushNamed(
                       context,
-                      MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+                      AppRouter.adminDashboard,
                     ),
                     icon: const Icon(Icons.shield_rounded, color: AppTheme.primaryGold, size: 18),
                     label: const Text(
@@ -116,9 +116,9 @@ class BlogListScreen extends StatelessWidget {
                         if (isAdmin) ...[
                           const SizedBox(height: 20),
                           ElevatedButton.icon(
-                            onPressed: () => Navigator.push(
+                            onPressed: () => Navigator.pushNamed(
                               context,
-                              MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+                              AppRouter.adminDashboard,
                             ),
                             icon: const Icon(Icons.add),
                             label: const Text('Go to Admin Dashboard'),

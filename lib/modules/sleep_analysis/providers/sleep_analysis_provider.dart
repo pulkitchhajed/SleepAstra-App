@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:isolate';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,8 +14,44 @@ import '../services/audio_storage_service.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../../core/services/health_service.dart';
 import '../../../core/services/recording_logger.dart';
+import '../../../core/services/notification_service.dart';
 
 enum AnalysisState { idle, recording, analysing, done, error }
+
+/// Top-level parameter class for background isolate audio analysis.
+/// Holds only sendable primitive and typed-data fields.
+class AnalysisIsolateParams {
+  final String path;
+  final String name;
+  final int goalMinutes;
+  final Duration? actualDuration;
+  final DateTime recordedAt;
+  final Uint8List? modelBuffer;
+
+  const AnalysisIsolateParams({
+    required this.path,
+    required this.name,
+    required this.goalMinutes,
+    this.actualDuration,
+    required this.recordedAt,
+    this.modelBuffer,
+  });
+}
+
+/// Top-level entry point for isolate-based audio analysis.
+/// MUST be a top-level function (not an anonymous closure or instance method)
+/// so that it never captures `this` (ChangeNotifier) or any Flutter widget tree / UI bindings.
+Future<SleepReport> _runAudioAnalysisInIsolate(AnalysisIsolateParams params) async {
+  final svc = AudioAnalyzerService();
+  return await svc.analyzeFile(
+    params.path,
+    params.name,
+    goalMinutes: params.goalMinutes,
+    actualDuration: params.actualDuration,
+    recordedAt: params.recordedAt,
+    modelBuffer: params.modelBuffer,
+  );
+}
 
 class SleepAnalysisProvider extends ChangeNotifier {
 
@@ -43,6 +78,7 @@ class SleepAnalysisProvider extends ChangeNotifier {
   // ── Getters ──────────────────────────────────────────────
   AnalysisState get state => _state;
   SleepReport? get report => _report;
+  SleepReport? get latestReport => _report ?? (_history.isNotEmpty ? _history.first : null);
   String? get errorMessage => _errorMessage;
   bool get isRecording => _isRecording;
   Duration get recordingDuration => _recordingDuration;
@@ -185,19 +221,41 @@ class SleepAnalysisProvider extends ChangeNotifier {
         debugPrint('[Analysis] Failed to load YAMNet model buffer: $e');
       }
 
-      final report = await Isolate.run(() async {
+      final params = AnalysisIsolateParams(
+        path: path,
+        name: name,
+        goalMinutes: goalMinutes,
+        actualDuration: actualDur,
+        recordedAt: startTime,
+        modelBuffer: modelBuffer,
+      );
+
+      SleepReport report;
+      try {
+        report = await compute(_runAudioAnalysisInIsolate, params).timeout(
+          analysisTimeout,
+          onTimeout: () {
+            throw TimeoutException('Analysis took too long. The recording may be corrupted or in an unsupported format. Please try a PCM or M4A file.');
+          },
+        );
+      } catch (isolateError) {
+        RecordingLogger().warning('Background isolate execution failed ($isolateError), falling back to in-thread analysis...');
+        debugPrint('[Analysis] Isolate failed ($isolateError), running directly in main thread...');
         final svc = AudioAnalyzerService();
-        return await svc.analyzeFile(
+        report = await svc.analyzeFile(
           path,
           name,
           goalMinutes: goalMinutes,
           actualDuration: actualDur,
-          recordedAt: startTime, // Bug F fix: use actual sleep start time
+          recordedAt: startTime,
           modelBuffer: modelBuffer,
+        ).timeout(
+          analysisTimeout,
+          onTimeout: () {
+            throw TimeoutException('Analysis took too long. The recording may be corrupted or in an unsupported format. Please try a PCM or M4A file.');
+          },
         );
-      }).timeout(analysisTimeout, onTimeout: () {
-        throw TimeoutException('Analysis took too long. The recording may be corrupted or in an unsupported format. Please try a PCM or M4A file.');
-      });
+      }
 
       // Apply actigraphy stage refinement if motion data is available
       SleepReport baseReport = report;
@@ -285,15 +343,11 @@ class SleepAnalysisProvider extends ChangeNotifier {
       
       if (finalReport.snoringEvents.isNotEmpty) {
         RecordingLogger().info('Extracting snore audio clips...');
-        final localClips = await AudioAnalyzerService().extractSnoreAudio(
+        snoreClips = await AudioAnalyzerService().extractSnoreAudio(
           path, 
           finalReport.snoringEvents,
           actualDuration: finalReport.totalDuration,
         );
-        
-        if (localClips.isNotEmpty) {
-          snoreClips = await AudioStorageService.uploadSnoreAudioClips(saveUid, localClips, startTime);
-        }
       }
 
       // ── Delete raw PCM to free space (only if app created it) ──────────────────
@@ -309,30 +363,8 @@ class SleepAnalysisProvider extends ChangeNotifier {
         }
       }
 
-      // Add audio paths to final report
-      finalReport = SleepReport(
-        fileName: finalReport.fileName,
-        recordedAt: finalReport.recordedAt,
-        totalDuration: finalReport.totalDuration,
-        snoringDuration: finalReport.snoringDuration,
-        snoringEventCount: finalReport.snoringEventCount,
-        qualityScore: finalReport.qualityScore,
-        quality: finalReport.quality,
-        snoringEvents: finalReport.snoringEvents,
-        amplitudeTimeline: finalReport.amplitudeTimeline,
-        insights: finalReport.insights,
-        sleepDebtHours: finalReport.sleepDebtHours,
-        lightSleepPercent: finalReport.lightSleepPercent,
-        deepSleepPercent: finalReport.deepSleepPercent,
-        remSleepPercent: finalReport.remSleepPercent,
-        apneaRiskLevel: finalReport.apneaRiskLevel,
-        cpapUsageDuration: finalReport.cpapUsageDuration,
-        detectedApneaEvents: finalReport.detectedApneaEvents,
-        apneaHypopneaIndex: finalReport.apneaHypopneaIndex,
-        motionTimeline: finalReport.motionTimeline,
-        actigraphyAvailable: finalReport.actigraphyAvailable,
-        snoreAudioClips: snoreClips,
-      );
+      // Add local clips to final report
+      finalReport = finalReport.copyWith(snoreAudioClips: snoreClips);
 
       _report = finalReport;
       _state = AnalysisState.done;
@@ -347,7 +379,39 @@ class SleepAnalysisProvider extends ChangeNotifier {
       _history = await _storage.getAllReports(saveUid);
       _currentUid = saveUid;
 
+      // ── Trigger Completion Local Notification ──────────────────────
+      try {
+        await NotificationService().showAnalysisCompleteNotification(
+          score: finalReport.qualityScore.toInt(),
+          quality: finalReport.qualityLabel,
+        );
+      } catch (e) {
+        RecordingLogger().error('Error showing analysis completion notification', e);
+      }
+
       notifyListeners();
+
+      // ── Background Audio Upload (Fire & Forget, does NOT block UI) ───
+      if (snoreClips.isNotEmpty) {
+        unawaited(() async {
+          try {
+            RecordingLogger().info('Starting background snore clip upload (${snoreClips.length} clips)...');
+            final uploadedClips = await AudioStorageService.uploadSnoreAudioClips(saveUid, snoreClips, startTime);
+            if (uploadedClips.isNotEmpty) {
+              final updatedReport = finalReport.copyWith(snoreAudioClips: uploadedClips);
+              await _storage.saveReport(saveUid, updatedReport);
+              if (_report?.fileName == updatedReport.fileName) {
+                _report = updatedReport;
+                notifyListeners();
+              }
+              RecordingLogger().info('Background snore clip upload completed successfully');
+            }
+          } catch (e) {
+            RecordingLogger().error('Background snore clip upload failed', e);
+          }
+        }());
+      }
+
       return _report;
     } catch (e, stack) {
       RecordingLogger().error('Analysis provider error', e, stack);

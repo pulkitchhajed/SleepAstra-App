@@ -12,7 +12,7 @@ const SETTINGS = [
 ];
 
 export default function ProfileTab() {
-  const { profile, updateProfile, breathingStreak, sleepSessions } = useApp();
+  const { profile, updateProfile, breathingStreak, sleepSessions, currentUid, currentUser, logoutUser } = useApp();
   const [sleepGoal, setSleepGoal] = useState(profile.sleepGoal || 8);
 
   const avgScore = sleepSessions.length > 0 
@@ -144,9 +144,29 @@ export default function ProfileTab() {
         </div>
       </div>
 
+      {/* Cloud Sync & UID Information */}
+      <div style={{ padding: '0 20px' }}>
+        <div className="glass-card-sm" style={{ padding: '14px 18px', textAlign: 'left' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: '0.9rem' }}>☁️</span>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#34d399' }}>Cloud Database Synced</span>
+          </div>
+          <p style={{ fontSize: '0.72rem', color: '#8b92b2', margin: 0 }}>
+            User ID: <code style={{ color: '#c7d2fe', userSelect: 'all' }}>{currentUid}</code>
+          </p>
+        </div>
+      </div>
+
       {/* Sign Out */}
-      <div style={{ padding: '0 20px 20px' }}>
-        <button id="btn-sign-out" className="btn-ghost" style={{ width: '100%', color: '#f87171', borderColor: 'rgba(248,113,113,0.2)' }}>
+      <div style={{ padding: '14px 20px 24px' }}>
+        <button
+          id="btn-sign-out"
+          className="btn-ghost"
+          style={{ width: '100%', color: '#f87171', borderColor: 'rgba(248,113,113,0.3)', cursor: 'pointer' }}
+          onClick={() => {
+            if (logoutUser) logoutUser();
+          }}
+        >
           Sign Out
         </button>
       </div>

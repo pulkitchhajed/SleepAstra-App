@@ -3,11 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 import '../core/theme/app_theme.dart';
 import '../core/providers/theme_provider.dart';
-import '../core/utils/audio_tracks.dart';
+import '../core/providers/audio_player_provider.dart';
 import '../modules/videos/models/video_model.dart';
 import '../modules/videos/services/video_service.dart';
 import '../modules/videos/screens/video_list_screen.dart';
@@ -16,22 +15,61 @@ import '../modules/blogs/widgets/blog_hub_widget.dart';
 import '../modules/paywall/providers/subscription_provider.dart';
 import '../core/router/app_router.dart';
 import '../modules/audio/models/audio_track_model.dart';
-import '../modules/audio/services/audio_track_service.dart';
+import '../modules/audio/widgets/audio_player_sheet.dart';
 import '../modules/blogs/models/blog_model.dart';
+import '../modules/blogs/screens/blog_detail_screen.dart';
+import '../modules/blogs/screens/blog_list_screen.dart';
 import '../modules/admin/models/wellness_zone_model.dart';
 import '../modules/admin/services/wellness_zone_service.dart';
 
+class _ZoneData {
+  final List<VideoModel> videos;
+  final List<AudioTrackModel> audios;
+  final List<BlogModel> blogs;
+  final bool isLoaded;
+
+  const _ZoneData({
+    this.videos = const [],
+    this.audios = const [],
+    this.blogs = const [],
+    this.isLoaded = false,
+  });
+
+  bool get isEmpty => videos.isEmpty && audios.isEmpty && blogs.isEmpty;
+}
+
 class WellnessScreen extends StatefulWidget {
   const WellnessScreen({super.key});
+
+  /// Global key so external code can call selectZoneByName.
+  static final GlobalKey<_WellnessScreenState> globalKey =
+      GlobalKey<_WellnessScreenState>();
+
+  /// Navigate to the Wellness tab and jump to the zone whose name or id
+  /// matches [zoneTarget]. [zoneTarget] may be:
+  ///   - a zone id  (e.g. the part after "zone:")
+  ///   - a zone name (case-insensitive match)
+  static void navigateToZone(BuildContext context, String zoneTarget) {
+    // The MainNavScreen will switch to Wellness tab (index 1); after the frame
+    // renders we select the matching zone.
+    final state = globalKey.currentState;
+    if (state != null) {
+      state.selectZoneByTarget(zoneTarget);
+    } else {
+      // Screen may not be visible yet; store the pending target so initState
+      // can apply it once the zones load.
+      _WellnessScreenState._pendingZoneTarget = zoneTarget;
+    }
+  }
+
   @override
   State<WellnessScreen> createState() => _WellnessScreenState();
 }
 
 class _WellnessScreenState extends State<WellnessScreen> {
-  AudioTrackModel? _activeAudio;
-  bool _isPlaying = false;
-  bool _isLoading = false;
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  /// Holds a pending zone target when navigateToZone is called before zones
+  /// have loaded (e.g. the tab was not yet mounted).
+  static String? _pendingZoneTarget;
 
   int _selectedCategoryIndex = 0;
   List<String> get _categories => ['All Zones', ..._zones.map((z) => z.name)];
@@ -39,66 +77,151 @@ class _WellnessScreenState extends State<WellnessScreen> {
   List<WellnessZoneModel> _zones = [];
   StreamSubscription? _zonesSub;
 
+  final Map<String, _ZoneData> _zoneDataCache = {};
+  bool _isInitialLoading = true;
+
+  /// Controller for the category chip list so we can scroll the selected chip into view.
+  final ScrollController _chipScrollController = ScrollController();
+
+  /// Controller for the main content scroll so we can reset to top on zone change.
+  final ScrollController _contentScrollController = ScrollController();
+
+  /// Selects the zone chip matching [target] (zone id or name, case-insensitive)
+  /// and jumps the chip list to that chip.
+  void selectZoneByTarget(String target) {
+    if (_zones.isEmpty) {
+      _pendingZoneTarget = target;
+      return;
+    }
+
+    final lower = target.toLowerCase().trim();
+
+    // Try matching by id first, then by name
+    int zoneListIndex = _zones.indexWhere((z) => z.id.toLowerCase() == lower);
+    if (zoneListIndex == -1) {
+      zoneListIndex = _zones.indexWhere((z) => z.name.toLowerCase() == lower);
+    }
+    if (zoneListIndex == -1) {
+      // Partial name match (e.g. "sleep" matches "Sleep Sounds")
+      zoneListIndex = _zones.indexWhere(
+          (z) => z.name.toLowerCase().contains(lower) || lower.contains(z.name.toLowerCase()));
+    }
+
+    if (zoneListIndex != -1) {
+      // Category index is 1-based (0 = All Zones)
+      final chipIndex = zoneListIndex + 1;
+      if (mounted) {
+        setState(() => _selectedCategoryIndex = chipIndex);
+        // Scroll the chip bar so the selected chip is visible, and reset
+        // the content scroll to top so the user immediately sees the zone.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          // Scroll chip list – each chip is roughly 100 px wide incl. margin
+          if (_chipScrollController.hasClients) {
+            final offset = (chipIndex * 110.0).clamp(
+              0.0,
+              _chipScrollController.position.maxScrollExtent,
+            );
+            _chipScrollController.animateTo(
+              offset,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+          // Reset content scroll to top
+          if (_contentScrollController.hasClients) {
+            _contentScrollController.animateTo(
+              0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _zonesSub = WellnessZoneService.watchZones().listen((zones) {
-      if (mounted) setState(() => _zones = zones);
+      if (mounted) {
+        setState(() => _zones = zones);
+        _preloadAllZones(zones);
+        // Apply any pending deep-link target once zones are available
+        if (_pendingZoneTarget != null) {
+          final target = _pendingZoneTarget!;
+          _pendingZoneTarget = null;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            selectZoneByTarget(target);
+          });
+        }
+      }
     });
+  }
+
+  Future<void> _preloadAllZones(List<WellnessZoneModel> zones) async {
+    final db = FirebaseFirestore.instance;
+    await Future.wait(zones.map((zone) async {
+      try {
+        final Future<QuerySnapshot<Map<String, dynamic>>?> videoFuture = zone.contentTypes.contains('video')
+            ? db.collection('videos').where('category', isEqualTo: zone.name).limit(10).get()
+            : Future<QuerySnapshot<Map<String, dynamic>>?>.value(null);
+        final Future<QuerySnapshot<Map<String, dynamic>>?> audioFuture = zone.contentTypes.contains('audio')
+            ? db.collection('audio_tracks').where('category', isEqualTo: zone.name).limit(10).get()
+            : Future<QuerySnapshot<Map<String, dynamic>>?>.value(null);
+        final Future<QuerySnapshot<Map<String, dynamic>>?> blogFuture = zone.contentTypes.contains('blog')
+            ? db.collection('blogs').where('category', isEqualTo: zone.name).limit(10).get()
+            : Future<QuerySnapshot<Map<String, dynamic>>?>.value(null);
+
+        final results = await Future.wait([videoFuture, audioFuture, blogFuture]);
+        final videoSnap = results[0];
+        final audioSnap = results[1];
+        final blogSnap = results[2];
+
+        final videos = (videoSnap?.docs ?? [])
+            .map((d) => VideoModel.fromJson(d.id, d.data()))
+            .toList();
+        final audios = (audioSnap?.docs ?? [])
+            .map((d) => AudioTrackModel.fromJson(d.id, d.data()))
+            .toList();
+        final blogs = (blogSnap?.docs ?? [])
+            .map((d) => BlogModel.fromJson(d.id, d.data()))
+            .toList();
+
+        _zoneDataCache[zone.id] = _ZoneData(
+          videos: videos,
+          audios: audios,
+          blogs: blogs,
+          isLoaded: true,
+        );
+      } catch (e) {
+        _zoneDataCache[zone.id] = const _ZoneData(isLoaded: true);
+      }
+    }));
+
+    if (mounted) {
+      setState(() => _isInitialLoading = false);
+    }
   }
 
   @override
   void dispose() {
     _zonesSub?.cancel();
-    _audioPlayer.dispose();
+    _chipScrollController.dispose();
+    _contentScrollController.dispose();
     super.dispose();
   }
 
-  void _stopWholeThing() {
-    _audioPlayer.stop();
-    setState(() {
-      _isPlaying = false;
-      _activeAudio = null;
-    });
-  }
-
-  void _playTrack(AudioTrackModel track) async {
-    if (_isLoading) return;
-    if (_activeAudio?.id == track.id) {
-      try {
-        if (_isPlaying) {
-          _audioPlayer.pause();
-          setState(() => _isPlaying = false);
-        } else {
-          _audioPlayer.play();
-          setState(() => _isPlaying = true);
-        }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to play/pause audio.')));
-      }
+  /// Tap a track: start global playback then open the full player sheet.
+  void _playTrack(AudioTrackModel track, List<AudioTrackModel> playlist) {
+    final ap = context.read<AudioPlayerProvider>();
+    // If the same track is already loaded, just open the sheet.
+    if (ap.activeTrack?.id == track.id) {
+      AudioPlayerSheet.show(context);
       return;
     }
-    
-    setState(() {
-      _activeAudio = track;
-      _isPlaying = true;
-      _isLoading = false;
-    });
-
-    final snackbarMessenger = ScaffoldMessenger.of(context);
-    try {
-      final audioSource = AudioSource.uri(Uri.parse(track.audioUrl));
-      _audioPlayer.setAudioSource(audioSource);
-      _audioPlayer.setLoopMode(track.loop ? LoopMode.one : LoopMode.off);
-      _audioPlayer.play();
-    } catch (e) {
-      if (!context.mounted) return;
-      setState(() {
-        _activeAudio = null;
-        _isPlaying = false;
-      });
-      snackbarMessenger.showSnackBar(const SnackBar(content: Text('Failed to load audio. Check your connection.')));
-    }
+    ap.play(track, playlist);
+    AudioPlayerSheet.show(context);
   }
 
   void _showBreathingExercise(BuildContext context, BreathExercise exercise) {
@@ -132,6 +255,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
                 SizedBox(
                   height: 40,
                   child: ListView.builder(
+                    controller: _chipScrollController,
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     itemCount: _categories.length,
@@ -141,6 +265,16 @@ class _WellnessScreenState extends State<WellnessScreen> {
                         onTap: () {
                           setState(() {
                             _selectedCategoryIndex = index;
+                          });
+                          // Reset content scroll to top on manual chip tap
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (_contentScrollController.hasClients) {
+                              _contentScrollController.animateTo(
+                                0,
+                                duration: const Duration(milliseconds: 250),
+                                curve: Curves.easeOut,
+                              );
+                            }
                           });
                         },
                         child: AnimatedContainer(
@@ -178,6 +312,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
                 // Content
                 Expanded(
                   child: SingleChildScrollView(
+                    controller: _contentScrollController,
                     padding: const EdgeInsets.only(bottom: 20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -187,9 +322,12 @@ class _WellnessScreenState extends State<WellnessScreen> {
                           const SizedBox(height: 32),
 
                           // ── Dynamic Zones from Admin ─────────────────────
-                          ..._zones.map((zone) => _buildDynamicZoneSection(zone, isLight)).toList(),
+                          if (_isInitialLoading && _zoneDataCache.isEmpty)
+                            _buildWellnessSkeleton(isLight)
+                          else
+                            ..._zones.map((zone) => _buildDynamicZone(zone, isLight)).toList(),
                         ] else if (_selectedCategoryIndex > 0 && _selectedCategoryIndex - 1 < _zones.length) ...[
-                           _buildDynamicZoneSection(_zones[_selectedCategoryIndex - 1], isLight),
+                           _buildDynamicZone(_zones[_selectedCategoryIndex - 1], isLight),
                         ],
 
                         // Premium Banner
@@ -247,19 +385,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
               ],
             ),
 
-            // Bottom Sticky Player & Timer
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Column(
-                children: [
-                  if (_activeAudio != null)
-                    _buildMiniPlayer(),
-                  // _buildSleepTimer(isLight), // Hidden for now
-                ],
-              ),
-            ),
+            // Bottom Sticky Player removed — GlobalAudioMiniBar in MainNavScreen handles this.
           ],
         ),
       ),
@@ -427,34 +553,97 @@ class _WellnessScreenState extends State<WellnessScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title, bool isLight, {VoidCallback? onSeeAll}) {
+  String _getZoneAudioTitle(String zoneName) {
+    final trimmed = zoneName.trim();
+    final lower = trimmed.toLowerCase();
+    if (lower.contains('sound') || lower.contains('audio') || lower.contains('music')) {
+      return trimmed;
+    }
+    return '$trimmed Audio';
+  }
+
+  String _getZoneVideoTitle(String zoneName) {
+    final trimmed = zoneName.trim();
+    final lower = trimmed.toLowerCase();
+    if (lower.contains('video') || lower.contains('clip')) {
+      return trimmed;
+    }
+    return '$trimmed Videos';
+  }
+
+  String _getZoneBlogTitle(String zoneName) {
+    final trimmed = zoneName.trim();
+    final lower = trimmed.toLowerCase();
+    if (lower.contains('article') || lower.contains('guide') || lower.contains('blog') || lower.contains('story') || lower.contains('stories')) {
+      return trimmed;
+    }
+    if (lower.contains('tip')) {
+      return '$trimmed & Guides';
+    }
+    return '$trimmed Articles & Guides';
+  }
+
+  Widget _buildSectionTitle(String title, bool isLight, {VoidCallback? onSeeAll, IconData? icon, String? badge}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 4,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryIndigo,
-                  borderRadius: BorderRadius.circular(4),
+          Expanded(
+            child: Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
+                    ),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
+                const SizedBox(width: 8),
+                if (icon != null) ...[
+                  Icon(icon, color: AppTheme.primaryIndigo, size: 20),
+                  const SizedBox(width: 6),
+                ],
+                Flexible(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+                if (badge != null) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryIndigo.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      badge,
+                      style: const TextStyle(
+                        color: AppTheme.primaryIndigo,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
-          if (title != 'Recommended for you')
+          if (title != 'Recommended for you') ...[
+            const SizedBox(width: 8),
             GestureDetector(
               onTap: onSeeAll ?? () {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -484,6 +673,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
                 ),
               ),
             ),
+          ],
         ],
       ),
     );
@@ -498,31 +688,38 @@ class _WellnessScreenState extends State<WellnessScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 3,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 3,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [AppTheme.primaryIndigo, AppTheme.accentTeal],
+                        ),
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      borderRadius: BorderRadius.circular(2),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Wellness Videos',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Wellness Videos',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               GestureDetector(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VideoListScreen())),
                 child: Container(
@@ -716,175 +913,277 @@ class _WellnessScreenState extends State<WellnessScreen> {
   ];
 
   // ── Dynamic Zone Section (Admin-created) ─────────────────────────────────
-  Widget _buildDynamicZoneSection(WellnessZoneModel zone, bool isLight) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _fetchZoneItems(zone),
-      builder: (context, snapshot) {
-        // While loading, show nothing (no empty placeholder)
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox.shrink();
-        }
-        final items = snapshot.data ?? [];
-        // If zone has no content, hide it entirely — it will never appear
-        if (items.isEmpty) return const SizedBox.shrink();
+  Widget _buildDynamicZone(WellnessZoneModel zone, bool isLight) {
+    final data = _zoneDataCache[zone.id];
+    if (data == null || !data.isLoaded) {
+      return _buildZoneSkeleton(zone, isLight);
+    }
+    if (data.isEmpty) return const SizedBox.shrink();
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle(
-              zone.name,
-              isLight,
-              onSeeAll: () {
-                if (zone.contentTypes.contains('video')) {
-                  Navigator.pushNamed(context, AppRouter.videoLibrary);
-                } else if (zone.contentTypes.contains('audio')) {
-                  Navigator.pushNamed(context, AppRouter.audioLibrary, arguments: zone.name);
-                } else if (zone.contentTypes.contains('blog')) {
-                  // If we had a router for BlogListScreen, we'd use it here.
-                  // For now, videoLibrary is the main entry for Admin access.
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Blog Hub coming soon')),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (data.videos.isNotEmpty) _buildZoneVideosSection(zone, data.videos, isLight),
+        if (data.audios.isNotEmpty) _buildZoneAudioSection(zone, data.audios, isLight),
+        if (data.blogs.isNotEmpty) _buildZoneBlogsSection(zone, data.blogs, isLight),
+      ],
+    );
+  }
+
+  Widget _buildZoneVideosSection(WellnessZoneModel zone, List<VideoModel> videos, bool isLight) {
+    if (videos.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(
+          _getZoneVideoTitle(zone.name),
+          isLight,
+          icon: Icons.video_library_rounded,
+          badge: '${videos.length}',
+          onSeeAll: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const VideoListScreen()),
+            );
+          },
+        ).animate().fadeIn(duration: 250.ms),
+        SizedBox(
+          height: 275,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: videos.length,
+            itemBuilder: (context, i) {
+              final v = videos[i];
+              return GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => VideoPlayerScreen(
+                        video: v,
+                        playlist: videos,
+                        startIndex: i,
+                      ),
+                    ),
                   );
-                } else {
-                  Navigator.pushNamed(context, AppRouter.videoLibrary);
-                }
-              },
-            ).animate().fadeIn(delay: 100.ms, duration: 300.ms),
-            SizedBox(
-              height: 295,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  final type = item['type'] as String;
-                  final title = item['title'] as String;
-                  final thumbnailUrl = item['thumbnailUrl'] as String? ?? '';
-                  final Color accentColor = type == 'video'
-                      ? const Color(0xFF6366F1)
-                      : type == 'blog'
-                          ? const Color(0xFF2DD4BF)
-                          : const Color(0xFF8B5CF6);
-                  final IconData typeIcon = type == 'video'
-                      ? Icons.play_circle_rounded
-                      : type == 'blog'
-                          ? Icons.article_rounded
-                          : Icons.audiotrack_rounded;
-
-                  return GestureDetector(
-                    onTap: () {
-                      if (type == 'video' && item['data'] is VideoModel) {
-                        // Build playlist from all video items in this zone
-                        final zoneVideos = items
-                            .where((it) => it['type'] == 'video' && it['data'] is VideoModel)
-                            .map((it) => it['data'] as VideoModel)
-                            .toList()
-                            ..shuffle();
-                        final tappedVideo = item['data'] as VideoModel;
-                        final startIdx = zoneVideos.indexWhere((v) => v.id == tappedVideo.id);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => VideoPlayerScreen(
-                            video: tappedVideo,
-                            playlist: zoneVideos,
-                            startIndex: startIdx < 0 ? 0 : startIdx,
-                          )),
-                        );
-                      } else if (type == 'audio' && item['data'] is AudioTrackModel) {
-                        final tappedAudio = item['data'] as AudioTrackModel;
-                        _playTrack(tappedAudio);
-                      }
-                    },
-                    child: SizedBox(
-                      width: 140,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // ── Thumbnail ──
-                          Container(
-                            height: 210,
-                            margin: const EdgeInsets.only(right: 16),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: isLight ? 0.12 : 0.4),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
+                },
+                child: Container(
+                  width: 145,
+                  margin: const EdgeInsets.only(right: 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 195,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: isLight ? 0.12 : 0.35),
+                              blurRadius: 14,
+                              offset: const Offset(0, 6),
                             ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  thumbnailUrl.isNotEmpty
-                                      ? Image.network(thumbnailUrl, fit: BoxFit.cover, cacheWidth: 400)
-                                      : Container(
-                                          decoration: BoxDecoration(
-                                            color: accentColor.withValues(alpha: 0.15),
-                                          ),
-                                          child: Icon(typeIcon, color: accentColor, size: 40),
-                                        ),
-                                  // Gradient overlay
-                                  Positioned.fill(
-                                    child: Container(
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              v.thumbnailUrl.isNotEmpty
+                                  ? Image.network(v.thumbnailUrl, fit: BoxFit.cover, cacheWidth: 400)
+                                  : Container(
                                       decoration: const BoxDecoration(
                                         gradient: LinearGradient(
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                          colors: [Colors.transparent, Colors.black45],
+                                          colors: [Color(0xFF6366F1), Color(0xFF06B6D4)],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
                                         ),
                                       ),
+                                      child: const Icon(Icons.play_circle_rounded, color: Colors.white54, size: 44),
+                                    ),
+                              Positioned.fill(
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [Colors.transparent, Colors.black54],
                                     ),
                                   ),
-                                  // Play / type icon
-                                  Center(
-                                    child: Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha: 0.3),
-                                        shape: BoxShape.circle,
-                                        border: Border.all(color: Colors.white54, width: 1.5),
-                                      ),
-                                      child: Icon(typeIcon, color: Colors.white, size: 26),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
+                              Center(
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.4),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white70, width: 1.5),
+                                  ),
+                                  child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26),
+                                ),
+                              ),
+                              if (v.tags.isNotEmpty)
+                                Positioned(
+                                  bottom: 8,
+                                  right: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.7),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      v.tags.first,
+                                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        v.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _buildZoneAudioSection(WellnessZoneModel zone, List<AudioTrackModel> audios, bool isLight) {
+    if (audios.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(
+          _getZoneAudioTitle(zone.name),
+          isLight,
+          icon: Icons.headphones_rounded,
+          badge: '${audios.length}',
+          onSeeAll: () {
+            Navigator.pushNamed(context, AppRouter.audioLibrary, arguments: zone.name);
+          },
+        ).animate().fadeIn(duration: 250.ms),
+        SizedBox(
+          height: 90,
+          child: Consumer<AudioPlayerProvider>(
+            builder: (context, ap, _) {
+              return ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: audios.length,
+                itemBuilder: (context, i) {
+                  final track = audios[i];
+                  final isActive = ap.activeTrack?.id == track.id;
+                  final isCurrentPlaying = isActive && ap.isPlaying;
+
+                  return GestureDetector(
+                    onTap: () => _playTrack(track, audios),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 230,
+                      margin: const EdgeInsets.only(right: 14),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isLight ? AppTheme.surfaceLight : AppTheme.surface,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: isActive ? AppTheme.primaryIndigo : (isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder),
+                          width: isActive ? 1.8 : 1.0,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: isActive
+                                ? AppTheme.primaryIndigo.withValues(alpha: 0.25)
+                                : Colors.black.withValues(alpha: isLight ? 0.05 : 0.2),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: isActive
+                                    ? [AppTheme.primaryIndigo, const Color(0xFF818CF8)]
+                                    : [const Color(0xFF8B5CF6).withValues(alpha: 0.2), const Color(0xFF6366F1).withValues(alpha: 0.2)],
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              isCurrentPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                              color: isActive ? Colors.white : AppTheme.primaryIndigo,
+                              size: 28,
                             ),
                           ),
-                          // ── Text below thumbnail ──
+                          const SizedBox(width: 12),
                           Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(2, 10, 18, 0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    title,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
-                                      height: 1.3,
-                                    ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  track.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13.5,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    type.toUpperCase(),
-                                    style: TextStyle(
-                                      color: accentColor,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  track.duration.isNotEmpty ? track.duration : 'Sleep Track',
+                                  style: TextStyle(
+                                    color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                                    fontSize: 11.5,
+                                  ),
+                                ),
+                                if (isActive) ...[
+                                  const SizedBox(height: 3),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 6,
+                                        height: 6,
+                                        decoration: const BoxDecoration(
+                                          color: AppTheme.accentTeal,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        isCurrentPlaying ? 'Playing' : 'Paused',
+                                        style: const TextStyle(color: AppTheme.accentTeal, fontSize: 10, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
                                   ),
                                 ],
-                              ),
+                              ],
                             ),
                           ),
                         ],
@@ -892,50 +1191,190 @@ class _WellnessScreenState extends State<WellnessScreen> {
                     ),
                   );
                 },
-              ),
-            ).animate().fadeIn(delay: 150.ms, duration: 350.ms).slideX(begin: 0.05, end: 0, curve: Curves.easeOut),
-            const SizedBox(height: 32),
-          ],
-        );
-      },
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
     );
   }
 
-  Future<List<Map<String, dynamic>>> _fetchZoneItems(WellnessZoneModel zone) async {
-    final List<Map<String, dynamic>> results = [];
-    final db = FirebaseFirestore.instance;
+  Widget _buildZoneBlogsSection(WellnessZoneModel zone, List<BlogModel> blogs, bool isLight) {
+    if (blogs.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(
+          _getZoneBlogTitle(zone.name),
+          isLight,
+          icon: Icons.article_rounded,
+          badge: '${blogs.length}',
+          onSeeAll: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BlogListScreen()),
+            );
+          },
+        ).animate().fadeIn(duration: 250.ms),
+        SizedBox(
+          height: 215,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: blogs.length,
+            itemBuilder: (context, i) {
+              final b = blogs[i];
+              return GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => BlogDetailScreen(blog: b)),
+                  );
+                },
+                child: Container(
+                  width: 200,
+                  margin: const EdgeInsets.only(right: 14),
+                  decoration: BoxDecoration(
+                    color: isLight ? AppTheme.surfaceLight : AppTheme.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isLight ? 0.06 : 0.2),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 110,
+                        width: double.infinity,
+                        color: AppTheme.primaryIndigo.withValues(alpha: 0.1),
+                        child: b.coverImageUrl.isNotEmpty
+                            ? Image.network(b.coverImageUrl, fit: BoxFit.cover, cacheWidth: 400)
+                            : const Center(
+                                child: Icon(Icons.article_rounded, color: AppTheme.primaryIndigo, size: 36),
+                              ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              b.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                height: 1.25,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Icon(Icons.timer_outlined, size: 12, color: AppTheme.primaryIndigo),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${b.readTimeMinutes} min read',
+                                  style: TextStyle(
+                                    color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
 
-    if (zone.contentTypes.contains('video')) {
-      try {
-        final snap = await db.collection('videos').where('category', isEqualTo: zone.name).limit(10).get();
-        for (final doc in snap.docs) {
-          final model = VideoModel.fromJson(doc.id, doc.data());
-          results.add({'type': 'video', 'title': model.title, 'thumbnailUrl': model.thumbnailUrl, 'data': model});
-        }
-      } catch (_) {}
-    }
+  Widget _buildWellnessSkeleton(bool isLight) {
+    return Column(
+      children: List.generate(2, (index) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 160,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: isLight ? Colors.black12 : Colors.white10,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: List.generate(3, (i) {
+                  return Container(
+                    width: 140,
+                    height: 180,
+                    margin: const EdgeInsets.only(right: 12),
+                    decoration: BoxDecoration(
+                      color: isLight ? Colors.black.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+        );
+      }),
+    ).animate(onPlay: (c) => c.repeat(reverse: true)).fade(begin: 0.35, end: 0.85, duration: 800.ms);
+  }
 
-    if (zone.contentTypes.contains('audio')) {
-      try {
-        final snap = await db.collection('audio_tracks').where('category', isEqualTo: zone.name).limit(10).get();
-        for (final doc in snap.docs) {
-          final model = AudioTrackModel.fromJson(doc.id, doc.data());
-          results.add({'type': 'audio', 'title': model.title, 'thumbnailUrl': model.thumbnailUrl, 'data': model});
-        }
-      } catch (_) {}
-    }
-
-    if (zone.contentTypes.contains('blog')) {
-      try {
-        final snap = await db.collection('blogs').where('category', isEqualTo: zone.name).limit(10).get();
-        for (final doc in snap.docs) {
-          final model = BlogModel.fromJson(doc.id, doc.data());
-          results.add({'type': 'blog', 'title': model.title, 'thumbnailUrl': model.coverImageUrl, 'data': model});
-        }
-      } catch (_) {}
-    }
-
-    return results;
+  Widget _buildZoneSkeleton(WellnessZoneModel zone, bool isLight) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 140,
+            height: 18,
+            decoration: BoxDecoration(
+              color: isLight ? Colors.black12 : Colors.white10,
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: List.generate(2, (i) {
+              return Container(
+                width: 140,
+                height: 180,
+                margin: const EdgeInsets.only(right: 12),
+                decoration: BoxDecoration(
+                  color: isLight ? Colors.black.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    ).animate(onPlay: (c) => c.repeat(reverse: true)).fade(begin: 0.35, end: 0.85, duration: 800.ms);
   }
 
   Widget _buildYogaSection(bool isLight) {
@@ -1083,82 +1522,6 @@ class _WellnessScreenState extends State<WellnessScreen> {
 
 
 
-  Widget _buildMiniPlayer() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppTheme.primaryIndigo,
-            _isPlaying ? const Color(0xFF4F46E5) : AppTheme.primaryIndigo,
-          ],
-        ),
-        border: Border(
-          top: BorderSide(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.cardBorderLight : AppTheme.cardBorder).withValues(alpha: 0.5)),
-        ),
-        boxShadow: _isPlaying
-            ? [
-                BoxShadow(
-                  color: AppTheme.primaryIndigo.withValues(alpha: 0.4),
-                  blurRadius: 16,
-                  offset: const Offset(0, -4),
-                )
-              ]
-            : null,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color: AppTheme.primaryIndigo.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.audiotrack_rounded, color: Colors.white, size: 24),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_activeAudio!.title, 
-                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-                Text('Now Playing', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
-              ],
-            ),
-          ),
-          if (_isLoading)
-            const Padding(
-              padding: EdgeInsets.only(right: 12.0),
-              child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5)),
-            )
-          else ...[
-            IconButton(
-              icon: Icon(_isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: Colors.white, size: 36),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              onPressed: () {
-                if (_isPlaying) {
-                  _audioPlayer.pause();
-                  setState(() => _isPlaying = false);
-                } else {
-                  _audioPlayer.play();
-                  setState(() => _isPlaying = true);
-                }
-              },
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 28),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              onPressed: _stopWholeThing,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
 
 
 }

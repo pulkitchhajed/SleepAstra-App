@@ -12,7 +12,7 @@ const PHASES = [
 const PARTICLE_COUNT = 18;
 
 export default function BreathingExercise({ onBack }) {
-  const { breathingStreak, breathingProgress, setBreathingProgress } = useApp();
+  const { breathingStreak, breathingProgress, setBreathingProgress, recordBreathingSession } = useApp();
   const [phaseIdx, setPhaseIdx] = useState(0);
   const [countdown, setCountdown] = useState(PHASES[0].duration);
   const [cycles, setCycles] = useState(0);
@@ -43,7 +43,11 @@ export default function BreathingExercise({ onBack }) {
                   clearInterval(timerRef.current);
                   setRunning(false);
                   setDone(true);
-                  setBreathingProgress(p => Math.min(p + 1, 5));
+                  if (recordBreathingSession) {
+                    recordBreathingSession(TARGET_CYCLES);
+                  } else {
+                    setBreathingProgress(p => Math.min(p + 1, 5));
+                  }
                 }
                 return c + 1;
               });
@@ -56,7 +60,7 @@ export default function BreathingExercise({ onBack }) {
       });
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [running, phaseIdx]);
+  }, [running, phaseIdx, recordBreathingSession]);
 
   const phase = PHASES[phaseIdx];
 

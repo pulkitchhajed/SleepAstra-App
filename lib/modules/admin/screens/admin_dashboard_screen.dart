@@ -2,7 +2,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:snore_clinics/core/theme/app_theme.dart';
+import '../../../core/providers/auth_provider.dart';
+import '../../../core/router/app_router.dart';
+import '../services/admin_log_service.dart';
+import 'admin_gate_screen.dart';
 import '../../videos/models/video_model.dart';
 import '../../videos/services/video_service.dart';
 import '../../blogs/models/blog_model.dart';
@@ -32,7 +38,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _selectedIndex = 0;
   
   final List<String> _tabs = [
-    'Zones', 'Videos', 'Blogs', 'Audio', 'Quick Access', 'Notifications'
+    'Zones', 'Videos', 'Blogs', 'Audio', 'Quick Access', 'Notifications', 'Admin Team', 'Audit Logs'
   ];
 
   final List<IconData> _tabIcons = [
@@ -42,6 +48,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     Icons.audiotrack_rounded,
     Icons.bolt_rounded,
     Icons.notifications_rounded,
+    Icons.people_alt_rounded,
+    Icons.history_rounded,
   ];
 
   final List<Widget> _tabViews = [
@@ -51,7 +59,58 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     const _AdminAudioTab(),
     const _AdminQuickAccessTab(),
     const _AdminNotificationsTab(),
+    const _AdminTeamTab(),
+    const _AdminLogsTab(),
   ];
+
+  Future<void> _handleLogout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceElevated,
+        title: const Text('Confirm Logout', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Are you sure you want to sign out of the Admin Dashboard?',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final auth = context.read<AuthProvider>();
+      final email = auth.user?.email ?? 'Unknown Admin';
+      await AdminLogService.logActivity(
+        action: 'Admin Logged Out',
+        email: email,
+        details: 'Admin signed out of dashboard session',
+      );
+      await auth.signOut();
+      if (mounted) {
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+      }
+    }
+  }
+
+  void _handleBack(BuildContext context) {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      Navigator.pushReplacementNamed(context, AppRouter.home);
+    }
+  }
 
   @override
   void initState() {
@@ -60,6 +119,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    if (!auth.isAuthenticated || !auth.isAdmin) {
+      return const AdminGateScreen();
+    }
+
     final isDesktop = MediaQuery.of(context).size.width > 800;
     final isLight = Theme.of(context).brightness == Brightness.light;
     final bgColor = isLight ? AppTheme.backgroundLight : AppTheme.background;
@@ -71,22 +135,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => _handleBack(context),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout_rounded),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => _handleLogout(context),
           ),
         ],
       ),
       body: isDesktop ? _buildDesktopLayout(isLight) : _buildMobileLayout(isLight),
-      floatingActionButton: _getFabForCurrentTab(),
+      floatingActionButton: isDesktop ? null : _getFabForCurrentTab(),
       bottomNavigationBar: isDesktop ? null : _buildBottomNavBar(isLight),
     );
   }
 
   Widget _buildDesktopLayout(bool isLight) {
+    final auth = context.watch<AuthProvider>();
+    final adminEmail = auth.user?.email ?? 'Admin';
+
     return Row(
       children: [
         NavigationRail(
@@ -103,10 +170,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           selectedLabelTextStyle: const TextStyle(color: AppTheme.primaryIndigo, fontWeight: FontWeight.bold),
           unselectedLabelTextStyle: TextStyle(color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary),
           leading: Padding(
-            padding: const EdgeInsets.only(bottom: 24.0, top: 16.0),
+            padding: const EdgeInsets.only(bottom: 20.0, top: 16.0),
             child: IconButton(
               icon: const Icon(Icons.arrow_back_rounded),
-              onPressed: () => Navigator.pop(context),
+              tooltip: 'Return to App',
+              onPressed: () => _handleBack(context),
             ),
           ),
           destinations: List.generate(_tabs.length, (index) {
@@ -115,27 +183,101 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               label: Text(_tabs[index]),
             );
           }),
-          trailing: Expanded(
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 24.0),
-                child: IconButton(
+          trailingAtBottom: true,
+          trailing: Padding(
+            padding: const EdgeInsets.only(bottom: 24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Tooltip(
+                  message: 'Signed in as $adminEmail',
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryIndigo.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.person_rounded, size: 18, color: AppTheme.primaryIndigo),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                IconButton(
                   icon: const Icon(Icons.logout_rounded),
                   color: AppTheme.error,
-                  onPressed: () => Navigator.pop(context),
+                  tooltip: 'Sign Out ($adminEmail)',
+                  onPressed: () => _handleLogout(context),
                 ),
-              ),
+              ],
             ),
           ),
         ),
         const VerticalDivider(thickness: 1, width: 1),
         Expanded(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1000),
-              child: _tabViews[_selectedIndex],
-            ),
+          child: Column(
+            children: [
+              // Top Bar for Desktop View
+              Container(
+                height: 56,
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                decoration: BoxDecoration(
+                  color: isLight ? AppTheme.surfaceLight : AppTheme.surface,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isLight ? AppTheme.cardBorderLight : AppTheme.cardBorder,
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(_tabIcons[_selectedIndex], size: 20, color: AppTheme.primaryIndigo),
+                    const SizedBox(width: 10),
+                    Text(
+                      _tabs[_selectedIndex],
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryIndigo.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppTheme.primaryIndigo.withValues(alpha: 0.2)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.admin_panel_settings_rounded, size: 16, color: AppTheme.primaryIndigo),
+                          const SizedBox(width: 6),
+                          Text(
+                            adminEmail,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.primaryIndigo,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1100),
+                    child: SizedBox.expand(
+                      child: _tabViews[_selectedIndex],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -147,33 +289,40 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildBottomNavBar(bool isLight) {
-    return BottomNavigationBar(
-      currentIndex: _selectedIndex,
-      onTap: (index) => setState(() => _selectedIndex = index),
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: isLight ? AppTheme.surfaceLight : AppTheme.surface,
-      selectedItemColor: AppTheme.background, // Text color for selected item will be handled manually if needed, but standard handles it. 
-      unselectedItemColor: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
-      showUnselectedLabels: true,
-      selectedFontSize: 12,
-      unselectedFontSize: 12,
-      items: List.generate(_tabs.length, (index) {
-        final isSelected = _selectedIndex == index;
-        return BottomNavigationBarItem(
-          icon: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            decoration: BoxDecoration(
-              color: isSelected ? Colors.orangeAccent : Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
+    return Container(
+      color: isLight ? AppTheme.surfaceLight : AppTheme.surface,
+      height: 64,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        itemCount: _tabs.length,
+        itemBuilder: (context, index) {
+          final isSelected = _selectedIndex == index;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: ChoiceChip(
+              showCheckmark: false,
+              avatar: Icon(
+                _tabIcons[index],
+                size: 16,
+                color: isSelected ? Colors.white : (isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary),
+              ),
+              label: Text(
+                _tabs[index],
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected ? Colors.white : (isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary),
+                ),
+              ),
+              selected: isSelected,
+              selectedColor: AppTheme.primaryIndigo,
+              backgroundColor: isLight ? AppTheme.surfaceElevatedLight : AppTheme.surfaceElevated,
+              onSelected: (_) => setState(() => _selectedIndex = index),
             ),
-            child: Icon(
-              _tabIcons[index],
-              color: isSelected ? Colors.black : (isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary),
-            ),
-          ),
-          label: _tabs[index] == 'Notifications' ? 'Push' : _tabs[index],
-        );
-      }),
+          );
+        },
+      ),
     );
   }
 
@@ -221,9 +370,94 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         );
       case 5:
         return null;
+      case 6:
+        return FloatingActionButton.extended(
+          heroTag: 'add_admin_member',
+          onPressed: () => _showAddAdminDialog(context),
+          backgroundColor: AppTheme.primaryIndigo,
+          icon: const Icon(Icons.person_add_rounded, color: Colors.white),
+          label: const Text('Add Admin', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        );
+      case 7:
+        return null;
       default:
         return null;
     }
+  }
+
+  void _showAddAdminDialog(BuildContext context) {
+    final emailCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceElevatedLight : AppTheme.surfaceElevated),
+        title: Text(
+          'Grant Admin Access',
+          style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textPrimaryLight : AppTheme.textPrimary)),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter the Google account email of the person you want to grant admin access to. They will be able to sign in via Google or credentials.',
+              style: TextStyle(fontSize: 13, color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary)),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textPrimaryLight : AppTheme.textPrimary)),
+              decoration: InputDecoration(
+                labelText: 'Google Account Email',
+                labelStyle: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary)),
+                prefixIcon: const Icon(Icons.email_outlined, size: 20),
+                filled: true,
+                fillColor: (Theme.of(context).brightness == Brightness.light ? AppTheme.surfaceLight : AppTheme.surface),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: (Theme.of(context).brightness == Brightness.light ? AppTheme.textSecondaryLight : AppTheme.textSecondary))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryIndigo),
+            onPressed: () async {
+              final email = emailCtrl.text.trim().toLowerCase();
+              if (email.isEmpty || !email.contains('@')) return;
+              Navigator.pop(ctx);
+              
+              final currentAdmin = context.read<AuthProvider>().user?.email ?? 'Unknown';
+              await FirebaseFirestore.instance.collection('admins').doc(email).set({
+                'email': email,
+                'active': true,
+                'addedAt': FieldValue.serverTimestamp(),
+                'addedBy': currentAdmin,
+              }, SetOptions(merge: true));
+
+              await AdminLogService.logActivity(
+                action: 'Admin Access Granted',
+                email: currentAdmin,
+                details: 'Granted admin rights to $email',
+              );
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Admin access granted to $email'),
+                    backgroundColor: AppTheme.success,
+                  ),
+                );
+              }
+            },
+            child: const Text('Grant Access', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showCreateZoneDialog(BuildContext context) {
@@ -1647,6 +1881,447 @@ class _AdminNotificationsTabState extends State<_AdminNotificationsTab> with Sin
                       await PushNotificationService.deleteNotification(notif.id);
                     }
                   },
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _AdminTeamTab extends StatefulWidget {
+  const _AdminTeamTab({super.key});
+
+  @override
+  State<_AdminTeamTab> createState() => _AdminTeamTabState();
+}
+
+class _AdminTeamTabState extends State<_AdminTeamTab> {
+  @override
+  void initState() {
+    super.initState();
+    AuthProvider.ensureAllDefaultAdmins();
+  }
+
+  void _showAddAdminDialog(BuildContext context) {
+    final emailCtrl = TextEditingController();
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isLight ? AppTheme.surfaceElevatedLight : AppTheme.surfaceElevated,
+        title: Text(
+          'Grant Admin Access',
+          style: TextStyle(color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter the Google account email of the person you want to grant admin access to. They will be able to sign in via Google or credentials.',
+              style: TextStyle(fontSize: 13, color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              style: TextStyle(color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary),
+              decoration: InputDecoration(
+                labelText: 'Google Account Email',
+                labelStyle: TextStyle(color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary),
+                prefixIcon: const Icon(Icons.email_outlined, size: 20),
+                filled: true,
+                fillColor: isLight ? AppTheme.surfaceLight : AppTheme.surface,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryIndigo),
+            onPressed: () async {
+              final email = emailCtrl.text.trim().toLowerCase();
+              if (email.isEmpty || !email.contains('@')) return;
+              Navigator.pop(ctx);
+              
+              final currentAdmin = context.read<AuthProvider>().user?.email ?? 'Unknown';
+              await FirebaseFirestore.instance.collection('admins').doc(email).set({
+                'email': email,
+                'active': true,
+                'addedAt': FieldValue.serverTimestamp(),
+                'addedBy': currentAdmin,
+              }, SetOptions(merge: true));
+
+              await AdminLogService.logActivity(
+                action: 'Admin Access Granted',
+                email: currentAdmin,
+                details: 'Granted admin rights to $email',
+              );
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Admin access granted to $email'),
+                    backgroundColor: AppTheme.success,
+                  ),
+                );
+              }
+            },
+            child: const Text('Grant Access', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('admins').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Error loading admins: ${snapshot.error}', style: const TextStyle(color: AppTheme.error)));
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator(color: AppTheme.primaryIndigo));
+        }
+
+        final firestoreAdmins = snapshot.data!.docs;
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Header Card
+            Card(
+              margin: EdgeInsets.zero,
+              color: isLight ? AppTheme.surfaceElevatedLight : AppTheme.surfaceElevated,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: AppTheme.primaryIndigo.withValues(alpha: 0.2)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryIndigo.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.shield_rounded, color: AppTheme.primaryIndigo, size: 24),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Administrator Directory',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'All emails below possess administrator rights. They can sign in on the web or in the app.',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (MediaQuery.of(context).size.width >= 600) ...[
+                      const SizedBox(width: 16),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryIndigo,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        icon: const Icon(Icons.person_add_rounded, size: 18, color: Colors.white),
+                        label: const Text('Add Admin', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        onPressed: () => _showAddAdminDialog(context),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Single Unified Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Text(
+                'ADMINISTRATORS (${firestoreAdmins.length})',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.1,
+                  color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            if (firestoreAdmins.isEmpty)
+              Card(
+                color: isLight ? AppTheme.surfaceElevatedLight : AppTheme.surfaceElevated,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Center(
+                    child: Text(
+                      'No administrator emails registered yet. Tap "Add Admin" to grant access.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary),
+                    ),
+                  ),
+                ),
+              )
+            else
+              ...firestoreAdmins.map((doc) {
+                final data = doc.data();
+                final email = doc.id;
+                final addedBy = data['addedBy'] as String? ?? 'Admin';
+                final active = data['active'] != false;
+                final ts = data['addedAt'];
+                final dateStr = (ts is Timestamp) ? DateFormat('MMM dd, yyyy').format(ts.toDate()) : 'Recently';
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  color: isLight ? AppTheme.surfaceElevatedLight : AppTheme.surfaceElevated,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: active ? AppTheme.primaryIndigo : AppTheme.error,
+                      radius: 18,
+                      child: Icon(active ? Icons.shield_rounded : Icons.person_off_rounded, color: Colors.white, size: 20),
+                    ),
+                    title: Text(
+                      email,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
+                      ),
+                    ),
+                    subtitle: Text('Added $dateStr by $addedBy', style: TextStyle(fontSize: 12, color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: (active ? AppTheme.success : AppTheme.error).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            active ? 'ACTIVE' : 'REVOKED',
+                            style: TextStyle(
+                              color: active ? AppTheme.success : AppTheme.error,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.error),
+                          tooltip: 'Revoke Admin Access',
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                backgroundColor: isLight ? AppTheme.surfaceElevatedLight : AppTheme.surfaceElevated,
+                                title: const Text('Revoke Administrator Access'),
+                                content: Text('Are you sure you want to revoke admin access for $email? They will no longer be able to access the admin portal.'),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: const Text('Revoke', style: TextStyle(color: Colors.white)),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirm == true) {
+                              final currentAdmin = context.read<AuthProvider>().user?.email ?? 'Unknown';
+                              await FirebaseFirestore.instance.collection('admins').doc(email).delete();
+                              await AdminLogService.logActivity(
+                                action: 'Admin Access Revoked',
+                                email: currentAdmin,
+                                details: 'Revoked administrator access for $email',
+                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Revoked admin access for $email')),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AdminLogsTab extends StatelessWidget {
+  const _AdminLogsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+
+    return StreamBuilder<List<AdminLogEntry>>(
+      stream: AdminLogService.watchLogs(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Error loading activity logs: ${snapshot.error}', style: const TextStyle(color: AppTheme.error)));
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator(color: AppTheme.primaryIndigo));
+        }
+
+        final logs = snapshot.data!;
+        if (logs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.history_rounded, size: 48, color: AppTheme.textSecondary),
+                const SizedBox(height: 12),
+                Text(
+                  'No activity logs recorded yet.',
+                  style: TextStyle(color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: logs.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            final log = logs[index];
+            final isSignIn = log.action.toLowerCase().contains('sign-in') || log.action.toLowerCase().contains('login');
+            final isDelete = log.action.toLowerCase().contains('delete') || log.action.toLowerCase().contains('revoked');
+
+            Color accentColor = AppTheme.primaryIndigo;
+            IconData actionIcon = Icons.bolt_rounded;
+
+            if (isSignIn) {
+              accentColor = AppTheme.success;
+              actionIcon = Icons.login_rounded;
+            } else if (isDelete) {
+              accentColor = AppTheme.error;
+              actionIcon = Icons.delete_outline_rounded;
+            } else if (log.action.toLowerCase().contains('upload') || log.action.toLowerCase().contains('create')) {
+              accentColor = AppTheme.accentTeal;
+              actionIcon = Icons.add_circle_outline_rounded;
+            }
+
+            return Card(
+              color: isLight ? AppTheme.surfaceElevatedLight : AppTheme.surfaceElevated,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: accentColor.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(actionIcon, size: 18, color: accentColor),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  log.action,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: isLight ? AppTheme.textPrimaryLight : AppTheme.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: (log.platform == 'web' ? Colors.blueAccent : Colors.teal).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  log.platform.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: log.platform == 'web' ? Colors.blueAccent : Colors.teal,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'By: ${log.email} • ${DateFormat('MMM dd, yyyy • hh:mm a').format(log.timestamp)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary,
+                            ),
+                          ),
+                          if (log.details.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              log.details,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: (isLight ? AppTheme.textSecondaryLight : AppTheme.textSecondary).withValues(alpha: 0.8),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );

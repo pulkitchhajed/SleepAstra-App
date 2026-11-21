@@ -33,7 +33,14 @@ class ProfileDetailScreen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         child: Column(
           children: [
-            _buildProfileRow(Icons.height_rounded, 'Height', '${profile.heightCm} cm', iconColor, textSec, textPrimary),
+            _buildProfileRow(
+              Icons.height_rounded,
+              'Height',
+              '${profile.heightCm.toInt()} cm (${profile.heightCm ~/ 30.48}\' ${((profile.heightCm % 30.48) / 2.54).round()}")',
+              iconColor,
+              textSec,
+              textPrimary,
+            ),
             Divider(color: dividerColor, height: 1),
             _buildProfileRow(Icons.monitor_weight_rounded, 'Weight', '${profile.weightKg} kg', iconColor, textSec, textPrimary),
             Divider(color: dividerColor, height: 1),

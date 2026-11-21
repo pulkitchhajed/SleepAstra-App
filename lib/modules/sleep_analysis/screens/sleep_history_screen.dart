@@ -178,6 +178,11 @@ class _SleepHistoryScreenState extends State<SleepHistoryScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 7-Day Rolling Pattern Strip
+          Rolling7DayPatternWidget(reports: history),
+          const SizedBox(height: 24),
+          _buildSectionHeader('Monthly Calendar', Icons.calendar_month_rounded, textPrimary),
+          const SizedBox(height: 12),
           // Calendar
           SleepCalendarWidget(
             reports: history,

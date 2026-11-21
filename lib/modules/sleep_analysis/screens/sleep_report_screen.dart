@@ -8,6 +8,7 @@ import '../../../core/providers/theme_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../core/router/app_router.dart';
 import 'snore_clips_screen.dart';
+import '../../ai/screens/nidra_chat_screen.dart';
 
 // Import dashboard charts
 import '../widgets/charts/clinical_dashboard_charts.dart';
@@ -113,6 +114,8 @@ class _SleepReportScreenState extends State<SleepReportScreen>
                     _buildHeroCard(context, cardBg, cardBorder, textPrimary, textSec, isLight),
                     const SizedBox(height: 16),
                     _buildEfficiencyPillRow(cardBg, cardBorder, textPrimary, textSec),
+                    const SizedBox(height: 12),
+                    _buildNidraAiBanner(context, cardBg, cardBorder, textPrimary, textSec),
                     const SizedBox(height: 16),
                     if (widget.report.snoreAudioClips.isNotEmpty) ...[
                       // ── Section 1: Snore Recordings + Insights ──
@@ -278,17 +281,158 @@ class _SleepReportScreenState extends State<SleepReportScreen>
               letterSpacing: 0.2,
             ),
           ),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: cardBorder),
-            ),
-            child: Icon(Icons.share_rounded,
-                color: textPrimary, size: 16),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => NidraChatScreen(initialReport: widget.report),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryIndigo.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.primaryIndigo.withValues(alpha: 0.3)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryIndigo, size: 14),
+                      SizedBox(width: 4),
+                      Text(
+                        'Nidra AI',
+                        style: TextStyle(
+                          color: AppTheme.primaryIndigo,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: cardBorder),
+                ),
+                child: Icon(Icons.share_rounded,
+                    color: textPrimary, size: 16),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  // ─── Nidra AI Banner ───────────────────────────────────────────
+  Widget _buildNidraAiBanner(BuildContext context, Color cardBg, Color cardBorder, Color textPrimary, Color textSec) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => NidraChatScreen(initialReport: widget.report),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppTheme.primaryIndigo.withValues(alpha: 0.18),
+              AppTheme.accentTeal.withValues(alpha: 0.12),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.primaryIndigo.withValues(alpha: 0.35), width: 1.2),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppTheme.primaryIndigo, Color(0xFF818CF8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primaryIndigo.withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Ask Nidra AI about this Report',
+                        style: TextStyle(
+                          color: textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accentTeal.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'CLINICAL AI',
+                          style: TextStyle(
+                            color: AppTheme.accentTeal,
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Analyze your sleep score, deep sleep %, snoring & apnea risk.',
+                    style: TextStyle(color: textSec, fontSize: 11.5, height: 1.3),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: textPrimary.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.chevron_right_rounded, color: textPrimary, size: 18),
+            ),
+          ],
+        ),
       ),
     );
   }

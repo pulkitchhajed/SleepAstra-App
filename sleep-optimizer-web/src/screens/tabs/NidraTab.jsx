@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useApp } from '../../context/AppContext.jsx';
+import { saveNidraMessage, fetchNidraMessages } from '../../services/dbService.js';
 import './NidraTab.css';
 
 const INITIAL_MESSAGES = [
@@ -49,13 +51,24 @@ function renderMarkdown(text) {
 }
 
 export default function NidraTab() {
-  const { setNidraOpen } = useApp();
+  const { setNidraOpen, currentUid } = useApp();
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [listening, setListening] = useState(false);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+
+  // Load chat history from Firestore
+  useEffect(() => {
+    if (currentUid) {
+      fetchNidraMessages(currentUid).then(savedMsgs => {
+        if (savedMsgs && savedMsgs.length > 0) {
+          setMessages(savedMsgs);
+        }
+      }).catch(err => console.error('Failed to load Nidra chat history:', err));
+    }
+  }, [currentUid]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -65,12 +78,14 @@ export default function NidraTab() {
     if (!text.trim()) return;
     const userMsg = { id: Date.now(), role: 'user', text: text.trim() };
     setMessages(prev => [...prev, userMsg]);
+    saveNidraMessage(currentUid, userMsg);
     setInput('');
     setIsTyping(true);
 
     setTimeout(() => {
       const reply = { id: Date.now() + 1, role: 'assistant', text: getResponse(text) };
       setMessages(prev => [...prev, reply]);
+      saveNidraMessage(currentUid, reply);
       setIsTyping(false);
     }, 1400 + Math.random() * 600);
   };
